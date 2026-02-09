@@ -1,9 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:chupatu_mobile/login_page.dart';
+import 'package:chupatu_mobile/pages/auth/login_page.dart';
 
 class LandingPage extends StatefulWidget {
+  // Constructor pakai const boleh
   const LandingPage({super.key});
 
   @override
@@ -40,24 +41,28 @@ class _LandingPageState extends State<LandingPage> {
         curve: Curves.easeInOut,
       );
     } else {
+      // FIX: Navigasi tanpa 'const' agar tidak error
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
+        MaterialPageRoute(builder: (context) => LoginPage()), 
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryBlue = Color(0xFF0606F9);
+    // === PALET WARNA CERAH (LIGHT THEME) ===
+    const Color primaryBlue = Color(0xFF0606F9); 
     const Color accentCyan = Color(0xFF00D4FF);
+    const Color backgroundLight = Color(0xFFF0F2F5); // Putih Abu Cerah
+    const Color textDark = Color(0xFF0B0F19); // Hitam Elegan
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: backgroundLight,
       body: Stack(
         children: [
           // ============================================================
-          // 1. REVOLUTIONARY BACKGROUND (Mesh Gradient)
+          // 1. BACKGROUND (Mesh Gradient Cerah)
           // ============================================================
           Positioned(
             top: -50,
@@ -89,6 +94,8 @@ class _LandingPageState extends State<LandingPage> {
               ),
             ),
           ),
+          
+          // Glass Overlay (Putih Transparan)
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
@@ -132,6 +139,7 @@ class _LandingPageState extends State<LandingPage> {
                               borderRadius: BorderRadius.circular(22),
                               child: Stack(
                                 children: [
+                                  // Gambar
                                   Container(
                                     decoration: BoxDecoration(
                                       image: DecorationImage(
@@ -140,20 +148,27 @@ class _LandingPageState extends State<LandingPage> {
                                       ),
                                     ),
                                   ),
-                                  // Floating Badge (Gradient)
+                                  
+                                  // Floating Badge (Light Glass)
                                   Positioned(
                                     top: 16,
                                     right: 16,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(colors: [Colors.white, Color(0xFFF0F2F5)]),
-                                        borderRadius: BorderRadius.circular(14),
-                                        boxShadow: [
-                                          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
-                                        ],
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: BackdropFilter(
+                                        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(colors: [Colors.white, Color(0xFFF0F2F5)]),
+                                            borderRadius: BorderRadius.circular(14),
+                                            boxShadow: [
+                                              BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
+                                            ],
+                                          ),
+                                          child: const Icon(Icons.auto_awesome_rounded, color: primaryBlue, size: 22),
+                                        ),
                                       ),
-                                      child: const Icon(Icons.auto_awesome_rounded, color: primaryBlue, size: 22),
                                     ),
                                   ),
                                 ],
@@ -169,7 +184,7 @@ class _LandingPageState extends State<LandingPage> {
 
               const SizedBox(height: 10),
 
-              // INDIKATOR DOTS (Gradient Colors)
+              // INDIKATOR DOTS
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
@@ -191,7 +206,7 @@ class _LandingPageState extends State<LandingPage> {
 
               const SizedBox(height: 20),
 
-              // BOTTOM CARD (White with Top Gradient Border hint)
+              // BOTTOM CARD (White Clean)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 30),
@@ -226,7 +241,7 @@ class _LandingPageState extends State<LandingPage> {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w800,
-                                color: const Color(0xFF0B0F19),
+                                color: textDark, // Teks Hitam
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -247,7 +262,7 @@ class _LandingPageState extends State<LandingPage> {
                     
                     const SizedBox(height: 28),
 
-                    // BUTTON: GRADIENT GLOW
+                    // BUTTON GRADIENT
                     Container(
                       width: double.infinity,
                       height: 58,
@@ -299,7 +314,11 @@ class _LandingPageState extends State<LandingPage> {
                         Text("Already have an account? ", style: GoogleFonts.plusJakartaSans(color: Colors.grey.shade500)),
                         GestureDetector(
                           onTap: () {
-                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
+                            // FIX: Navigasi tanpa 'const'
+                            Navigator.pushReplacement(
+                              context, 
+                              MaterialPageRoute(builder: (context) => LoginPage())
+                            );
                           },
                           child: Text("Sign In", style: GoogleFonts.plusJakartaSans(color: primaryBlue, fontWeight: FontWeight.w800)),
                         ),
@@ -324,23 +343,27 @@ class _LandingPageState extends State<LandingPage> {
                   children: [
                     Row(
                       children: [
-                         // 1. Gambar Logo
+                         // Logo
                         Image.asset(
-                          'assets/images/Login.png', // Pastikan nama file dan ekstensi sama persis
+                          'assets/images/Login.png',
                           height: 32,
                            errorBuilder: (context, error, stackTrace) => const Icon(
                             Icons.checkroom_rounded,
-                            color: primaryBlue, // Pakai kode warna langsung biar aman
+                            color: primaryBlue,
                             size: 32,
                           ),
                         ),
                         const SizedBox(width: 10),
-                        Text('Chupatu', style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF0B0F19))),
+                        Text('Chupatu', style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
                       ],
                     ),
                     TextButton(
                       onPressed: () {
-                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
+                        // FIX: Navigasi tanpa 'const'
+                        Navigator.pushReplacement(
+                          context, 
+                          MaterialPageRoute(builder: (context) => LoginPage())
+                        );
                       },
                       child: Text('Skip', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
                     ),

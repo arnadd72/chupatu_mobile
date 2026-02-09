@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:chupatu_mobile/register_page.dart';
-import 'package:chupatu_mobile/landing_page.dart';
-import 'package:chupatu_mobile/home_page.dart'; 
+import 'package:chupatu_mobile/pages/auth/register_page.dart';
+import 'package:chupatu_mobile/pages/auth/landing_page.dart';
+import 'package:chupatu_mobile/pages/home/home_page.dart'; 
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

@@ -2,10 +2,15 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/gestures.dart'; // For TapGestureRecognizer
-import 'package:chupatu_mobile/terms_conditions_page.dart'; // For navigation
-import 'package:chupatu_mobile/login_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+// --- IMPORT DARI LOKASI BARU ---
+// Terms & Conditions sekarang ada di folder 'pages/common'
+import 'package:chupatu_mobile/pages/common/terms_conditions_page.dart'; 
+
+// Login Page sekarang ada di folder 'pages/auth'
+import 'package:chupatu_mobile/pages/auth/login_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
