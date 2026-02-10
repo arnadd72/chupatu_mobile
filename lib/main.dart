@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-// --- IMPORT DARI STRUKTUR BARU (Sesuai Gambar) ---
 import 'package:chupatu_mobile/config/firebase_options.dart';
 import 'package:chupatu_mobile/pages/auth/landing_page.dart';
-// Jika nanti butuh import halaman lain, uncomment di bawah:
-// import 'package:chupatu_mobile/pages/home/home_page.dart';
-// import 'package:chupatu_mobile/pages/auth/login_page.dart';
+import 'package:chupatu_mobile/pages/main_page.dart'; // File baru yang ada Navbarnya
+import 'package:chupatu_mobile/pages/admin/admin_home_page.dart'; // Halaman Admin
 
 // ============================================================
 // 1. KONFIGURASI TEMA (THEME CONFIG)
@@ -76,7 +76,6 @@ class ThemeConfig {
     ),
   ];
 
-  // SAKLAR TEMA GLOBAL
   static final ValueNotifier<AppThemeData> currentTheme = ValueNotifier(themes[0]);
 
   static void changeTheme(int index) {
@@ -91,7 +90,6 @@ class ThemeConfig {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Inisialisasi Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -104,22 +102,17 @@ class ChupatuApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Membungkus dengan ValueListenableBuilder agar aplikasi rebuild saat tema ganti
     return ValueListenableBuilder<AppThemeData>(
       valueListenable: ThemeConfig.currentTheme,
       builder: (context, themeData, child) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Chupatu Mobile',
-          
-          // Konfigurasi Tema Dinamis
           theme: ThemeData(
             useMaterial3: true,
             brightness: themeData.isDark ? Brightness.dark : Brightness.light,
             scaffoldBackgroundColor: themeData.background,
             primaryColor: themeData.primary,
-            
-            // Color Scheme modern
             colorScheme: ColorScheme.fromSeed(
               seedColor: themeData.primary,
               brightness: themeData.isDark ? Brightness.dark : Brightness.light,
@@ -127,30 +120,73 @@ class ChupatuApp extends StatelessWidget {
               secondary: themeData.secondary,
               surface: themeData.surface,
             ),
-            
-            // Warna teks default
             textTheme: TextTheme(
               bodyMedium: TextStyle(color: themeData.textMain),
               titleLarge: TextStyle(color: themeData.textMain),
             ),
-            
-            // Tema AppBar
             appBarTheme: AppBarTheme(
               backgroundColor: themeData.surface,
               surfaceTintColor: Colors.transparent, 
               titleTextStyle: TextStyle(color: themeData.textMain, fontSize: 20, fontWeight: FontWeight.bold),
               iconTheme: IconThemeData(color: themeData.textMain),
             ),
-            
-            // Tema Card
             cardTheme: CardThemeData(
               color: themeData.surface,
               surfaceTintColor: Colors.transparent,
             ),
           ),
           
-          // Arahkan ke Landing Page (Halaman Awal)
-          home: const LandingPage(),
+          // --- LOGIC AUTH WRAPPER ---
+          home: const AuthWrapper(),
+        );
+      },
+    );
+  }
+}
+
+// ============================================================
+// 3. AUTH WRAPPER (Pengatur Lalu Lintas Login)
+// ============================================================
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // 1. Loading saat cek login
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        // 2. Jika Belum Login -> Ke Landing Page
+        if (!snapshot.hasData) {
+          return const LandingPage();
+        }
+
+        // 3. Jika Sudah Login -> Cek Role (Admin/User)
+        return FutureBuilder<DocumentSnapshot>(
+          future: FirebaseFirestore.instance.collection('users').doc(snapshot.data!.uid).get(),
+          builder: (context, userSnapshot) {
+            if (userSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+
+            if (userSnapshot.hasData && userSnapshot.data!.exists) {
+              String role = userSnapshot.data!.get('role') ?? 'user';
+              
+              if (role == 'admin') {
+                return const AdminHomePage(); // Ke Halaman Admin
+              } else {
+                return MainPage(); // Ke Halaman User (Ada Navbarnya)
+              }
+            }
+
+            // Fallback jika data user tidak ditemukan
+            return const LandingPage();
+          },
         );
       },
     );

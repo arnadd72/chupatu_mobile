@@ -2,10 +2,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Wajib untuk database
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:chupatu_mobile/pages/auth/register_page.dart';
 import 'package:chupatu_mobile/pages/auth/landing_page.dart';
 import 'package:chupatu_mobile/pages/home/home_page.dart'; 
+import 'package:chupatu_mobile/pages/admin/admin_home_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -28,6 +30,52 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // --- FUNGSI UTAMA: CEK ROLE & SIMPAN DATA ---
+  Future<void> _checkRoleAndNavigate(User user) async {
+    try {
+      // 1. Referensi ke Dokumen User di Firestore
+      DocumentReference userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      DocumentSnapshot doc = await userDoc.get();
+
+      String role = 'user'; // Default role
+
+      // 2. LOGIKA PENYIMPANAN DATA (FIX DATABASE KOSONG)
+      // Kita pakai set(..., SetOptions(merge: true))
+      // Artinya: Kalau belum ada, dibuatkan. Kalau sudah ada, diupdate (tanpa menghapus data lama).
+      await userDoc.set({
+        'email': user.email, // PAKSA SIMPAN EMAIL
+        'displayName': user.displayName ?? 'User Tanpa Nama',
+        'photoURL': user.photoURL,
+        'lastLogin': DateTime.now(),
+        // Jangan timpa role kalau sudah ada, tapi kalau belum ada set jadi 'user'
+        'role': (doc.exists && (doc.data() as Map)['role'] != null) ? (doc.data() as Map)['role'] : 'user',
+      }, SetOptions(merge: true));
+
+      // 3. Ambil role terbaru untuk navigasi
+      if (doc.exists) {
+        Map<String, dynamic>? data = doc.data() as Map<String, dynamic>?;
+        role = data?['role'] ?? 'user';
+      }
+
+      if (!mounted) return;
+
+      // 4. Navigasi Sesuai Role
+      if (role == 'admin') {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const AdminHomePage()), (route) => false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Login Admin Berhasil 👮‍♂️'), backgroundColor: Colors.indigo));
+      } else {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const HomePage()), (route) => false);
+      }
+
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        // Tampilkan error biar ketahuan kenapa
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal database: $e')));
+      }
+    }
+  }
+
   // --- 1. LOGIC LOGIN EMAIL ---
   Future<void> _login() async {
     if (_emailController.text.trim().isEmpty || _passwordController.text.trim().isEmpty) {
@@ -40,19 +88,18 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-          (route) => false,
-        );
+      // Cek Role & Simpan Data sebelum pindah
+      if (userCredential.user != null) {
+        await _checkRoleAndNavigate(userCredential.user!);
       }
+
     } on FirebaseAuthException catch (e) {
+      setState(() => _isLoading = false);
       String message = 'An error occurred';
       if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
         message = 'No user found or wrong password.';
@@ -68,67 +115,50 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } catch (e) {
+       setState(() => _isLoading = false);
        if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to connect to server')),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
   
-  // --- 2. LOGIC LOGIN GOOGLE (FIXED DENGAN CLIENT ID) ---
+  // --- 2. LOGIC LOGIN GOOGLE ---
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
-      // ============================================================
-      // BAGIAN PERBAIKAN UTAMA
-      // ============================================================
-      // Kita masukkan clientId manual agar token pasti didapatkan
       final GoogleSignIn googleSignIn = GoogleSignIn(
-        // TODO: TEMPEL WEB CLIENT ID DARI FIREBASE DI BAWAH INI !!!
-        // Contoh: '123456-abcdef.apps.googleusercontent.com'
+        // CLIENT ID (Sesuaikan jika perlu)
         clientId: '1017641487559-5olaoc5mdbdm8psf9v80roj4n9keio2n.apps.googleusercontent.com', 
       );
 
-      // Trigger Login
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
       if (googleUser != null) {
         final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-        // Cetak di debug console untuk memastikan token ada
-        print("Access Token: ${googleAuth.accessToken}");
-        print("ID Token: ${googleAuth.idToken}");
-
         final OAuthCredential credential = GoogleAuthProvider.credential(
           idToken: googleAuth.idToken,
-          accessToken: null, // Versi package terbaru tidak butuh accessToken
+          accessToken: null,
         );
 
-        await FirebaseAuth.instance.signInWithCredential(credential);
+        UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
         
-        if (mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePage()),
-            (route) => false,
-          );
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Google Sign-In Successful!'), backgroundColor: Colors.green),
-          );
+        // Cek Role & Simpan Data sebelum pindah
+        if (userCredential.user != null) {
+          await _checkRoleAndNavigate(userCredential.user!);
         }
+      } else {
+        setState(() => _isLoading = false); // User cancel login
       }
     } catch (e) {
+      setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Google Sign-In Failed: $e'), backgroundColor: Colors.red),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -336,6 +366,16 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ],
                             ),
+                            
+                            // TOMBOL AKSES ADMIN (SEMENTARA)
+                            // Jika sudah implementasi role admin, tombol ini bisa dihapus/di-comment
+                            // const SizedBox(height: 20),
+                            // TextButton(
+                            //   onPressed: () {
+                            //     Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminHomePage()));
+                            //   },
+                            //   child: Text("(Dev Only) Masuk sebagai Admin", style: GoogleFonts.plusJakartaSans(color: Colors.red, fontSize: 12)),
+                            // )
                           ],
                         ),
                       ),
