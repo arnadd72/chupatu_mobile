@@ -180,7 +180,7 @@ class AuthWrapper extends StatelessWidget {
               if (role == 'admin') {
                 return const AdminHomePage(); // Ke Halaman Admin
               } else {
-                return MainPage(); // Ke Halaman User (Ada Navbarnya)
+                return const MainPage(); // Ke Halaman User (Ada Navbarnya)
               }
             }
 

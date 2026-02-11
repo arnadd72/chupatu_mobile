@@ -9,6 +9,8 @@ import 'package:chupatu_mobile/pages/auth/landing_page.dart';
 import 'package:chupatu_mobile/pages/home/home_page.dart'; 
 import 'package:chupatu_mobile/pages/admin/admin_home_page.dart';
 
+import '../../main.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -64,7 +66,7 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const AdminHomePage()), (route) => false);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Login Admin Berhasil 👮‍♂️'), backgroundColor: Colors.indigo));
       } else {
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const HomePage()), (route) => false);
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const AuthWrapper()), (route) => false);
       }
 
     } catch (e) {
