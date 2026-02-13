@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // WAJIB: Untuk ambil ID user saat ini
 import 'package:lottie/lottie.dart';
+import 'package:qr_flutter/qr_flutter.dart'; // WAJIB: Import ini
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/utils/invoice_pdf_helper.dart';
+
+// IMPORT HALAMAN CHAT
+import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
 
 class OrderDetailPage extends StatefulWidget {
   final String docId;
@@ -27,8 +32,116 @@ class OrderDetailPage extends StatefulWidget {
 }
 
 class _OrderDetailPageState extends State<OrderDetailPage> {
-  // Variabel untuk mengatur loading tombol invoice
   bool _isGeneratingPdf = false;
+  bool _isLoadingChat = false; // Loading saat buka chat
+
+  // --- 1. FUNGSI BUKA CHAT KE ADMIN ---
+  Future<void> _openChatWithAdmin() async {
+    setState(() => _isLoadingChat = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Silakan login terlebih dahulu.")));
+        return;
+      }
+
+      // 1. Cari Room Chat milik user ini
+      var chatQuery = await FirebaseFirestore.instance
+          .collection('chats')
+          .where('userId', isEqualTo: user.uid)
+          .limit(1)
+          .get();
+
+      String chatId;
+
+      if (chatQuery.docs.isNotEmpty) {
+        // Room sudah ada, pakai ID-nya
+        chatId = chatQuery.docs.first.id;
+      } else {
+        // Room belum ada, buat baru
+        DocumentReference newChat = await FirebaseFirestore.instance.collection('chats').add({
+          'userId': user.uid,
+          'userName': user.displayName ?? 'Customer',
+          'lastMessage': 'Halo Admin, saya mau tanya pesanan #${widget.docId.substring(0, 6)}', // Pesan awal otomatis
+          'lastTime': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        chatId = newChat.id;
+      }
+
+      if (!mounted) return;
+
+      // 2. Masuk ke Chat Room (Sesuai parameter AdminChatPage)
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatRoomPage(
+            name: "Admin Chupatu", // Nama yang muncul di header chat customer
+            isOnline: true,        // Status Admin (Dummy)
+            chatId: chatId,        // Kunci Masuk Room
+            isAdmin: false,        // Customer bukan Admin
+          ),
+        ),
+      );
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal membuka chat: $e")));
+    } finally {
+      if (mounted) setState(() => _isLoadingChat = false);
+    }
+  }
+
+  // --- 2. FUNGSI TAMPILKAN BARCODE ---
+  void _showBarcodeDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("Barcode Pesanan", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text("Tunjukkan ke kasir/kurir", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 20),
+
+              // QR CODE
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(12)),
+                child: QrImageView(
+                  data: widget.docId,
+                  version: QrVersions.auto,
+                  size: 200.0,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              // Gunakan robotoMono untuk font kode biar rapi
+              Text("#${widget.docId.toUpperCase().substring(0, 8)}", style: GoogleFonts.robotoMono(fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black87, foregroundColor: Colors.white),
+                  child: const Text("Tutup"),
+                ),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   // --- FUNGSI BATALKAN PESANAN ---
   Future<void> _cancelOrder() async {
@@ -57,35 +170,21 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     );
   }
 
-  // --- FUNGSI UNDUH INVOICE DENGAN LOADING ---
+  // --- FUNGSI UNDUH INVOICE ---
   Future<void> _generateAndDownloadInvoice() async {
-    setState(() {
-      _isGeneratingPdf = true;
-    });
-
+    setState(() => _isGeneratingPdf = true);
     try {
       await InvoicePdfHelper.generateInvoice(widget.docId, widget.data);
     } catch (e) {
       if (mounted) {
-        // KITA UBAH PESANNYA UNTUK MENAMPILKAN ERROR ASLI DARI SISTEM
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error Asli: ${e.toString()}"), // <-- Menampilkan error jujur
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5), // Tampil sedikit lebih lama
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: ${e.toString()}"), backgroundColor: Colors.red));
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isGeneratingPdf = false;
-        });
-      }
+      if (mounted) setState(() => _isGeneratingPdf = false);
     }
   }
 
-  // --- FUNGSI PENERJEMAH TANGGAL ---
+  // --- FORMAT TANGGAL AMAN ---
   String _formatSafeDate(dynamic dateData, {String fallback = '-', String format = 'dd MMMM yyyy, HH:mm'}) {
     if (dateData == null) return fallback;
     if (dateData is Timestamp) return DateFormat(format).format(dateData.toDate());
@@ -93,18 +192,16 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     return dateData.toString();
   }
 
-  // --- MAPPING IKON SERVIS ---
+  // --- MAPPING IKON ---
   Map<String, dynamic> _getServiceIcon(String serviceName) {
     switch (serviceName.toLowerCase()) {
       case 'deep clean': return {'icon': Icons.water_drop_rounded, 'color': Colors.blue, 'lottie': 'assets/lottie/water_drop.json'};
       case 'fast clean': return {'icon': Icons.timer_rounded, 'color': Colors.orange, 'lottie': 'assets/lottie/Stopwatch.json'};
-      case 'unyellowing':
-      case 'unyellow': return {'icon': Icons.auto_awesome_rounded, 'color': Colors.amber, 'lottie': 'assets/lottie/sparkle.json'};
+      case 'unyellowing': return {'icon': Icons.auto_awesome_rounded, 'color': Colors.amber, 'lottie': 'assets/lottie/sparkle.json'};
       case 'repair': return {'icon': Icons.build_rounded, 'color': Colors.grey.shade700, 'lottie': 'assets/lottie/wrench.json'};
       case 'repaint': return {'icon': Icons.format_paint_rounded, 'color': Colors.purple, 'lottie': 'assets/lottie/paint.json'};
       case 'waterproof': return {'icon': Icons.umbrella_rounded, 'color': Colors.teal, 'lottie': 'assets/lottie/umbrella.json'};
       case 'custom': return {'icon': Icons.design_services_rounded, 'color': Colors.pink, 'lottie': 'assets/lottie/pencil.json'};
-      case 'pickup': return {'icon': Icons.two_wheeler_rounded, 'color': Colors.red, 'lottie': 'assets/lottie/delivery.json'};
       default: return {'icon': Icons.cleaning_services_rounded, 'color': Colors.indigo};
     }
   }
@@ -124,9 +221,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 
     String mainAddress = widget.data['mainAddress'] ?? '';
     String detailAddress = widget.data['detailAddress'] ?? '';
-    String fullAddress = (mainAddress.isNotEmpty || detailAddress.isNotEmpty) ? "$mainAddress\n\nCatatan Lokasi: $detailAddress" : (widget.data['address'] ?? 'Alamat tidak tersedia');
+    String fullAddress = (mainAddress.isNotEmpty || detailAddress.isNotEmpty) ? "$mainAddress\n\nCatatan: $detailAddress" : (widget.data['address'] ?? 'Alamat tidak tersedia');
 
-    // LOGIKA TOMBOL
     String currentStatus = widget.data['status'] ?? 'Pending';
     bool canCancel = (currentStatus == 'Pending' || currentStatus == 'Confirmed');
     bool isDone = (currentStatus == 'Done');
@@ -136,19 +232,34 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         builder: (context, theme, child) {
           return Scaffold(
             backgroundColor: theme.background,
-            appBar: AppBar(backgroundColor: widget.statusColor, elevation: 0, iconTheme: const IconThemeData(color: Colors.white), title: Text("Detail Pesanan", style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold)), centerTitle: true),
-
-            // bottomNavigationBar TELAH DIHAPUS (Dipindah ke bawah list)
+            appBar: AppBar(
+              backgroundColor: widget.statusColor,
+              elevation: 0,
+              iconTheme: const IconThemeData(color: Colors.white),
+              title: Text("Detail Pesanan", style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold)),
+              centerTitle: true,
+              actions: [
+                // TOMBOL BARCODE (BARU)
+                IconButton(
+                  onPressed: _showBarcodeDialog,
+                  icon: const Icon(Icons.qr_code_2_rounded),
+                  tooltip: "Scan Barcode",
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
 
             body: SingleChildScrollView(
               child: Column(
                 children: [
+                  // HEADER
                   Container(
-                    width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: widget.statusColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30))),
+                    width: double.infinity, padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(color: widget.statusColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30))),
                     child: Column(children: [
                       Icon(widget.statusIcon, color: Colors.white, size: 60), const SizedBox(height: 12),
                       Text(widget.statusLabel, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)), const SizedBox(height: 4),
-                      Text("ID Pesanan: #${widget.docId.toUpperCase()}", style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 14)),
+                      Text("ID: #${widget.docId.substring(0, 8).toUpperCase()}", style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 14)),
                     ]),
                   ),
 
@@ -157,6 +268,29 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+
+                        // --- TOMBOL HUBUNGI ADMIN (BARU) ---
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isLoadingChat ? null : _openChatWithAdmin,
+                            icon: _isLoadingChat
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : const Icon(Icons.support_agent_rounded),
+                            label: Text(_isLoadingChat ? "Menghubungkan..." : "Hubungi Admin", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: theme.primary,
+                              elevation: 1,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: BorderSide(color: theme.primary.withOpacity(0.5)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // INFO LAYANAN
                         _buildSectionTitle("Informasi Layanan", theme),
                         Container(
                           padding: const EdgeInsets.all(16), decoration: _cardDecoration(theme),
@@ -179,6 +313,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                         ),
                         const SizedBox(height: 24),
 
+                        // ALAMAT
                         _buildSectionTitle("Alamat & Jadwal", theme),
                         Container(
                           padding: const EdgeInsets.all(16), decoration: _cardDecoration(theme),
@@ -196,6 +331,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                         ),
                         const SizedBox(height: 24),
 
+                        // PEMBAYARAN
                         _buildSectionTitle("Rincian Pembayaran", theme),
                         Container(
                           padding: const EdgeInsets.all(16), decoration: _cardDecoration(theme),
@@ -215,9 +351,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                           ),
                         ),
 
-                        const SizedBox(height: 32), // Jarak sebelum tombol
+                        const SizedBox(height: 32),
 
-                        // --- AREA TOMBOL DIPINDAH KE SINI ---
+                        // TOMBOL AKSI UTAMA
                         if (canCancel || isDone)
                           SizedBox(
                             width: double.infinity,
@@ -238,7 +374,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                             ),
                           ),
 
-                        const SizedBox(height: 40), // Jarak ekstra di paling bawah agar enak di-scroll
+                        const SizedBox(height: 40),
                       ],
                     ),
                   ),

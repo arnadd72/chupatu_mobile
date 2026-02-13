@@ -1,8 +1,18 @@
+import 'dart:ui' as ui; // Import untuk manipulasi gambar
+import 'dart:io'; // Import untuk File system
+import 'dart:typed_data'; // Import untuk ByteData
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'; // Import untuk RepaintBoundary
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:chupatu_mobile/main.dart'; 
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:path_provider/path_provider.dart'; // WAJIB ADA
+import 'package:share_plus/share_plus.dart'; // WAJIB ADA
+import 'package:chupatu_mobile/main.dart';
+
+// IMPORT HALAMAN CHAT ROOM
+import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
 
 class AdminOrderDetailPage extends StatefulWidget {
   final String docId;
@@ -17,6 +27,8 @@ class AdminOrderDetailPage extends StatefulWidget {
 class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   late String _currentStatus;
   bool _isUpdating = false;
+  // GlobalKey untuk menangkap gambar Barcode
+  final GlobalKey _barcodeKey = GlobalKey();
 
   final List<String> _statuses = [
     'Pending', 'Confirmed', 'Picked Up', 'Processing', 'Ready', 'Delivery', 'Done', 'Cancelled'
@@ -28,32 +40,164 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     _currentStatus = widget.data['status'] ?? 'Pending';
   }
 
-  // --- 3. FITUR PENGAMAN (SAFETY GUARD) ---
-  // Fungsi ini dipanggil sebelum status benar-benar diupdate
+  // --- 1. LOGIKA CHAT LANGSUNG KE CUSTOMER ---
+  void _openChatWithCustomer() {
+    String customerId = widget.data['userId'] ?? '';
+    String customerName = widget.data['customerName'] ?? 'Customer';
+
+    if (customerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal: ID Customer tidak ditemukan.")));
+      return;
+    }
+
+    Navigator.push(context, MaterialPageRoute(
+        builder: (context) => ChatRoomPage(
+          chatId: customerId,
+          name: customerName,
+          isOnline: false,
+        )
+    ));
+  }
+
+  // --- 2. LOGIKA SHARE / DOWNLOAD BARCODE (FITUR BARU) ---
+  Future<void> _shareBarcode() async {
+    try {
+      // 1. Tangkap Gambar dari Widget (RepaintBoundary)
+      RenderRepaintBoundary boundary = _barcodeKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0); // High Quality
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List pngBytes = byteData!.buffer.asUint8List();
+
+      // 2. Simpan ke File Sementara (Cache)
+      final tempDir = await getTemporaryDirectory();
+      final file = await File('${tempDir.path}/barcode_${widget.docId}.png').create();
+      await file.writeAsBytes(pngBytes);
+
+      // 3. Share File
+      // (Pada Android/iOS, ini akan membuka dialog share: WhatsApp, Simpan ke Galeri, Email, dll)
+      await Share.shareXFiles(
+          [XFile(file.path)],
+          text: 'Barcode Pesanan #${widget.docId.substring(0, 8)} - ${widget.data['customerName']}'
+      );
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal share barcode: $e")));
+    }
+  }
+
+  // --- 3. TAMPILAN DIALOG BARCODE (UPDATED) ---
+  void _showBarcodeDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // --- BAGIAN YANG AKAN DI-CAPTURE (FOTO) ---
+            RepaintBoundary(
+              key: _barcodeKey, // KUNCI PENTING UNTUK SCREENSHOT
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header Toko (Biar keliatan resmi pas dicetak)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.local_laundry_service_rounded, color: Theme.of(context).primaryColor, size: 20),
+                        const SizedBox(width: 8),
+                        Text("Chupatu Official", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    Text("Barcode Pesanan", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text(widget.data['customerName'] ?? 'Customer', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue)),
+                    const SizedBox(height: 20),
+
+                    // WIDGET QR CODE
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(12)),
+                      child: QrImageView(
+                        data: widget.docId,
+                        version: QrVersions.auto,
+                        size: 200.0,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+                    Text("#${widget.docId.toUpperCase().substring(0, 8)}", style: GoogleFonts.robotoMono(fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 16)),
+                    const SizedBox(height: 8),
+                    Text(widget.data['serviceName'] ?? 'Layanan', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // --- TOMBOL AKSI (DI LUAR GAMBAR) ---
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                    label: const Text("Tutup"),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _shareBarcode, // PANGGIL FUNGSI SHARE
+                    icon: const Icon(Icons.share_rounded),
+                    label: const Text("Share / Save"),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                    ),
+                  ),
+                ),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- LOGIKA UPDATE STATUS ---
   Future<void> _attemptStatusChange(String newStatus) async {
-    // JIKA STATUS SEKARANG SUDAH 'DONE', TAMPILKAN PERINGATAN
     if (_currentStatus == 'Done') {
       bool? confirm = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text("Peringatan!"),
-          content: const Text("Pesanan ini sudah selesai (DONE).\n\nMengubah statusnya akan membatalkan perhitungan pendapatan. Yakin ingin mengubah?"),
+          content: const Text("Pesanan ini sudah selesai (DONE).\nMengubah statusnya akan membatalkan perhitungan pendapatan.\n\nYakin ingin mengubah?"),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Batal")),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true), 
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-              child: const Text("Ya, Ubah")
-            ),
+            ElevatedButton(onPressed: () => Navigator.pop(context, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("Ya, Ubah")),
           ],
         ),
       );
-
-      // Jika user pilih Batal atau klik luar, hentikan proses
       if (confirm != true) return;
     }
-
-    // Lanjut Update jika aman
     _updateStatus(newStatus);
   }
 
@@ -87,7 +231,11 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   Widget build(BuildContext context) {
     final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     final int price = widget.data['totalPrice'] ?? 0;
-    
+
+    // Barcode muncul jika status >= Confirmed
+    int statusIndex = _statuses.indexOf(_currentStatus);
+    bool showBarcode = statusIndex >= 1 && _currentStatus != 'Cancelled';
+
     String pickupInfo = "-";
     if (widget.data['pickupDate'] != null) {
       Timestamp ts = widget.data['pickupDate'];
@@ -97,63 +245,143 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     }
 
     return ValueListenableBuilder<AppThemeData>(
-      valueListenable: ThemeConfig.currentTheme,
-      builder: (context, theme, child) {
-        Color themeColor = _getStatusColor(_currentStatus);
-        Color pastelBackgroundColor = Color.lerp(Colors.white, themeColor, 0.1)!;
+        valueListenable: ThemeConfig.currentTheme,
+        builder: (context, theme, child) {
+          Color themeColor = _getStatusColor(_currentStatus);
+          Color pastelBackgroundColor = Color.lerp(Colors.white, themeColor, 0.05)!;
 
-        return Scaffold(
-          backgroundColor: pastelBackgroundColor,
-          appBar: AppBar(title: Text("Detail Pesanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.white)), backgroundColor: themeColor, iconTheme: const IconThemeData(color: Colors.white), elevation: 0, centerTitle: true),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // HEADER
-                Container(
-                  width: double.infinity, padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: themeColor, width: 2), boxShadow: [BoxShadow(color: themeColor.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4))]),
-                  child: Column(children: [Text("Status Pesanan", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontWeight: FontWeight.bold)), const SizedBox(height: 8), Text(_currentStatus.toUpperCase(), style: GoogleFonts.plusJakartaSans(fontSize: 28, fontWeight: FontWeight.w900, color: themeColor, letterSpacing: 1.5))]),
-                ),
-                const SizedBox(height: 24),
-
-                Text("Update Proses", style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)),
-                const SizedBox(height: 12),
-                SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: _statuses.where((s) => s != 'Cancelled').map((status) {
-                  bool isSelected = _currentStatus == status;
-                  return Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-                    label: Text(status), 
-                    selected: isSelected, 
-                    selectedColor: themeColor, 
-                    backgroundColor: Colors.white,
-                    labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87), 
-                    // PANGGIL FUNGSI SAFETY GUARD DI SINI
-                    onSelected: _isUpdating ? null : (selected) { if (selected) _attemptStatusChange(status); }
-                  ));
-                }).toList())),
-                
-                const SizedBox(height: 24), const Divider(), const SizedBox(height: 24),
-
-                _buildSectionContainer(title: "Informasi Penjemputan", theme: theme, child: Column(children: [_buildDetailRow(Icons.calendar_today, "Jadwal Pickup", pickupInfo, themeColor), const SizedBox(height: 12), _buildDetailRow(Icons.location_on, "Alamat", widget.data['mainAddress'] ?? '-', themeColor), const SizedBox(height: 12), _buildDetailRow(Icons.home, "Patokan", widget.data['detailAddress'] ?? '-', themeColor)])),
-                const SizedBox(height: 20),
-
-                _buildSectionContainer(title: "Data Pelanggan", theme: theme, child: Column(children: [_buildInfoRow(Icons.person, "Nama", widget.data['customerName'] ?? '-', themeColor), _buildInfoRow(Icons.phone, "WhatsApp", widget.data['customerPhone'] ?? '-', themeColor), _buildInfoRow(Icons.confirmation_number, "Order ID", "#${widget.docId.substring(0, 8).toUpperCase()}", themeColor)])),
-                const SizedBox(height: 20),
-
-                _buildSectionContainer(title: "Rincian Biaya", theme: theme, child: Column(children: [_buildDetailItem("Layanan", widget.data['serviceName'], theme), _buildDetailItem("Kategori", widget.data['category'], theme), _buildDetailItem("Sepatu", widget.data['shoeDetail'], theme), const Divider(), _buildDetailItem("Total Bayar", currencyFormatter.format(price), theme, isBold: true, color: themeColor), _buildDetailItem("Metode Bayar", widget.data['paymentMethod'] ?? '-', theme)])),
-                
-                const SizedBox(height: 40),
-                SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _currentStatus == 'Cancelled' ? null : () { showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text("Batalkan Pesanan?"), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Tidak")), ElevatedButton(onPressed: () { Navigator.pop(ctx); _updateStatus('Cancelled'); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("Ya, Batalkan"))])); }, icon: const Icon(Icons.cancel, color: Colors.white), label: const Text("Batalkan Pesanan", style: TextStyle(fontWeight: FontWeight.bold)), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
-                const SizedBox(height: 20),
+          return Scaffold(
+            backgroundColor: pastelBackgroundColor,
+            appBar: AppBar(
+              title: Text("Detail Pesanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.white)),
+              backgroundColor: themeColor,
+              iconTheme: const IconThemeData(color: Colors.white),
+              elevation: 0,
+              centerTitle: true,
+              actions: [
+                if (showBarcode)
+                  IconButton(
+                    onPressed: _showBarcodeDialog,
+                    icon: const Icon(Icons.qr_code_2_rounded, color: Colors.white),
+                    tooltip: "Lihat Barcode",
+                  ),
               ],
             ),
-          ),
-        );
-      }
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // HEADER STATUS
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: themeColor, width: 2), boxShadow: [BoxShadow(color: themeColor.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4))]),
+                    child: Column(children: [Text("Status Pesanan", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontWeight: FontWeight.bold)), const SizedBox(height: 8), Text(_currentStatus.toUpperCase(), style: GoogleFonts.plusJakartaSans(fontSize: 28, fontWeight: FontWeight.w900, color: themeColor, letterSpacing: 1.5))]),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // UPDATE PROSES
+                  Text("Update Proses", style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: _statuses.where((s) => s != 'Cancelled').map((status) {
+                        bool isSelected = _currentStatus == status;
+                        Color chipColor = _getStatusColor(status);
+                        return ChoiceChip(
+                            label: Text(status),
+                            labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontSize: 12),
+                            selected: isSelected,
+                            selectedColor: chipColor,
+                            backgroundColor: Colors.grey.shade100,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Colors.transparent : Colors.grey.shade300)),
+                            onSelected: _isUpdating ? null : (selected) { if (selected) _attemptStatusChange(status); }
+                        );
+                      }).toList(),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // TOMBOL CHAT CUSTOMER
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _openChatWithCustomer,
+                      icon: const Icon(Icons.chat_bubble_rounded, size: 20),
+                      label: Text("Chat Customer", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 2
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24), const Divider(), const SizedBox(height: 24),
+
+                  // INFORMASI PENJEMPUTAN
+                  _buildSectionContainer(title: "Informasi Penjemputan", theme: theme, child: Column(children: [_buildDetailRow(Icons.calendar_today, "Jadwal Pickup", pickupInfo, themeColor), const SizedBox(height: 12), _buildDetailRow(Icons.location_on, "Alamat", widget.data['mainAddress'] ?? '-', themeColor), const SizedBox(height: 12), _buildDetailRow(Icons.home, "Patokan", widget.data['detailAddress'] ?? '-', themeColor)])),
+                  const SizedBox(height: 20),
+
+                  // DATA PELANGGAN
+                  _buildSectionContainer(title: "Data Pelanggan", theme: theme, child: Column(children: [_buildInfoRow(Icons.person, "Nama", widget.data['customerName'] ?? '-', themeColor), _buildInfoRow(Icons.phone, "No. HP", widget.data['customerPhone'] ?? '-', themeColor), _buildInfoRow(Icons.confirmation_number, "Order ID", "#${widget.docId.substring(0, 8).toUpperCase()}", themeColor)])),
+                  const SizedBox(height: 20),
+
+                  // RINCIAN BIAYA
+                  _buildSectionContainer(title: "Rincian Biaya", theme: theme, child: Column(children: [_buildDetailItem("Layanan", widget.data['serviceName'], theme), _buildDetailItem("Kategori", widget.data['category'], theme), _buildDetailItem("Sepatu", widget.data['shoeDetail'], theme), const Divider(), _buildDetailItem("Total Bayar", currencyFormatter.format(price), theme, isBold: true, color: themeColor), _buildDetailItem("Metode Bayar", widget.data['paymentMethod'] ?? '-', theme)])),
+
+                  const SizedBox(height: 40),
+
+                  // FITUR MAGIC RESULT
+                  if (_currentStatus == 'Done') ...[
+                    Text("Magic Result (Hasil Cuci)", style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.withOpacity(0.5)), boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.1), blurRadius: 10)]),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.auto_awesome, size: 40, color: Colors.green),
+                          const SizedBox(height: 8),
+                          Text("Upload Foto Hasil Cuci", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                          Text("Foto ini akan muncul di aplikasi customer.", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                          const SizedBox(height: 16),
+                          OutlinedButton.icon(
+                              onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fitur Upload Foto akan segera hadir!"))); },
+                              icon: const Icon(Icons.camera_alt),
+                              label: const Text("Ambil Foto / Upload"),
+                              style: OutlinedButton.styleFrom(foregroundColor: Colors.green)
+                          )
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+
+                  // TOMBOL BATAL
+                  if (_currentStatus != 'Done' && _currentStatus != 'Cancelled')
+                    SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: () { showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text("Batalkan Pesanan?"), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Tidak")), ElevatedButton(onPressed: () { Navigator.pop(ctx); _updateStatus('Cancelled'); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("Ya, Batalkan"))])); }, icon: const Icon(Icons.cancel, color: Colors.white), label: const Text("Batalkan Pesanan", style: TextStyle(fontWeight: FontWeight.bold)), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          );
+        }
     );
   }
 
+  // WIDGET HELPER
   Widget _buildSectionContainer({required String title, required Widget child, required AppThemeData theme}) { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)), const SizedBox(height: 8), Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]), child: child)]); }
   Widget _buildDetailRow(IconData icon, String label, String value, Color color) { return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 20, color: color), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)), Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87))]))]); }
   Widget _buildInfoRow(IconData icon, String label, String value, Color color) { return Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 20, color: color), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)), Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87))]))])); }
