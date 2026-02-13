@@ -18,7 +18,12 @@ class SecurityPage extends StatelessWidget {
         builder: (context, theme, child) {
           return Scaffold(
             backgroundColor: theme.background,
-            appBar: AppBar(title: Text("Keamanan Akun", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)), backgroundColor: theme.surface, elevation: 0, iconTheme: IconThemeData(color: theme.textMain)),
+            appBar: AppBar(
+                title: Text("Keamanan Akun", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)),
+                backgroundColor: theme.surface,
+                elevation: 0,
+                iconTheme: IconThemeData(color: theme.textMain)
+            ),
             body: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -26,18 +31,38 @@ class SecurityPage extends StatelessWidget {
                 children: [
                   Text("Ubah Kata Sandi", style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)),
                   const SizedBox(height: 8),
-                  Text("Kami akan mengirimkan tautan (link) ke email Anda (${user?.email ?? '-'}) untuk mereset kata sandi dengan aman.", style: GoogleFonts.plusJakartaSans(color: Colors.grey, height: 1.5)),
+                  Text(
+                      "Kami akan mengirimkan tautan (link) ke email Anda (${user?.email ?? '-'}) untuk mereset kata sandi dengan aman.",
+                      style: GoogleFonts.plusJakartaSans(color: Colors.grey, height: 1.5)
+                  ),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
                         if (user?.email != null) {
-                          await FirebaseAuth.instance.sendPasswordResetEmail(email: user!.email!);
-                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Email reset password telah dikirim!"), backgroundColor: Colors.green));
+                          try {
+                            await FirebaseAuth.instance.sendPasswordResetEmail(email: user!.email!);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Email reset password telah dikirim!"), backgroundColor: Colors.green)
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red)
+                              );
+                            }
+                          }
                         }
                       },
-                      style: ElevatedButton.styleFrom(backgroundColor: theme.primary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                      ),
                       child: const Text("Kirim Email Reset Sandi", style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   )
@@ -51,16 +76,18 @@ class SecurityPage extends StatelessWidget {
 }
 
 // ==========================================
-// 2. HALAMAN NOTIFIKASI
+// 2. HALAMAN PENGATURAN NOTIFIKASI (GANTI NAMA DISINI)
 // ==========================================
-class NotificationPage extends StatefulWidget {
-  const NotificationPage({super.key});
+class NotificationSettingsPage extends StatefulWidget { // <--- GANTI JADI NotificationSettingsPage
+  const NotificationSettingsPage({super.key});
+
   @override
-  State<NotificationPage> createState() => _NotificationPageState();
+  State<NotificationSettingsPage> createState() => _NotificationSettingsPageState();
 }
-class _NotificationPageState extends State<NotificationPage> {
-  bool promoNotif = true;
+
+class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   bool orderNotif = true;
+  bool promoNotif = true;
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +96,12 @@ class _NotificationPageState extends State<NotificationPage> {
         builder: (context, theme, child) {
           return Scaffold(
             backgroundColor: theme.background,
-            appBar: AppBar(title: Text("Notifikasi", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)), backgroundColor: theme.surface, elevation: 0, iconTheme: IconThemeData(color: theme.textMain)),
+            appBar: AppBar(
+                title: Text("Pengaturan Notifikasi", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)),
+                backgroundColor: theme.surface,
+                elevation: 0,
+                iconTheme: IconThemeData(color: theme.textMain)
+            ),
             body: ListView(
               padding: const EdgeInsets.all(20),
               children: [
@@ -109,7 +141,12 @@ class AppSettingsPage extends StatelessWidget {
         builder: (context, currentTheme, child) {
           return Scaffold(
             backgroundColor: currentTheme.background,
-            appBar: AppBar(title: Text("Pengaturan Aplikasi", style: GoogleFonts.plusJakartaSans(color: currentTheme.textMain, fontWeight: FontWeight.bold)), backgroundColor: currentTheme.surface, elevation: 0, iconTheme: IconThemeData(color: currentTheme.textMain)),
+            appBar: AppBar(
+                title: Text("Pengaturan Aplikasi", style: GoogleFonts.plusJakartaSans(color: currentTheme.textMain, fontWeight: FontWeight.bold)),
+                backgroundColor: currentTheme.surface,
+                elevation: 0,
+                iconTheme: IconThemeData(color: currentTheme.textMain)
+            ),
             body: ListView(
               padding: const EdgeInsets.all(24),
               children: [
@@ -168,7 +205,12 @@ class AboutPage extends StatelessWidget {
         builder: (context, theme, child) {
           return Scaffold(
             backgroundColor: theme.background,
-            appBar: AppBar(title: Text("Seputar Chupatu", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)), backgroundColor: theme.surface, elevation: 0, iconTheme: IconThemeData(color: theme.textMain)),
+            appBar: AppBar(
+                title: Text("Seputar Chupatu", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)),
+                backgroundColor: theme.surface,
+                elevation: 0,
+                iconTheme: IconThemeData(color: theme.textMain)
+            ),
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(40),
@@ -179,7 +221,11 @@ class AboutPage extends StatelessWidget {
                     const SizedBox(height: 16),
                     Text("Chupatu Mobile", style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.bold, color: theme.textMain)),
                     const SizedBox(height: 8),
-                    Text("Layanan cuci sepatu terbaik, antar-jemput langsung ke depan pintu Anda.", textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(color: Colors.grey, height: 1.5)),
+                    Text(
+                        "Layanan cuci sepatu terbaik, antar-jemput langsung ke depan pintu Anda.",
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.plusJakartaSans(color: Colors.grey, height: 1.5)
+                    ),
                     const SizedBox(height: 32),
                     OutlinedButton(onPressed: (){}, child: const Text("Syarat & Ketentuan")),
                     const SizedBox(height: 8),

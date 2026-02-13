@@ -5,6 +5,7 @@ import 'package:chupatu_mobile/pages/home/home_page.dart';
 import 'package:chupatu_mobile/pages/order/order_history_page.dart';
 import 'package:chupatu_mobile/pages/profile/profile_page.dart';
 import 'package:chupatu_mobile/pages/profile/account_page.dart';
+import 'package:chupatu_mobile/pages/order/quick_order.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -21,7 +22,7 @@ class _MainPageState extends State<MainPage> {
     const Center(child: Text("Garage Page (Segera Hadir)")),
     const SizedBox(),
     const OrderHistoryPage(),
-    const AccountPage(), // <--- INI YANG DIUBAH MENJADI ACCOUNT PAGE
+    const AccountPage(),
   ];
 
   @override
@@ -30,39 +31,44 @@ class _MainPageState extends State<MainPage> {
         valueListenable: ThemeConfig.currentTheme,
         builder: (context, theme, child) {
           return Scaffold(
-            extendBody: true, // Penting agar background tembus ke bawah navbar
+            extendBody: true, // Background tembus ke bawah
 
             body: _pages[_currentIndex],
 
-            // --- TOMBOL TENGAH (+) YANG DITURUNKAN ---
-            floatingActionButton: Transform.translate(
-              offset: const Offset(0, 30), // <--- TURUNKAN 10 PIXEL KE BAWAH
-              child: SizedBox(
-                width: 55,
-                height: 55,
-                child: FloatingActionButton(
-                  onPressed: () {
-                    setState(() => _currentIndex = 0);
-                  },
-                  backgroundColor: theme.primary,
-                  // Elevation 0 agar tidak terlihat melayang (flat)
-                  elevation: 0,
-                  // Highlight elevation 0 agar saat diklik tidak lompat
-                  highlightElevation: 0,
-                  shape: const CircleBorder(),
-                  child: const Icon(Icons.add, color: Colors.white, size: 32),
-                ),
+            // --- BAGIAN 1: TOMBOL TENGAH (+) ---
+            // Transform.translate KITA HAPUS, diganti logika lokasi di bawah
+            floatingActionButton: SizedBox(
+              width: 55,
+              height: 55,
+              child: FloatingActionButton(
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    isScrollControlled: true,
+                    builder: (context) => const QuickOrder(),
+                  );
+                },
+                backgroundColor: theme.primary,
+                elevation: 0,
+                highlightElevation: 0,
+                shape: const CircleBorder(),
+                child: const Icon(Icons.add, color: Colors.white, size: 32),
               ),
             ),
 
-            floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+            // --- BAGIAN 2: LOKASI CUSTOM (RAHASIANYA DISINI) ---
+            floatingActionButtonLocation: const CenterDockedWithOffset(offsetY: 30),
 
             // --- NAVBAR ---
             bottomNavigationBar: BottomAppBar(
-              color: Colors.white,
-              elevation: 15, // Shadow navbar dipertebal biar kontras
+              color: theme.surface,
+              elevation: 15,
               padding: EdgeInsets.zero,
               clipBehavior: Clip.antiAlias,
+              // Tambahkan notch ini supaya background navbar "menghindar" dari tombol
+              //shape: const CircularNotchedRectangle(),
+              //notchMargin: 8.0,
               child: SizedBox(
                 height: 40,
                 child: Row(
@@ -115,5 +121,27 @@ class _MainPageState extends State<MainPage> {
         ),
       ),
     );
+  }
+}
+
+// --- BAGIAN 3: CLASS TAMBAHAN (Taruh di paling bawah file ini) ---
+// Class ini fungsinya menghitung posisi tombol supaya BENAR-BENAR TURUN (Sensor + Gambar)
+class CenterDockedWithOffset extends FloatingActionButtonLocation {
+  final double offsetY; // Berapa pixel mau diturunkan
+
+  const CenterDockedWithOffset({this.offsetY = 0});
+
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    // 1. Hitung posisi Tengah Horizontal (X)
+    final double fabX = (scaffoldGeometry.scaffoldSize.width - scaffoldGeometry.floatingActionButtonSize.width) / 2.0;
+
+    // 2. Hitung posisi Vertikal (Y) Standar
+    final double standardY = scaffoldGeometry.contentBottom - scaffoldGeometry.floatingActionButtonSize.height / 2.0;
+
+    // 3. Tambahkan Offset yang anda inginkan (Turun 30px)
+    final double fabY = standardY + offsetY;
+
+    return Offset(fabX, fabY);
   }
 }

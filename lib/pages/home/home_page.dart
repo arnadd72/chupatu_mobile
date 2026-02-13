@@ -3,19 +3,19 @@ import 'dart:ui'; // Untuk ImageFilter
 import 'dart:math' as math; // Untuk animasi goyang
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lottie/lottie.dart'; 
-import 'package:firebase_auth/firebase_auth.dart'; 
-import 'package:cloud_firestore/cloud_firestore.dart'; 
-import 'package:chupatu_mobile/main.dart'; 
+import 'package:lottie/lottie.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/profile/profile_page.dart';
-import 'package:chupatu_mobile/pages/profile/member_payment_page.dart'; 
-
-// --- IMPORT HALAMAN LAIN ---
-import 'package:chupatu_mobile/pages/order/service_detail_page.dart'; 
-import 'package:chupatu_mobile/pages/order/booking_page.dart'; 
-import 'package:chupatu_mobile/pages/order/order_history_page.dart'; 
+import 'package:chupatu_mobile/pages/profile/member_payment_page.dart';
+import 'package:chupatu_mobile/pages/order/service_detail_page.dart';
+import 'package:chupatu_mobile/pages/order/booking_page.dart';
+import 'package:chupatu_mobile/pages/order/order_history_page.dart';
 import 'package:chupatu_mobile/pages/home/widgets/auto_magic_card.dart';
 import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
+import 'package:chupatu_mobile/pages/notification/notification_page.dart'; // Pastikan Import Ini Ada
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -79,12 +79,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(30))),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text("Select App Theme", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: List.generate(ThemeConfig.themes.length, (index) {
-                  final theme = ThemeConfig.themes[index];
-                  return GestureDetector(onTap: () { ThemeConfig.changeTheme(index); Navigator.pop(context); }, child: Container(margin: const EdgeInsets.symmetric(horizontal: 8), child: Column(children: [Container(width: 60, height: 60, decoration: BoxDecoration(color: theme.primary, shape: BoxShape.circle, border: Border.all(color: Colors.grey.shade300, width: 2), boxShadow: [BoxShadow(color: theme.primary.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))]), child: ThemeConfig.currentTheme.value == theme ? const Icon(Icons.check, color: Colors.white) : null), const SizedBox(height: 8), Text(theme.name, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600))])));
-                }))), const SizedBox(height: 20)]),
+          Text("Select App Theme", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: List.generate(ThemeConfig.themes.length, (index) {
+            final theme = ThemeConfig.themes[index];
+            return GestureDetector(onTap: () { ThemeConfig.changeTheme(index); Navigator.pop(context); }, child: Container(margin: const EdgeInsets.symmetric(horizontal: 8), child: Column(children: [Container(width: 60, height: 60, decoration: BoxDecoration(color: theme.primary, shape: BoxShape.circle, border: Border.all(color: Colors.grey.shade300, width: 2), boxShadow: [BoxShadow(color: theme.primary.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))]), child: ThemeConfig.currentTheme.value == theme ? const Icon(Icons.check, color: Colors.white) : null), const SizedBox(height: 8), Text(theme.name, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600))])));
+          }))), const SizedBox(height: 20)]),
       ),
     );
   }
@@ -128,9 +128,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
                             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())), child: Row(children: [Container(width: 50, height: 50, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: theme.surface, width: 2), image: DecorationImage(image: NetworkImage(photoURL), fit: BoxFit.cover), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)])), const SizedBox(width: 12), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_getGreeting(), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade600)), Row(children: [Text(displayName, style: GoogleFonts.plusJakartaSans(fontSize: 18, color: theme.textMain, fontWeight: FontWeight.w800)), if (isPro) ...[const SizedBox(width: 6), const Icon(Icons.verified, color: Colors.blue, size: 16)]])])])),
-                                Row(children: [GestureDetector(onTap: () => _showThemePicker(context), child: Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Icon(Icons.palette_rounded, color: theme.primary, size: 20))), const SizedBox(width: 12), Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Stack(alignment: Alignment.center, children: [Icon(Icons.notifications_none_rounded, color: theme.textMain.withOpacity(0.8)), Positioned(top: 10, right: 10, child: CircleAvatar(radius: 3.5, backgroundColor: Colors.redAccent))]))]),
-                              ],
+                              GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())), child: Row(children: [Container(width: 50, height: 50, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: theme.surface, width: 2), image: DecorationImage(image: NetworkImage(photoURL), fit: BoxFit.cover), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)])), const SizedBox(width: 12), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_getGreeting(), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade600)), Row(children: [Text(displayName, style: GoogleFonts.plusJakartaSans(fontSize: 18, color: theme.textMain, fontWeight: FontWeight.w800)), if (isPro) ...[const SizedBox(width: 6), const Icon(Icons.verified, color: Colors.blue, size: 16)]])])])),
+                              Row(children: [
+                                GestureDetector(onTap: () => _showThemePicker(context), child: Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Icon(Icons.palette_rounded, color: theme.primary, size: 20))),
+                                const SizedBox(width: 12),
+
+                                // --- TOMBOL NOTIFIKASI (MODIFIKASI DISINI) ---
+                                GestureDetector(
+                                    onTap: () {
+                                      // NAVIGASI KE HALAMAN NOTIFIKASI
+                                      Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage()));
+                                    },
+                                    child: Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Stack(alignment: Alignment.center, children: [Icon(Icons.notifications_none_rounded, color: theme.textMain.withOpacity(0.8)), Positioned(top: 10, right: 10, child: CircleAvatar(radius: 3.5, backgroundColor: Colors.redAccent))]))
+                                )
+                                // ---------------------------------------------
+                              ]),
+                            ],
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -171,13 +184,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ),
 
                           const SizedBox(height: 24),
-                          
+
                           // --- BANNER PRO MEMBER (HANYA MUNCUL JIKA BELUM PRO) ---
                           if (!isPro) ...[
                             _buildChupatuPro(theme),
                             const SizedBox(height: 24),
                           ],
-                          
+
                           // --- LIVE TRACKING (PERBAIKAN UTAMA) ---
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -188,13 +201,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   children: [
                                     Text('Live Tracking', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
                                     GestureDetector(
-                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OrderHistoryPage())),
-                                      child: Text('Lihat Semua', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: theme.primary, fontWeight: FontWeight.bold))
+                                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OrderHistoryPage())),
+                                        child: Text('Lihat Semua', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: theme.primary, fontWeight: FontWeight.bold))
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 12),
-                                
+
                                 // STREAM DATA ORDER (Dengan Error Handling)
                                 StreamBuilder<QuerySnapshot>(
                                   stream: FirebaseFirestore.instance
@@ -245,11 +258,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     String status = latestOrder['status'] ?? 'Pending';
                                     String shoeName = latestOrder['shoeDetail'] ?? 'Sepatu';
                                     String serviceName = latestOrder['serviceName'] ?? 'Layanan';
-                                    
+
                                     // Warna & Progress Bar
                                     double progress = 0.1;
                                     Color statusColor = Colors.orange;
-                                    
+
                                     if (status == 'Pending') { progress = 0.1; statusColor = Colors.orange; }
                                     else if (status == 'Confirmed') { progress = 0.25; statusColor = Colors.blue; }
                                     else if (status == 'Picked Up') { progress = 0.5; statusColor = Colors.purple; }
@@ -262,10 +275,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                       child: Container(
                                         padding: const EdgeInsets.all(20),
                                         decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(24),
-                                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
-                                          border: Border.all(color: statusColor.withOpacity(0.3)) // Border ikut warna status
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(24),
+                                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+                                            border: Border.all(color: statusColor.withOpacity(0.3)) // Border ikut warna status
                                         ),
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,21 +306,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text('Magic Results ✨', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
-                                const SizedBox(height: 12),
-                                SizedBox(height: 240, child: ListView(scrollDirection: Axis.horizontal, clipBehavior: Clip.none, children: [
-                                      AutoMagicCard(beforeUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600', afterUrl: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600', title: 'Nike Air Force 1', theme: theme, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Nike Air Force 1', beforeImg: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600')))),
-                                      const SizedBox(width: 16),
-                                      AutoMagicCard(beforeUrl: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600', afterUrl: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600', title: 'Jordan Repaint', theme: theme, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Jordan Repaint', beforeImg: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600')))),
-                                    ])),
-                              ]),
+                              Text('Magic Results ✨', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+                              const SizedBox(height: 12),
+                              SizedBox(height: 240, child: ListView(scrollDirection: Axis.horizontal, clipBehavior: Clip.none, children: [
+                                AutoMagicCard(beforeUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600', afterUrl: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600', title: 'Nike Air Force 1', theme: theme, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Nike Air Force 1', beforeImg: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600')))),
+                                const SizedBox(width: 16),
+                                AutoMagicCard(beforeUrl: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600', afterUrl: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600', title: 'Jordan Repaint', theme: theme, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Jordan Repaint', beforeImg: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600')))),
+                              ])),
+                            ]),
                           ),
                           const SizedBox(height: 100),
                         ],
                       ),
                     ),
                   ),
-                  
+
                   if (_showFloatingPromo) Positioned(bottom: 100, left: 20, right: 20, child: Dismissible(key: const Key('promo'), onDismissed: (_) => setState(() => _showFloatingPromo = false), child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: const Color(0xFF1E1E2C).withOpacity(0.95), borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))]), child: Row(children: [const Icon(Icons.local_offer_rounded, color: Color(0xFFFFD700), size: 24), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [Text('Promo Gajian!', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)), Text('Diskon 30% semua layanan hari ini.', style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 12))])), IconButton(icon: const Icon(Icons.close, color: Colors.white54, size: 18), onPressed: () => setState(() => _showFloatingPromo = false))])))),
                 ],
               ),
@@ -321,9 +334,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _navigateToService(BuildContext context, String serviceName) {
     int price = 0;
     String description = "";
-    String imageUrl = "https://images.unsplash.com/photo-1542291026-7eec264c27ff"; 
+    String imageUrl = "https://images.unsplash.com/photo-1542291026-7eec264c27ff";
 
-    if (serviceName == 'Deep Clean') { price = 40000; description = "Perawatan cuci sepatu secara menyeluruh untuk semua jenis bahan."; imageUrl = "https://images.unsplash.com/photo-1595341888016-a392ef81b7de?q=80&w=800"; } 
+    if (serviceName == 'Deep Clean') { price = 40000; description = "Perawatan cuci sepatu secara menyeluruh untuk semua jenis bahan."; imageUrl = "https://images.unsplash.com/photo-1595341888016-a392ef81b7de?q=80&w=800"; }
     else if (serviceName == 'Fast Clean') { price = 25000; description = "Pencucian cepat khusus bagian luar sepatu."; imageUrl = "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=800"; }
     // ... (Harga lain bisa disesuaikan)
     else { price = 30000; description = "Layanan perawatan sepatu profesional."; }
@@ -340,6 +353,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildImageBanner(String imgUrl, String title, String subtitle, Color accentColor) { return Container(margin: const EdgeInsets.symmetric(horizontal: 24), decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: accentColor.withOpacity(0.25), blurRadius: 15, offset: const Offset(0, 8))]), child: ClipRRect(borderRadius: BorderRadius.circular(24), child: Stack(children: [Image.network(imgUrl, width: double.infinity, height: double.infinity, fit: BoxFit.cover), Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [accentColor.withOpacity(0.9), accentColor.withOpacity(0.2)]))), Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white.withOpacity(0.25), borderRadius: BorderRadius.circular(8)), child: Text('PROMO', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))), const SizedBox(height: 8), Text(title, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)), const SizedBox(height: 4), Text(subtitle, style: GoogleFonts.plusJakartaSans(color: Colors.white.withOpacity(0.95), fontSize: 12))]))]))); }
-  
+
   Widget _buildMiniGarageItem(String title, String imgUrl, AppThemeData theme) { return Container(width: 100, decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(16)), child: Image.network(imgUrl, width: double.infinity, fit: BoxFit.cover))), Padding(padding: const EdgeInsets.all(8), child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: theme.textMain)))])); }
 }

@@ -7,7 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:chupatu_mobile/pages/auth/register_page.dart';
 import 'package:chupatu_mobile/pages/auth/landing_page.dart';
 import 'package:chupatu_mobile/pages/home/home_page.dart'; 
-import 'package:chupatu_mobile/pages/admin/admin_home_page.dart';
+import 'package:chupatu_mobile/pages/admin/dashboard/admin_home_page.dart';
 
 import '../../main.dart';
 

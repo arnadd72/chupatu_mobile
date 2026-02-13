@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/config/firebase_options.dart';
 import 'package:chupatu_mobile/pages/auth/landing_page.dart';
 import 'package:chupatu_mobile/pages/main_page.dart'; // File baru yang ada Navbarnya
-import 'package:chupatu_mobile/pages/admin/admin_home_page.dart'; // Halaman Admin
+import 'package:chupatu_mobile/pages/admin/dashboard/admin_home_page.dart'; // Halaman Admin
 
 // ============================================================
 // 1. KONFIGURASI TEMA (THEME CONFIG)
