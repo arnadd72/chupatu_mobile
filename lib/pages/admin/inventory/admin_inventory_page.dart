@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/main.dart';
-// IMPORT TEMA KACA
 import 'package:chupatu_mobile/pages/admin/widgets/admin_glass_theme.dart';
+// IMPORT HALAMAN HISTORY
+import 'package:chupatu_mobile/pages/admin/inventory/inventory_history_page.dart';
 
 class AdminInventoryPage extends StatefulWidget {
   const AdminInventoryPage({super.key});
@@ -12,14 +14,66 @@ class AdminInventoryPage extends StatefulWidget {
 }
 
 class _AdminInventoryPageState extends State<AdminInventoryPage> {
-  // Dummy Data Stok
-  List<Map<String, dynamic>> inventory = [
-    {'name': 'Sabun Sepatu (Liter)', 'stock': 2, 'unit': 'L', 'color': Colors.blue},
-    {'name': 'Parfum Sepatu', 'stock': 12, 'unit': 'Btl', 'color': Colors.purple},
-    {'name': 'Plastik Packing', 'stock': 45, 'unit': 'Pcs', 'color': Colors.orange},
-    {'name': 'Sikat Kasar', 'stock': 8, 'unit': 'Pcs', 'color': Colors.brown},
-    {'name': 'Cat Hitam', 'stock': 1, 'unit': 'Kaleng', 'color': Colors.black},
-  ];
+
+  // --- FUNGSI TAMBAH BARANG BARU ---
+  void _showAddDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final stockCtrl = TextEditingController();
+    final unitCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Tambah Barang", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "Nama Barang (ex: Sabun)")),
+            TextField(controller: stockCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Stok Awal")),
+            TextField(controller: unitCtrl, decoration: const InputDecoration(labelText: "Satuan (ex: Pcs, Liter)")),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameCtrl.text.isNotEmpty && stockCtrl.text.isNotEmpty) {
+                // Simpan ke Firestore
+                await FirebaseFirestore.instance.collection('inventory').add({
+                  'name': nameCtrl.text,
+                  'stock': int.parse(stockCtrl.text),
+                  'unit': unitCtrl.text,
+                  'color': 'blue', // Default color, nanti bisa dibikin color picker
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
+                if(mounted) Navigator.pop(ctx);
+              }
+            },
+            child: const Text("Simpan"),
+          )
+        ],
+      ),
+    );
+  }
+
+  // --- FUNGSI UPDATE STOK (+/-) ---
+  Future<void> _updateStock(String docId, String name, int currentStock, int change) async {
+    // 1. Update Stok Utama
+    int newStock = currentStock + change;
+    if (newStock < 0) return; // Gaboleh minus
+
+    await FirebaseFirestore.instance.collection('inventory').doc(docId).update({
+      'stock': newStock
+    });
+
+    // 2. Catat Log History
+    await FirebaseFirestore.instance.collection('inventory_logs').add({
+      'itemName': name,
+      'amount': change.abs(),
+      'type': change > 0 ? 'in' : 'out', // 'in' = nambah, 'out' = kurang
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +85,7 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // HEADER
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -38,34 +93,51 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text("Gudang & Stok", style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.bold, color: theme.textMain)),
-                        Text("Monitor persediaan bahan baku.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                        Text("Monitor bahan baku.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
                       ],
                     ),
-                    // Tombol Tambah Barang (Glass Button)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: theme.primary.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                          onPressed: (){
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fitur Tambah Barang (Coming Soon)")));
-                          },
-                          icon: Icon(Icons.add, color: theme.primary, size: 28)
-                      ),
+                    Row(
+                      children: [
+                        // Tombol History
+                        IconButton(
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryHistoryPage())),
+                          icon: const Icon(Icons.history_rounded, color: Colors.grey),
+                          tooltip: "Riwayat Stok",
+                        ),
+                        // Tombol Tambah
+                        Container(
+                          decoration: BoxDecoration(color: theme.primary.withOpacity(0.1), shape: BoxShape.circle),
+                          child: IconButton(
+                              onPressed: () => _showAddDialog(context),
+                              icon: Icon(Icons.add, color: theme.primary, size: 28)
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
 
-                // LIST BARANG
+                // LIST BARANG (REALTIME)
                 Expanded(
-                  child: ListView.separated(
-                    itemCount: inventory.length,
-                    separatorBuilder: (c, i) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final item = inventory[index];
-                      return _buildStockCard(item, theme);
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('inventory').orderBy('name').snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return Center(child: Text("Gudang Kosong", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
+                      }
+
+                      var docs = snapshot.data!.docs;
+
+                      return ListView.separated(
+                        itemCount: docs.length,
+                        separatorBuilder: (c, i) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          var data = docs[index].data() as Map<String, dynamic>;
+                          return _buildStockCard(docs[index].id, data, theme);
+                        },
+                      );
                     },
                   ),
                 ),
@@ -76,8 +148,15 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
     );
   }
 
-  Widget _buildStockCard(Map<String, dynamic> item, AppThemeData theme) {
-    bool isLowStock = item['stock'] <= 3; // Peringatan kalau stok <= 3
+  Widget _buildStockCard(String docId, Map<String, dynamic> item, AppThemeData theme) {
+    int stock = item['stock'] ?? 0;
+    bool isLowStock = stock <= 3;
+
+    // Mapping Warna String ke Color Flutter
+    Color itemColor = Colors.blue;
+    if (item['color'] == 'purple') itemColor = Colors.purple;
+    if (item['color'] == 'orange') itemColor = Colors.orange;
+    // ... bisa ditambah logic lain
 
     return GlassCard(
       child: Row(
@@ -85,8 +164,8 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
           // Ikon Barang
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: item['color'].withOpacity(0.1), shape: BoxShape.circle),
-            child: Icon(Icons.inventory_2_rounded, color: item['color']),
+            decoration: BoxDecoration(color: itemColor.withOpacity(0.1), shape: BoxShape.circle),
+            child: Icon(Icons.inventory_2_rounded, color: itemColor),
           ),
           const SizedBox(width: 16),
 
@@ -95,7 +174,7 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item['name'], style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(item['name'] ?? 'Item', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
                 if (isLowStock)
                   Container(
                       margin: const EdgeInsets.only(top: 4),
@@ -120,14 +199,14 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.remove, size: 18, color: Colors.grey),
-                  onPressed: () => setState(() { if (item['stock'] > 0) item['stock']--; }),
-                  constraints: const BoxConstraints(), // Biar icon button gak makan tempat
+                  onPressed: () => _updateStock(docId, item['name'], stock, -1), // Kurangi 1
+                  constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(8),
                 ),
-                Text("${item['stock']} ${item['unit']}", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text("$stock ${item['unit'] ?? ''}", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14)),
                 IconButton(
                   icon: Icon(Icons.add, size: 18, color: theme.primary),
-                  onPressed: () => setState(() => item['stock']++),
+                  onPressed: () => _updateStock(docId, item['name'], stock, 1), // Tambah 1
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(8),
                 ),

@@ -1,22 +1,20 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 class ChatRoomPage extends StatefulWidget {
-  final String name;
-  final bool isOnline;
-
-  // --- TAMBAHAN BARU UNTUK ADMIN ---
-  final String? chatId; // Kunci Kamar (Opsional)
-  final bool isAdmin;   // Penanda apakah yang buka ini Admin?
+  final String chatId;   // KUNCI UTAMA (ID Dokumen di Firebase)
+  final String name;     // Nama Lawan Bicara
+  final bool isOnline;   // Status (Visual aja)
+  final bool isAdmin;    // Penanda: Kita ini Admin atau Customer?
 
   const ChatRoomPage({
     super.key,
+    required this.chatId,
     required this.name,
-    required this.isOnline,
-    this.chatId,          // Admin wajib isi ini
-    this.isAdmin = false, // Default: False (User Biasa)
+    this.isOnline = false,
+    required this.isAdmin, // Wajib diisi biar tau posisi chat bubble
   });
 
   @override
@@ -24,80 +22,62 @@ class ChatRoomPage extends StatefulWidget {
 }
 
 class _ChatRoomPageState extends State<ChatRoomPage> {
-  final TextEditingController _messageController = TextEditingController();
-  final User? user = FirebaseAuth.instance.currentUser;
-  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _msgController = TextEditingController();
 
-  late String roomChatId;
+  // --- FUNGSI KIRIM PESAN ---
+  void _sendMessage() async {
+    if (_msgController.text.trim().isEmpty) return;
 
-  @override
-  void initState() {
-    super.initState();
-    // LOGIKA PENENTUAN ROOM ID
-    if (widget.chatId != null) {
-      // Jika Admin yang buka, pakai ID yang dikirim dari AdminChatPage
-      roomChatId = widget.chatId!;
-    } else {
-      // Jika User yang buka, generate ID sendiri (UID_admin)
-      roomChatId = "${user!.uid}_admin";
+    String message = _msgController.text.trim();
+    _msgController.clear(); // Langsung kosongkan input biar cepet
+
+    try {
+      // 1. Masukkan Pesan ke Sub-Collection 'messages'
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .add({
+        'text': message,
+        'isSenderAdmin': widget.isAdmin, // True jika Admin, False jika Customer
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // 2. UPDATE Data Luar (Parent Document)
+      // Ini PENTING biar di List Chat Home (Admin) atau List Chat Customer berubah 'Last Message'-nya
+      await FirebaseFirestore.instance.collection('chats').doc(widget.chatId).update({
+        'lastMessage': message,
+        'lastTime': FieldValue.serverTimestamp(),
+        // Jika perlu update status read/unread bisa disini
+      });
+
+    } catch (e) {
+      debugPrint("Gagal kirim pesan: $e");
     }
-  }
-
-  void _sendMessage() {
-    if (_messageController.text.trim().isEmpty) return;
-
-    // Tentukan siapa pengirimnya
-    String senderId = widget.isAdmin ? 'admin' : user!.uid;
-
-    // 1. Kirim Pesan
-    FirebaseFirestore.instance
-        .collection('chats')
-        .doc(roomChatId)
-        .collection('messages')
-        .add({
-      'text': _messageController.text.trim(),
-      'senderId': senderId,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-
-    // 2. Update Info Terakhir di List Chat
-    FirebaseFirestore.instance.collection('chats').doc(roomChatId).set({
-      'lastMessage': _messageController.text.trim(),
-      'lastTime': FieldValue.serverTimestamp(),
-      // Jangan update userId/userName kalau Admin yang balas, biarkan tetap punya user
-      if (!widget.isAdmin) 'userId': user!.uid,
-      if (!widget.isAdmin) 'userName': user!.displayName ?? 'User',
-    }, SetOptions(merge: true));
-
-    _messageController.clear();
-
-    // Scroll ke bawah
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if(_scrollController.hasClients) {
-        _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA), // Warna background abu muda
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: const IconThemeData(color: Colors.black87),
         title: Row(
           children: [
             CircleAvatar(
-              backgroundColor: widget.isAdmin ? Colors.orange.shade100 : Colors.blue.shade100,
-              child: Text(widget.name[0].toUpperCase(), style: TextStyle(color: widget.isAdmin ? Colors.orange : Colors.blue)),
+              backgroundColor: widget.isAdmin ? Colors.blue.shade100 : Colors.green.shade100,
+              radius: 18,
+              child: Text(widget.name[0].toUpperCase(), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.black87)),
             ),
             const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.name, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
-                Text("Online", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.green)),
+                Text(widget.name, style: GoogleFonts.plusJakartaSans(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                if (widget.isOnline)
+                  Text("Online", style: GoogleFonts.plusJakartaSans(color: Colors.green, fontSize: 12)),
               ],
             ),
           ],
@@ -105,104 +85,72 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       ),
       body: Column(
         children: [
-          // LIST PESAN
+          // --- LIST PESAN ---
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('chats')
-                  .doc(roomChatId)
-                  .collection('messages')
-                  .orderBy('createdAt', descending: false)
+                  .doc(widget.chatId) // Masuk ke Room spesifik
+                  .collection('messages') // Ambil pesan
+                  .orderBy('createdAt', descending: true) // Pesan baru di bawah (logic reverse ListView)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
                 var docs = snapshot.data!.docs;
-
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if(_scrollController.hasClients) {
-                    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-                  }
-                });
+                if (docs.isEmpty) {
+                  return Center(child: Text("Mulai percakapan dengan ${widget.name} 👋", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
+                }
 
                 return ListView.builder(
-                  controller: _scrollController,
+                  reverse: true, // Biar scroll mulai dari bawah
                   padding: const EdgeInsets.all(16),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
                     var data = docs[index].data() as Map<String, dynamic>;
 
-                    // LOGIKA BUBBLE CHAT:
-                    // Jika Saya Admin -> Pesan 'admin' ada di Kanan.
-                    // Jika Saya User  -> Pesan 'user.uid' ada di Kanan.
-                    bool isMe;
-                    if (widget.isAdmin) {
-                      isMe = data['senderId'] == 'admin';
-                    } else {
-                      isMe = data['senderId'] == user!.uid;
-                    }
+                    // Cek siapa pengirimnya
+                    bool isSenderAdmin = data['isSenderAdmin'] ?? false;
 
-                    String text = data['text'] ?? '';
-                    String time = "";
-                    if (data['createdAt'] != null) {
-                      DateTime d = (data['createdAt'] as Timestamp).toDate();
-                      time = "${d.hour}:${d.minute.toString().padLeft(2,'0')}";
-                    }
+                    // Logika Bubble:
+                    // Jika kita Admin (widget.isAdmin == true) dan pesannya dari Admin (isSenderAdmin == true) -> Posisi Kanan (Saya)
+                    // Jika kita Customer (widget.isAdmin == false) dan pesannya BUKAN Admin (isSenderAdmin == false) -> Posisi Kanan (Saya)
+                    bool isMe = (widget.isAdmin == isSenderAdmin);
 
-                    return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: isMe ? (widget.isAdmin ? Colors.orange : Colors.blue) : Colors.grey.shade200,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(16),
-                            topRight: const Radius.circular(16),
-                            bottomLeft: isMe ? const Radius.circular(16) : Radius.zero,
-                            bottomRight: isMe ? Radius.zero : const Radius.circular(16),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(text, style: GoogleFonts.plusJakartaSans(color: isMe ? Colors.white : Colors.black87)),
-                            const SizedBox(height: 4),
-                            Text(time, style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : Colors.grey)),
-                          ],
-                        ),
-                      ),
-                    );
+                    return _buildChatBubble(data['text'], isMe, data['createdAt']);
                   },
                 );
               },
             ),
           ),
 
-          // INPUT TEXT
+          // --- INPUT FIELD ---
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.white,
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(
-                      hintText: "Tulis pesan...",
-                      hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: TextField(
+                      controller: _msgController,
+                      decoration: const InputDecoration(
+                        hintText: "Tulis pesan...",
+                        border: InputBorder.none,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 CircleAvatar(
-                  backgroundColor: widget.isAdmin ? Colors.orange : Colors.blue,
+                  backgroundColor: widget.isAdmin ? Colors.blue : Colors.green,
                   child: IconButton(
-                    icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                    icon: const Icon(Icons.send, color: Colors.white, size: 18),
                     onPressed: _sendMessage,
                   ),
                 ),
@@ -210,6 +158,42 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildChatBubble(String text, bool isMe, Timestamp? timestamp) {
+    String timeStr = "";
+    if (timestamp != null) {
+      timeStr = DateFormat('HH:mm').format(timestamp.toDate());
+    }
+
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isMe
+              ? (widget.isAdmin ? Colors.blue : Colors.green) // Biru kalau Admin, Hijau kalau Customer
+              : Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isMe ? 16 : 0),
+            bottomRight: Radius.circular(isMe ? 0 : 16),
+          ),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(text, style: GoogleFonts.plusJakartaSans(color: isMe ? Colors.white : Colors.black87)),
+            const SizedBox(height: 4),
+            Text(timeStr, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: isMe ? Colors.white70 : Colors.grey)),
+          ],
+        ),
       ),
     );
   }

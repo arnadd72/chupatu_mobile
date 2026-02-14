@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-// --- TAMBAHAN IMPORT PENTING ---
-import 'package:firebase_auth/firebase_auth.dart';     // Agar kenal FirebaseAuth
-import 'package:cloud_firestore/cloud_firestore.dart'; // Agar kenal QuerySnapshot, Timestamp, FirebaseFirestore
-// -------------------------------
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/notification/notification_detail_page.dart';
 import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
@@ -59,11 +57,10 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  // --- WIDGET TAB 1: INFO & PROMO (REAL-TIME FIREBASE) ---
+  // --- WIDGET TAB 1: INFO & PROMO ---
   Widget _buildInfoTab(AppThemeData theme) {
-    // SEKARANG ERROR INI SUDAH HILANG KARENA IMPORT SUDAH ADA
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const Center(child: Text("Login dulu bos"));
+    if (user == null) return const Center(child: Text("Silakan login terlebih dahulu"));
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -103,10 +100,8 @@ class _NotificationPageState extends State<NotificationPage> {
             String type = data['type'] ?? 'info';
             bool isRead = data['isRead'] ?? false;
 
-            // Format Waktu Simpel
             String timeStr = "Baru saja";
             if (data['createdAt'] != null) {
-              // ERROR TIMESTAMP JUGA SUDAH HILANG
               DateTime date = (data['createdAt'] as Timestamp).toDate();
               timeStr = "${date.hour}:${date.minute.toString().padLeft(2, '0')}";
             }
@@ -176,13 +171,72 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  // --- WIDGET TAB 2: CHAT ADMIN ---
+  // --- WIDGET TAB 2: CHAT ADMIN (FIXED & SYNCHRONIZED) ---
   Widget _buildChatTab(AppThemeData theme) {
-    // Kita pakai ChatRoomPage langsung untuk demo User ke Admin
-    // Di aplikasi real, ini harusnya list chat. Tapi karena user cuma chat sama 1 admin:
     final user = FirebaseAuth.instance.currentUser;
-    if(user == null) return const SizedBox();
+    if (user == null) {
+      return const Center(child: Text("Silakan Login untuk Chat"));
+    }
 
-    return ChatRoomPage(name: "Admin Pusat", isOnline: true);
+    // Menggunakan StreamBuilder untuk mencari Room Chat user secara Real-time
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('chats')
+          .where('userId', isEqualTo: user.uid)
+          .limit(1)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // SKENARIO 1: Belum ada chat room -> Tampilkan tombol "Mulai Chat"
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.chat_bubble_outline_rounded, size: 80, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                Text("Belum ada riwayat chat", style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    // Buat Room Chat Baru di Database
+                    await FirebaseFirestore.instance.collection('chats').add({
+                      'userId': user.uid,
+                      'userName': user.displayName ?? 'Customer',
+                      'lastMessage': 'Halo Admin, saya butuh bantuan.',
+                      'lastTime': FieldValue.serverTimestamp(),
+                      'createdAt': FieldValue.serverTimestamp(),
+                    });
+                    // Setelah dibuat, StreamBuilder akan otomatis refresh dan masuk ke SKENARIO 2
+                  },
+                  icon: const Icon(Icons.send_rounded, size: 18),
+                  label: const Text("Mulai Chat dengan Admin"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // SKENARIO 2: Sudah ada chat room -> Langsung tampilkan ChatRoomPage
+        // Ambil ID Dokumen (chatId) yang sudah ada
+        String chatId = snapshot.data!.docs.first.id;
+
+        return ChatRoomPage(
+          chatId: chatId,        // Kunci Sinkronisasi
+          name: "Admin Pusat",   // Nama Lawan Bicara
+          isOnline: true,        // Status Admin (Dummy)
+          isAdmin: false,        // Customer bukan Admin
+        );
+      },
+    );
   }
 }

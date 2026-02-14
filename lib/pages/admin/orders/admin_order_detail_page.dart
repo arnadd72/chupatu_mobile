@@ -1,14 +1,14 @@
-import 'dart:ui' as ui; // Import untuk manipulasi gambar
-import 'dart:io'; // Import untuk File system
-import 'dart:typed_data'; // Import untuk ByteData
+import 'dart:ui' as ui;
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart'; // Import untuk RepaintBoundary
+import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:path_provider/path_provider.dart'; // WAJIB ADA
-import 'package:share_plus/share_plus.dart'; // WAJIB ADA
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:chupatu_mobile/main.dart';
 
 // IMPORT HALAMAN CHAT ROOM
@@ -27,7 +27,7 @@ class AdminOrderDetailPage extends StatefulWidget {
 class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   late String _currentStatus;
   bool _isUpdating = false;
-  // GlobalKey untuk menangkap gambar Barcode
+  bool _isLoadingChat = false; // Loading chat
   final GlobalKey _barcodeKey = GlobalKey();
 
   final List<String> _statuses = [
@@ -40,8 +40,8 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     _currentStatus = widget.data['status'] ?? 'Pending';
   }
 
-  // --- 1. LOGIKA CHAT LANGSUNG KE CUSTOMER ---
-  void _openChatWithCustomer() {
+  // --- 1. LOGIKA CHAT LANGSUNG KE CUSTOMER (PERBAIKAN ERROR) ---
+  Future<void> _openChatWithCustomer() async {
     String customerId = widget.data['userId'] ?? '';
     String customerName = widget.data['customerName'] ?? 'Customer';
 
@@ -50,31 +50,64 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
       return;
     }
 
-    Navigator.push(context, MaterialPageRoute(
-        builder: (context) => ChatRoomPage(
-          chatId: customerId,
-          name: customerName,
-          isOnline: false,
-        )
-    ));
+    setState(() => _isLoadingChat = true);
+
+    try {
+      // 1. CARI ROOM CHAT MILIK USER INI
+      var chatQuery = await FirebaseFirestore.instance
+          .collection('chats')
+          .where('userId', isEqualTo: customerId)
+          .limit(1)
+          .get();
+
+      String chatId;
+
+      if (chatQuery.docs.isNotEmpty) {
+        // ADA ROOM -> PAKAI ID LAMA
+        chatId = chatQuery.docs.first.id;
+      } else {
+        // BELUM ADA -> BUAT BARU
+        DocumentReference newChat = await FirebaseFirestore.instance.collection('chats').add({
+          'userId': customerId,
+          'userName': customerName,
+          'lastMessage': '',
+          'lastTime': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        chatId = newChat.id;
+      }
+
+      if (!mounted) return;
+
+      // 2. BUKA CHAT (PARAMETER LENGKAP)
+      Navigator.push(context, MaterialPageRoute(
+          builder: (context) => ChatRoomPage(
+            chatId: chatId,      // ID Dokumen
+            name: customerName,
+            isOnline: false,
+            isAdmin: true,       // <--- FIX: KITA ADMIN
+          )
+      ));
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Eror chat: $e")));
+    } finally {
+      if(mounted) setState(() => _isLoadingChat = false);
+    }
   }
 
-  // --- 2. LOGIKA SHARE / DOWNLOAD BARCODE (FITUR BARU) ---
+  // --- 2. LOGIKA SHARE / DOWNLOAD BARCODE ---
   Future<void> _shareBarcode() async {
     try {
-      // 1. Tangkap Gambar dari Widget (RepaintBoundary)
       RenderRepaintBoundary boundary = _barcodeKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0); // High Quality
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List pngBytes = byteData!.buffer.asUint8List();
 
-      // 2. Simpan ke File Sementara (Cache)
       final tempDir = await getTemporaryDirectory();
       final file = await File('${tempDir.path}/barcode_${widget.docId}.png').create();
       await file.writeAsBytes(pngBytes);
 
-      // 3. Share File
-      // (Pada Android/iOS, ini akan membuka dialog share: WhatsApp, Simpan ke Galeri, Email, dll)
       await Share.shareXFiles(
           [XFile(file.path)],
           text: 'Barcode Pesanan #${widget.docId.substring(0, 8)} - ${widget.data['customerName']}'
@@ -85,7 +118,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     }
   }
 
-  // --- 3. TAMPILAN DIALOG BARCODE (UPDATED) ---
+  // --- 3. TAMPILAN DIALOG BARCODE ---
   void _showBarcodeDialog() {
     showDialog(
       context: context,
@@ -94,9 +127,8 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // --- BAGIAN YANG AKAN DI-CAPTURE (FOTO) ---
             RepaintBoundary(
-              key: _barcodeKey, // KUNCI PENTING UNTUK SCREENSHOT
+              key: _barcodeKey,
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -106,7 +138,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Header Toko (Biar keliatan resmi pas dicetak)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -122,7 +153,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                     Text(widget.data['customerName'] ?? 'Customer', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue)),
                     const SizedBox(height: 20),
 
-                    // WIDGET QR CODE
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(12)),
@@ -144,7 +174,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
 
             const SizedBox(height: 20),
 
-            // --- TOMBOL AKSI (DI LUAR GAMBAR) ---
             Row(
               children: [
                 Expanded(
@@ -163,7 +192,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _shareBarcode, // PANGGIL FUNGSI SHARE
+                    onPressed: _shareBarcode,
                     icon: const Icon(Icons.share_rounded),
                     label: const Text("Share / Save"),
                     style: ElevatedButton.styleFrom(
@@ -232,7 +261,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     final int price = widget.data['totalPrice'] ?? 0;
 
-    // Barcode muncul jika status >= Confirmed
     int statusIndex = _statuses.indexOf(_currentStatus);
     bool showBarcode = statusIndex >= 1 && _currentStatus != 'Cancelled';
 
@@ -314,9 +342,11 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _openChatWithCustomer,
-                      icon: const Icon(Icons.chat_bubble_rounded, size: 20),
-                      label: Text("Chat Customer", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                      onPressed: _isLoadingChat ? null : _openChatWithCustomer,
+                      icon: _isLoadingChat
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Icon(Icons.chat_bubble_rounded, size: 20),
+                      label: Text(_isLoadingChat ? "Memuat..." : "Chat Customer", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                           backgroundColor: theme.primary,
                           foregroundColor: Colors.white,

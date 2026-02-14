@@ -303,6 +303,52 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
               const SizedBox(height: 30),
 
+              const SizedBox(height: 20),
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('inventory')
+                    .where('stock', isLessThanOrEqualTo: 3) // Cari stok <= 3
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const SizedBox(); // Kalau aman, sembunyikan
+
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red.withOpacity(0.3))
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, color: Colors.red),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Perhatian: Stok Menipis!", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.red)),
+                              Text(
+                                  "${snapshot.data!.docs.length} barang perlu restock segera.",
+                                  style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.red.shade700)
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            // Arahkan ke Tab Inventory (Index 3)
+                            setState(() => _selectedIndex = 3);
+                          },
+                          child: const Text("Cek", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                        )
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+
               // --- LIST ORDER TERBARU (MAX 3) ---
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text("Order Terbaru", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
