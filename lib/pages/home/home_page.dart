@@ -16,9 +16,9 @@ import 'package:chupatu_mobile/pages/home/widgets/auto_magic_card.dart';
 import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
 import 'package:chupatu_mobile/pages/notification/notification_page.dart';
 
-// WIDGET IMPORTS BARU
+// WIDGET IMPORTS
 import 'package:chupatu_mobile/pages/home/widgets/shoe_tips_widget.dart';
-import 'package:chupatu_mobile/pages/home/widgets/live_tracking_widget.dart'; // Import Live Tracking yang sudah dipisah
+import 'package:chupatu_mobile/pages/home/widgets/live_tracking_widget.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,7 +39,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    // Auto Slide Banner
     Timer.periodic(const Duration(seconds: 5), (Timer timer) {
       if (!mounted) return;
       if (_currentBannerIndex < _totalBanners - 1) {
@@ -104,14 +103,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
           builder: (context, userSnapshot) {
+
+            // --- LOGIC PENGECEKAN STATUS PRO ---
             bool isPro = false;
             String displayName = user?.displayName ?? 'Guest';
             String photoURL = user?.photoURL ?? 'https://i.pravatar.cc/150';
 
             if (userSnapshot.hasData && userSnapshot.data != null && userSnapshot.data!.exists) {
               var userData = userSnapshot.data!.data() as Map<String, dynamic>;
-              isPro = (userData['memberType'] == 'Pro');
+
+              // Cek field 'memberType' ATAU field 'role'
+              String mType = (userData['memberType'] ?? "").toString();
+              String uRole = (userData['role'] ?? "").toString();
+
+              isPro = (mType == 'Pro' || uRole == 'Pro');
+
               if (userData['displayName'] != null) displayName = userData['displayName'];
+              if (userData['photoURL'] != null) photoURL = userData['photoURL'];
             }
 
             return Scaffold(
@@ -202,13 +210,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ),
                           const SizedBox(height: 24),
 
+                          // --- KONDISI TAMPILAN BANNER PRO ---
                           if (!isPro) ...[
                             _buildChupatuPro(theme),
                             const SizedBox(height: 24),
                           ],
 
-                          // --- LIVE TRACKING (WIDGET TERPISAH) ---
-                          // Sekarang menggunakan LiveTrackingWidget agar tidak refresh saat banner geser
+                          // LIVE TRACKING
                           LiveTrackingWidget(userId: user!.uid, theme: theme),
 
                           const SizedBox(height: 24),
@@ -229,7 +237,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
                           const SizedBox(height: 30),
 
-                          // --- SHOE TIPS (WIDGET TERPISAH) ---
+                          // SHOE TIPS
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
                             child: Column(
@@ -237,7 +245,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               children: [
                                 Text('Tips Merawat Sepatu 💡', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
                                 const SizedBox(height: 12),
-                                ShoeTipsWidget(theme: theme), // Pakai Widget Baru
+                                ShoeTipsWidget(theme: theme),
                               ],
                             ),
                           ),
