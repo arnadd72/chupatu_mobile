@@ -7,6 +7,9 @@ import 'package:chupatu_mobile/pages/profile/profile_page.dart';
 import 'package:chupatu_mobile/pages/profile/account_page.dart';
 import 'package:chupatu_mobile/pages/order/quick_order.dart';
 
+// --- IMPORT HALAMAN GARAGE (BARU) ---
+import 'package:chupatu_mobile/pages/home/garage/garage_page.dart';
+
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
 
@@ -19,8 +22,8 @@ class _MainPageState extends State<MainPage> {
 
   final List<Widget> _pages = [
     const HomePage(),
-    const Center(child: Text("Garage Page (Segera Hadir)")),
-    const SizedBox(),
+    const GaragePage(isFromNavbar: true),
+    const SizedBox(),   // Placeholder untuk tombol tengah (+)
     const OrderHistoryPage(),
     const AccountPage(),
   ];
@@ -36,7 +39,6 @@ class _MainPageState extends State<MainPage> {
             body: _pages[_currentIndex],
 
             // --- BAGIAN 1: TOMBOL TENGAH (+) ---
-            // Transform.translate KITA HAPUS, diganti logika lokasi di bawah
             floatingActionButton: SizedBox(
               width: 55,
               height: 55,
@@ -57,7 +59,7 @@ class _MainPageState extends State<MainPage> {
               ),
             ),
 
-            // --- BAGIAN 2: LOKASI CUSTOM (RAHASIANYA DISINI) ---
+            // --- BAGIAN 2: LOKASI CUSTOM ---
             floatingActionButtonLocation: const CenterDockedWithOffset(offsetY: 30),
 
             // --- NAVBAR ---
@@ -124,8 +126,7 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
-// --- BAGIAN 3: CLASS TAMBAHAN (Taruh di paling bawah file ini) ---
-// Class ini fungsinya menghitung posisi tombol supaya BENAR-BENAR TURUN (Sensor + Gambar)
+// --- BAGIAN 3: CLASS TAMBAHAN ---
 class CenterDockedWithOffset extends FloatingActionButtonLocation {
   final double offsetY; // Berapa pixel mau diturunkan
 

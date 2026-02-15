@@ -15,10 +15,13 @@ import 'package:chupatu_mobile/pages/order/service_detail_page.dart';
 import 'package:chupatu_mobile/pages/home/widgets/auto_magic_card.dart';
 import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
 import 'package:chupatu_mobile/pages/notification/notification_page.dart';
+// Tambahkan import ini
+import 'package:chupatu_mobile/pages/home/garage/garage_page.dart';
 
 // WIDGET IMPORTS
 import 'package:chupatu_mobile/pages/home/widgets/shoe_tips_widget.dart';
 import 'package:chupatu_mobile/pages/home/widgets/live_tracking_widget.dart';
+import 'package:chupatu_mobile/pages/home/widgets/mini_garage_widget.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -220,6 +223,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           LiveTrackingWidget(userId: user!.uid, theme: theme),
 
                           const SizedBox(height: 24),
+
+                          // mini garage
+                          MiniGarageWidget(theme: theme),
 
                           // MAGIC RESULTS
                           Padding(
