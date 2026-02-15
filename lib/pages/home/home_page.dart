@@ -1,20 +1,24 @@
 import 'dart:async';
-import 'dart:ui'; // Untuk ImageFilter
-import 'dart:math' as math; // Untuk animasi goyang
+import 'dart:ui';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/main.dart';
+
+// PAGE IMPORTS
 import 'package:chupatu_mobile/pages/profile/profile_page.dart';
 import 'package:chupatu_mobile/pages/profile/member_payment_page.dart';
 import 'package:chupatu_mobile/pages/order/service_detail_page.dart';
-import 'package:chupatu_mobile/pages/order/booking_page.dart';
-import 'package:chupatu_mobile/pages/order/order_history_page.dart';
 import 'package:chupatu_mobile/pages/home/widgets/auto_magic_card.dart';
 import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
 import 'package:chupatu_mobile/pages/notification/notification_page.dart';
+
+// WIDGET IMPORTS BARU
+import 'package:chupatu_mobile/pages/home/widgets/shoe_tips_widget.dart';
+import 'package:chupatu_mobile/pages/home/widgets/live_tracking_widget.dart'; // Import Live Tracking yang sudah dipisah
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -29,24 +33,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _showFloatingPromo = true;
   late AnimationController _upgradeAnimController;
   final User? user = FirebaseAuth.instance.currentUser;
-
-  // Variabel untuk menyimpan jumlah total banner (agar auto slide tau batasnya)
   int _totalBanners = 3;
 
   @override
   void initState() {
     super.initState();
 
-    // Auto Slide Banner (DINAMIS)
+    // Auto Slide Banner
     Timer.periodic(const Duration(seconds: 5), (Timer timer) {
       if (!mounted) return;
-
       if (_currentBannerIndex < _totalBanners - 1) {
         _currentBannerIndex++;
       } else {
         _currentBannerIndex = 0;
       }
-
       if (_bannerController.hasClients) {
         _bannerController.animateToPage(
           _currentBannerIndex,
@@ -101,7 +101,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return ValueListenableBuilder<AppThemeData>(
       valueListenable: ThemeConfig.currentTheme,
       builder: (context, theme, child) {
-        // STREAM 1: DATA USER (Member Type)
         return StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
           builder: (context, userSnapshot) {
@@ -137,91 +136,35 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               Row(children: [
                                 GestureDetector(onTap: () => _showThemePicker(context), child: Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Icon(Icons.palette_rounded, color: theme.primary, size: 20))),
                                 const SizedBox(width: 12),
-                                GestureDetector(
-                                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage())),
-                                    child: Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Stack(alignment: Alignment.center, children: [Icon(Icons.notifications_none_rounded, color: theme.textMain.withOpacity(0.8)), Positioned(top: 10, right: 10, child: CircleAvatar(radius: 3.5, backgroundColor: Colors.redAccent))]))
-                                )
+                                GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage())), child: Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Stack(alignment: Alignment.center, children: [Icon(Icons.notifications_none_rounded, color: theme.textMain.withOpacity(0.8)), Positioned(top: 10, right: 10, child: CircleAvatar(radius: 3.5, backgroundColor: Colors.redAccent))]))),
                               ]),
-                            ],
-                            ),
+                            ]),
                           ),
                           const SizedBox(height: 12),
 
-                          // --- HERO SLIDER GABUNGAN (HARDCODED + FIREBASE) ---
-                          // --- HERO SLIDER (PROMO ADMIN DI DEPAN + HARDCODED DI BELAKANG) ---
+                          // HERO SLIDER
                           StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('promos')
-                                .where('isActive', isEqualTo: true)
-                                .orderBy('createdAt', descending: true)
-                                .limit(5)
-                                .snapshots(),
+                            stream: FirebaseFirestore.instance.collection('promos').where('isActive', isEqualTo: true).orderBy('createdAt', descending: true).limit(5).snapshots(),
                             builder: (context, snapshot) {
-                              // Cek Error Index (Biasanya terjadi saat pertama kali deploy query baru)
-                              if (snapshot.hasError) {
-                                debugPrint("🔥 ERROR FIRESTORE: ${snapshot.error}");
-                                // Tetap tampilkan banner hardcoded jika error
-                              }
-
-                              // 1. Siapkan List Banner Hardcoded (Disimpan di variabel terpisah)
                               List<Widget> hardcodedBanners = [
                                 _buildImageBanner('https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800', 'New Member Deal', '50% OFF Deep Clean', theme.primary),
                                 _buildImageBanner('https://images.unsplash.com/photo-1616401784845-180882ba9ba8?q=80&w=800', 'Free Pickup & Delivery', 'Min. order \$30', theme.secondary),
                                 _buildImageBanner('https://images.unsplash.com/photo-1512314889357-e157c22f938d?q=80&w=800', 'Express 24H', 'Get it back tomorrow.', Colors.indigo),
                               ];
-
-                              // 2. List untuk menampung Promo Firebase
                               List<Widget> firebaseBanners = [];
-
                               if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
                                 for (var doc in snapshot.data!.docs) {
                                   var data = doc.data() as Map<String, dynamic>;
-                                  firebaseBanners.add(
-                                      _buildImageBanner(
-                                        data['imageUrl'] ?? 'https://via.placeholder.com/800x400',
-                                        data['title'] ?? 'Promo Spesial',
-                                        data['description'] ?? 'Cek sekarang!',
-                                        theme.primary,
-                                      )
-                                  );
+                                  firebaseBanners.add(_buildImageBanner(data['imageUrl'] ?? 'https://via.placeholder.com/800x400', data['title'] ?? 'Promo Spesial', data['description'] ?? 'Cek sekarang!', theme.primary));
                                 }
                               }
-
-                              // 3. GABUNGKAN: Promo Admin DULUAN, baru Hardcoded
                               List<Widget> finalBanners = [...firebaseBanners, ...hardcodedBanners];
-
-                              // Update total banner agar auto-slide tau batasnya
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) _totalBanners = finalBanners.length;
-                              });
+                              WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _totalBanners = finalBanners.length; });
 
                               return Column(
                                 children: [
-                                  SizedBox(
-                                    height: 180,
-                                    child: PageView(
-                                      controller: _bannerController,
-                                      onPageChanged: (index) => setState(() => _currentBannerIndex = index),
-                                      children: finalBanners, // Gunakan list yang sudah digabung
-                                    ),
-                                  ),
-                                  // Indikator Dots
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: List.generate(
-                                        finalBanners.length,
-                                            (index) => AnimatedContainer(
-                                            duration: const Duration(milliseconds: 300),
-                                            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                                            width: _currentBannerIndex == index ? 24 : 6,
-                                            height: 6,
-                                            decoration: BoxDecoration(
-                                                color: _currentBannerIndex == index ? theme.primary : Colors.grey.withOpacity(0.5),
-                                                borderRadius: BorderRadius.circular(3)
-                                            )
-                                        )
-                                    ),
-                                  ),
+                                  SizedBox(height: 180, child: PageView(controller: _bannerController, onPageChanged: (index) => setState(() => _currentBannerIndex = index), children: finalBanners)),
+                                  Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(finalBanners.length, (index) => AnimatedContainer(duration: const Duration(milliseconds: 300), margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8), width: _currentBannerIndex == index ? 24 : 6, height: 6, decoration: BoxDecoration(color: _currentBannerIndex == index ? theme.primary : Colors.grey.withOpacity(0.5), borderRadius: BorderRadius.circular(3))))),
                                 ],
                               );
                             },
@@ -257,84 +200,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               ],
                             ),
                           ),
-
                           const SizedBox(height: 24),
 
-                          // --- BANNER PRO MEMBER (HANYA MUNCUL JIKA BELUM PRO) ---
                           if (!isPro) ...[
                             _buildChupatuPro(theme),
                             const SizedBox(height: 24),
                           ],
 
-                          // --- LIVE TRACKING ---
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Live Tracking', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
-                                    GestureDetector(
-                                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OrderHistoryPage())),
-                                        child: Text('Lihat Semua', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: theme.primary, fontWeight: FontWeight.bold))
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
+                          // --- LIVE TRACKING (WIDGET TERPISAH) ---
+                          // Sekarang menggunakan LiveTrackingWidget agar tidak refresh saat banner geser
+                          LiveTrackingWidget(userId: user!.uid, theme: theme),
 
-                                // STREAM DATA ORDER
-                                StreamBuilder<QuerySnapshot>(
-                                  stream: FirebaseFirestore.instance
-                                      .collection('bookings')
-                                      .where('userId', isEqualTo: user!.uid)
-                                      .orderBy('createdAt', descending: true)
-                                      .snapshots(),
-                                  builder: (context, orderSnapshot) {
-                                    if (orderSnapshot.hasError) {
-                                      return Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(16)), child: const Text("Error memuat pesanan."));
-                                    }
-
-                                    if (orderSnapshot.connectionState == ConnectionState.waiting) return const Center(child: LinearProgressIndicator());
-
-                                    var activeDocs = orderSnapshot.data?.docs.where((doc) {
-                                      String s = (doc.data() as Map)['status'] ?? '';
-                                      return s != 'Done' && s != 'Cancelled';
-                                    }).toList();
-
-                                    if (activeDocs == null || activeDocs.isEmpty) {
-                                      return Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)), child: Center(child: Text("Tidak ada pesanan aktif", style: GoogleFonts.plusJakartaSans(color: Colors.grey))));
-                                    }
-
-                                    var latestOrder = activeDocs.first.data() as Map<String, dynamic>;
-                                    String status = latestOrder['status'] ?? 'Pending';
-                                    String shoeName = latestOrder['shoeDetail'] ?? 'Sepatu';
-                                    String serviceName = latestOrder['serviceName'] ?? 'Layanan';
-
-                                    double progress = 0.1;
-                                    Color statusColor = Colors.orange;
-                                    if (status == 'Confirmed') { progress = 0.25; statusColor = Colors.blue; }
-                                    else if (status == 'Picked Up') { progress = 0.5; statusColor = Colors.purple; }
-                                    else if (status == 'Processing') { progress = 0.7; statusColor = Colors.indigo; }
-                                    else if (status == 'Ready') { progress = 0.9; statusColor = Colors.teal; }
-                                    else if (status == 'Delivery') { progress = 1.0; statusColor = Colors.green; }
-
-                                    return GestureDetector(
-                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OrderHistoryPage())),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(20),
-                                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))], border: Border.all(color: statusColor.withOpacity(0.3))),
-                                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(16)), child: Icon(Icons.local_laundry_service_rounded, color: statusColor)), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(shoeName, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain)), Text("$serviceName • Express", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey))])), Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: Text(status, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor)))]), const SizedBox(height: 16), ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(value: progress, backgroundColor: Colors.grey.shade100, color: statusColor, minHeight: 6))]),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
                           const SizedBox(height: 24),
 
-                          // --- MAGIC RESULTS ---
+                          // MAGIC RESULTS
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -347,7 +226,38 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               ])),
                             ]),
                           ),
-                          const SizedBox(height: 100),
+
+                          const SizedBox(height: 30),
+
+                          // --- SHOE TIPS (WIDGET TERPISAH) ---
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Tips Merawat Sepatu 💡', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+                                const SizedBox(height: 12),
+                                ShoeTipsWidget(theme: theme), // Pakai Widget Baru
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 30),
+
+                          // TESTIMONI
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Happy Customers ❤️', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+                                const SizedBox(height: 12),
+                                _buildTestimonials(theme),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 120),
                         ],
                       ),
                     ),
@@ -363,6 +273,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  // --- HELPER METHODS ---
   void _navigateToService(BuildContext context, String serviceName) {
     int price = 0;
     String description = "";
@@ -386,46 +297,36 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget _buildImageBanner(String imgUrl, String title, String subtitle, Color accentColor) {
     return Container(
         margin: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [BoxShadow(color: accentColor.withOpacity(0.25), blurRadius: 15, offset: const Offset(0, 8))]
-        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: accentColor.withOpacity(0.25), blurRadius: 15, offset: const Offset(0, 8))]),
         child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: Stack(
                 children: [
                   Image.network(imgUrl, width: double.infinity, height: double.infinity, fit: BoxFit.cover),
-                  Container(
-                      decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                              begin: Alignment.centerLeft, end: Alignment.centerRight,
-                              colors: [accentColor.withOpacity(0.9), accentColor.withOpacity(0.2)]
-                          )
-                      )
-                  ),
-                  Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: Colors.white.withOpacity(0.25), borderRadius: BorderRadius.circular(8)),
-                                child: Text('PROMO', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))
-                            ),
-                            const SizedBox(height: 8),
-                            Text(title, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 4),
-                            Text(subtitle, style: GoogleFonts.plusJakartaSans(color: Colors.white.withOpacity(0.95), fontSize: 12))
-                          ]
-                      )
-                  )
+                  Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [accentColor.withOpacity(0.9), accentColor.withOpacity(0.2)]))),
+                  Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white.withOpacity(0.25), borderRadius: BorderRadius.circular(8)), child: Text('PROMO', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))), const SizedBox(height: 8), Text(title, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)), const SizedBox(height: 4), Text(subtitle, style: GoogleFonts.plusJakartaSans(color: Colors.white.withOpacity(0.95), fontSize: 12))]))
                 ]
             )
         )
     );
   }
 
-  Widget _buildMiniGarageItem(String title, String imgUrl, AppThemeData theme) { return Container(width: 100, decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(16)), child: Image.network(imgUrl, width: double.infinity, fit: BoxFit.cover))), Padding(padding: const EdgeInsets.all(8), child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: theme.textMain)))])); }
+  Widget _buildTestimonials(AppThemeData theme) {
+    final reviews = [
+      {'name': 'Rizky Billar', 'rating': 5, 'text': 'Gila sih, Air Jordan gue yang udah kuning jadi putih lagi! Pelayanan cepet.', 'img': 'https://i.pravatar.cc/150?u=1'},
+      {'name': 'Anya Geraldine', 'rating': 5, 'text': 'Suka banget sama wanginya, ga bau apek lagi. Bakal langganan terus disini.', 'img': 'https://i.pravatar.cc/150?u=2'},
+      {'name': 'Deddy C.', 'rating': 4, 'text': 'Pickup service nya membantu banget buat yg sibuk. Hasilnya solid.', 'img': 'https://i.pravatar.cc/150?u=3'},
+    ];
+    return SizedBox(
+      height: 140,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal, clipBehavior: Clip.none, itemCount: reviews.length, separatorBuilder: (c, i) => const SizedBox(width: 16),
+        itemBuilder: (context, index) {
+          var item = reviews[index];
+          int rating = item['rating'] as int;
+          return Container(width: 280, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [CircleAvatar(radius: 16, backgroundImage: NetworkImage(item['img'] as String)), const SizedBox(width: 10), Expanded(child: Text(item['name'] as String, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: theme.textMain))), Row(children: List.generate(5, (i) => Icon(Icons.star_rounded, size: 14, color: i < rating ? Colors.amber : Colors.grey.shade300)))]), const SizedBox(height: 12), Text('"${item['text']}"', maxLines: 3, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade700, fontStyle: FontStyle.italic))]));
+        },
+      ),
+    );
+  }
 }
