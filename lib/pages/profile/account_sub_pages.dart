@@ -1,84 +1,253 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:chupatu_mobile/main.dart'; // Untuk ThemeConfig
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:chupatu_mobile/main.dart';
 
 // ==========================================
-// 1. HALAMAN KEAMANAN AKUN (Ubah Password)
+// 1. HALAMAN KEAMANAN AKUN (Password & PIN)
 // ==========================================
-class SecurityPage extends StatelessWidget {
+class SecurityPage extends StatefulWidget {
   const SecurityPage({super.key});
 
   @override
+  State<SecurityPage> createState() => _SecurityPageState();
+}
+
+class _SecurityPageState extends State<SecurityPage> {
+  final User? user = FirebaseAuth.instance.currentUser;
+  bool _isPinEnabled = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSecuritySettings();
+  }
+
+  // Ambil status PIN dari Database
+  Future<void> _loadSecuritySettings() async {
+    if (user == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
+      if (doc.exists) {
+        setState(() {
+          _isPinEnabled = doc.data()?['isPinEnabled'] ?? false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error load settings: $e");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Pop-up buat PIN atau Masukkan PIN
+  void _showPinDialog({required bool isCreating, bool isDisabling = false}) {
+    String inputPin = "";
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(isCreating ? "Buat PIN Baru" : "Konfirmasi PIN",
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(isCreating ? "Masukkan 6 digit angka untuk keamanan." : "Masukkan PIN lama untuk menonaktifkan.",
+                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 20),
+            TextField(
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              obscureText: true,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, letterSpacing: 15, fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
+                counterText: "",
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+              onChanged: (val) => inputPin = val,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+          ElevatedButton(
+            onPressed: () async {
+              if (inputPin.length != 6) return;
+              Navigator.pop(context);
+
+              if (isCreating) {
+                await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
+                  'securityPin': inputPin,
+                  'isPinEnabled': true,
+                });
+                setState(() => _isPinEnabled = true);
+              } else if (isDisabling) {
+                final doc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
+                if (doc.data()?['securityPin'] == inputPin) {
+                  await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({'isPinEnabled': false});
+                  setState(() => _isPinEnabled = false);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("PIN Salah!"), backgroundColor: Colors.red));
+                }
+              }
+            },
+            child: const Text("Simpan"),
+          )
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    bool isEmailVerified = user?.emailVerified ?? false;
 
     return ValueListenableBuilder<AppThemeData>(
-        valueListenable: ThemeConfig.currentTheme,
-        builder: (context, theme, child) {
-          return Scaffold(
-            backgroundColor: theme.background,
-            appBar: AppBar(
-                title: Text("Keamanan Akun", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)),
-                backgroundColor: theme.surface,
-                elevation: 0,
-                iconTheme: IconThemeData(color: theme.textMain)
-            ),
-            body: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Ubah Kata Sandi", style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)),
-                  const SizedBox(height: 8),
-                  Text(
-                      "Kami akan mengirimkan tautan (link) ke email Anda (${user?.email ?? '-'}) untuk mereset kata sandi dengan aman.",
-                      style: GoogleFonts.plusJakartaSans(color: Colors.grey, height: 1.5)
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        if (user?.email != null) {
-                          try {
-                            await FirebaseAuth.instance.sendPasswordResetEmail(email: user!.email!);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Email reset password telah dikirim!"), backgroundColor: Colors.green)
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red)
-                              );
-                            }
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: theme.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+      valueListenable: ThemeConfig.currentTheme,
+      builder: (context, theme, child) {
+        return Scaffold(
+          backgroundColor: theme.background,
+          appBar: AppBar(
+            title: Text("Keamanan Akun", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)),
+            backgroundColor: theme.surface,
+            elevation: 0,
+            iconTheme: IconThemeData(color: theme.textMain),
+          ),
+          body: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              // --- VERIFIKASI DATA ---
+              Text("Verifikasi Data", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.grey)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16)),
+                child: Row(
+                  children: [
+                    Icon(isEmailVerified ? Icons.verified : Icons.warning_amber_rounded,
+                        color: isEmailVerified ? Colors.green : Colors.orange),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Status Akun", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+                          Text(isEmailVerified ? "Email Terverifikasi" : "Email Belum Diverifikasi",
+                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+                        ],
                       ),
-                      child: const Text("Kirim Email Reset Sandi", style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
-                  )
-                ],
+                    if (!isEmailVerified)
+                      TextButton(
+                        onPressed: () => user?.sendEmailVerification(),
+                        child: const Text("Verifikasi Sekarang"),
+                      )
+                  ],
+                ),
               ),
-            ),
-          );
-        }
+              const SizedBox(height: 32),
+
+              // --- PASSWORD (VERSI PERBAIKAN) ---
+              Text("Kata Sandi", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.grey)),
+              const SizedBox(height: 12),
+              ListTile(
+                tileColor: theme.surface,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                leading: const Icon(Icons.lock_outline),
+                title: Text("Ubah Password", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+                subtitle: const Text("Kirim link reset ke email", style: TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  // Pastikan email tidak null
+                  if (user?.email == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Email tidak ditemukan!"), backgroundColor: Colors.red)
+                    );
+                    return;
+                  }
+
+                  try {
+                    // Pakai await supaya sistem nunggu proses selesai
+                    await FirebaseAuth.instance.sendPasswordResetEmail(email: user!.email!);
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Link reset dikirim ke ${user!.email}! Cek inbox atau spam."),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  } on FirebaseAuthException catch (e) {
+                    // Menangani error spesifik dari Firebase
+                    String pesanError = "Gagal mengirim email";
+                    if (e.code == 'too-many-requests') pesanError = "Terlalu banyak permintaan. Coba lagi nanti.";
+                    if (e.code == 'network-request-failed') pesanError = "Koneksi internet bermasalah.";
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(pesanError), backgroundColor: Colors.red),
+                      );
+                    }
+                    print("Error Reset Pass: ${e.code} - ${e.message}");
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Terjadi kesalahan: $e"), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                },
+              ),
+
+              // --- PIN KEAMANAN ---
+              Text("PIN Transaksi", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.grey)),
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16)),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      title: Text("Aktifkan PIN", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+                      subtitle: const Text("Wajibkan PIN saat pembayaran", style: TextStyle(fontSize: 12)),
+                      value: _isPinEnabled,
+                      activeColor: theme.primary,
+                      onChanged: (val) {
+                        if (val) _showPinDialog(isCreating: true);
+                        else _showPinDialog(isCreating: false, isDisabling: true);
+                      },
+                    ),
+                    if (_isPinEnabled) const Divider(height: 1),
+                    if (_isPinEnabled)
+                      ListTile(
+                        title: const Text("Ganti PIN"),
+                        trailing: const Icon(Icons.edit, size: 18),
+                        onTap: () => _showPinDialog(isCreating: true),
+                      )
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
 // ==========================================
-// 2. HALAMAN PENGATURAN NOTIFIKASI (GANTI NAMA DISINI)
+// 2. HALAMAN PENGATURAN NOTIFIKASI
 // ==========================================
-class NotificationSettingsPage extends StatefulWidget { // <--- GANTI JADI NotificationSettingsPage
+class NotificationSettingsPage extends StatefulWidget {
   const NotificationSettingsPage({super.key});
 
   @override
@@ -129,7 +298,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
 }
 
 // ==========================================
-// 3. HALAMAN PENGATURAN APLIKASI (UBAH TEMA)
+// 3. HALAMAN PENGATURAN APLIKASI
 // ==========================================
 class AppSettingsPage extends StatelessWidget {
   const AppSettingsPage({super.key});

@@ -5,10 +5,9 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:chupatu_mobile/main.dart'; // Import Tema
+import 'package:chupatu_mobile/main.dart';
 
 class PaymentPage extends StatefulWidget {
-  // Data yang dikirim dari Booking Page
   final String serviceName;
   final int basePrice;
   final String category;
@@ -43,10 +42,9 @@ class PaymentPage extends StatefulWidget {
 }
 
 class _PaymentPageState extends State<PaymentPage> {
-  // State Pembayaran
-  String _selectedPaymentMethod = 'COD'; // Default Cash
+  String _selectedPaymentMethod = 'COD';
   final TextEditingController _promoController = TextEditingController();
-  
+
   int _deliveryFee = 0;
   int _discountAmount = 0;
   bool _isProcessing = false;
@@ -54,15 +52,12 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   void initState() {
     super.initState();
-    // Hitung Ongkir: Kalau Antar-Jemput aktif, kena 15rb (Dummy Logic)
     if (widget.isDelivery) {
       _deliveryFee = 15000;
     }
   }
 
-  // --- LOGIKA PROMO CODE ---
   void _applyPromo() {
-    // Dummy Promo Code
     if (_promoController.text.toUpperCase() == 'CHUPATUHEBAT') {
       setState(() {
         _discountAmount = 10000;
@@ -82,8 +77,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
     try {
       String? imageUrl;
-      
-      // 1. Upload Foto (Jika ada)
+
       if (widget.shoeImageFile != null) {
         final ref = FirebaseStorage.instance
             .ref()
@@ -93,27 +87,23 @@ class _PaymentPageState extends State<PaymentPage> {
         imageUrl = await ref.getDownloadURL();
       }
 
-      // 2. Simpan ke Firestore
       await FirebaseFirestore.instance.collection('bookings').add({
         'userId': user?.uid,
         'customerName': user?.displayName ?? 'Guest',
-        'phoneNumber': widget.phoneNumber,  
+        'phoneNumber': widget.phoneNumber,
         'serviceName': widget.serviceName,
         'category': widget.category,
         'shoeDetail': widget.shoeDetail,
         'notes': widget.notes,
-        
-        // Data Harga & Pembayaran
         'basePrice': widget.basePrice,
         'deliveryFee': _deliveryFee,
         'discount': _discountAmount,
         'totalPrice': totalPrice,
         'paymentMethod': _selectedPaymentMethod,
         'paymentStatus': _selectedPaymentMethod == 'Midtrans' ? 'Pending Payment' : 'Unpaid (COD)',
-        
         'status': 'Pending',
         'isDelivery': widget.isDelivery,
-        'pickupDate': widget.pickupDate, 
+        'pickupDate': widget.pickupDate,
         'pickupTime': widget.pickupTime,
         'mainAddress': widget.mainAddress,
         'detailAddress': widget.detailAddress,
@@ -123,7 +113,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
       if (mounted) {
         setState(() => _isProcessing = false);
-        // Tampilkan Sukses & Kembali ke Home
         _showSuccessDialog();
       }
 
@@ -145,13 +134,13 @@ class _PaymentPageState extends State<PaymentPage> {
           children: [
             Icon(Icons.check_circle_rounded, color: Colors.green, size: 60),
             SizedBox(height: 10),
-            Text("Pesanan Diterima!"),
+            const Text("Pesanan Diterima!"),
           ],
         ),
         content: Text(
-          _selectedPaymentMethod == 'COD' 
-          ? "Kurir kami akan segera menjemput sepatu kamu. Siapkan uang tunai saat penjemputan ya!"
-          : "Silakan selesaikan pembayaran via Midtrans (Simulasi). Orderan sudah masuk ke sistem.",
+          _selectedPaymentMethod == 'COD'
+              ? "Kurir kami akan segera menjemput sepatu kamu. Siapkan uang tunai saat penjemputan ya!"
+              : "Silakan selesaikan pembayaran via Midtrans (Simulasi). Orderan sudah masuk ke sistem.",
           textAlign: TextAlign.center,
         ),
         actions: [
@@ -159,9 +148,9 @@ class _PaymentPageState extends State<PaymentPage> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.of(ctx).pop(); // Tutup Dialog
-                Navigator.of(context).pop(); // Tutup Payment Page
-                Navigator.of(context).pop(); // Tutup Booking Page -> Balik Home
+                Navigator.of(ctx).pop();
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
               child: const Text("Kembali ke Home"),
@@ -172,116 +161,254 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
+  // --- FITUR: CEK PIN SEBELUM TRANSAKSI ---
+  Future<void> _handlePaymentAuth() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final data = doc.data() ?? {};
+
+      bool isPinEnabled = data['isPinEnabled'] ?? false;
+      String savedPin = data['securityPin'] ?? "";
+
+      if (!isPinEnabled) {
+        // PERBAIKAN: Diarahkan ke fungsi process yang benar
+        await _processPaymentAndOrder();
+        return;
+      }
+
+      // Jika PIN aktif, matikan loading sementara untuk memunculkan sheet PIN
+      setState(() => _isProcessing = false);
+      _showPinVerificationSheet(savedPin);
+
+    } catch (e) {
+      setState(() => _isProcessing = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Terjadi kesalahan: $e")));
+    }
+  }
+
+  // --- MODAL INPUT PIN (FIXED: Notifikasi Salah PIN Langsung Muncul) ---
+  void _showPinVerificationSheet(String correctPin) {
+    String inputPin = "";
+    String? localError; // <--- PINDAH KE SINI (Di luar builder supaya tidak reset)
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setModalState) {
+          return Container(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                left: 24, right: 24, top: 24
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Indikator handle modal
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                const SizedBox(height: 20),
+                Text("Konfirmasi PIN", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text("Masukkan 6 digit PIN keamanan Anda.", style: TextStyle(fontSize: 13, color: Colors.grey)),
+                const SizedBox(height: 24),
+
+                // Input PIN
+                TextField(
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  obscureText: true,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 32, letterSpacing: 15, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    counterText: "",
+                    filled: true,
+                    fillColor: Colors.grey.shade100,
+                    // Efek Border Merah kalau salah
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: localError != null ? Colors.red : Colors.transparent)
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: localError != null ? Colors.red : const Color(0xFF0606F9))
+                    ),
+                  ),
+                  onChanged: (val) {
+                    inputPin = val;
+                    // Hapus pesan error saat user mulai ngetik lagi
+                    if (localError != null) {
+                      setModalState(() => localError = null);
+                    }
+                  },
+                ),
+
+                // --- PESAN ERROR YANG PASTI MUNCUL ---
+                if (localError != null) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        localError!,
+                        style: GoogleFonts.plusJakartaSans(color: Colors.red, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ],
+
+                const SizedBox(height: 32),
+
+                // Tombol Bayar
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (inputPin == correctPin) {
+                        Navigator.pop(ctx);
+                        _processPaymentAndOrder(); // PIN BENAR -> JALAN
+                      } else {
+                        // PIN SALAH -> Update tampilan modal lewat setModalState
+                        setModalState(() {
+                          localError = "PIN Salah! Silakan coba lagi.";
+                        });
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0606F9),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                    ),
+                    child: const Text("Konfirmasi & Bayar", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     int totalPrice = (widget.basePrice + _deliveryFee) - _discountAmount;
 
     return ValueListenableBuilder<AppThemeData>(
-      valueListenable: ThemeConfig.currentTheme,
-      builder: (context, theme, child) {
-        return Scaffold(
-          backgroundColor: theme.background,
-          appBar: AppBar(
-            title: Text("Pembayaran", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
-            backgroundColor: theme.surface,
-            iconTheme: IconThemeData(color: theme.textMain),
-            elevation: 0,
-            centerTitle: true,
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // --- 1. RINGKASAN ORDER ---
-                _buildSectionTitle("Rincian Pesanan", theme),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
-                  child: Column(
-                    children: [
-                      _buildSummaryRow("Layanan", widget.serviceName, theme, isBold: true),
-                      const SizedBox(height: 8),
-                      _buildSummaryRow("Harga Dasar", currencyFormatter.format(widget.basePrice), theme),
-                      const SizedBox(height: 8),
-                      _buildSummaryRow("Biaya Antar-Jemput", _deliveryFee == 0 ? "Gratis" : currencyFormatter.format(_deliveryFee), theme),
-                      if (_discountAmount > 0) ...[
+        valueListenable: ThemeConfig.currentTheme,
+        builder: (context, theme, child) {
+          return Scaffold(
+            backgroundColor: theme.background,
+            appBar: AppBar(
+              title: Text("Pembayaran", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+              backgroundColor: theme.surface,
+              iconTheme: IconThemeData(color: theme.textMain),
+              elevation: 0,
+              centerTitle: true,
+            ),
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitle("Rincian Pesanan", theme),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+                    child: Column(
+                      children: [
+                        _buildSummaryRow("Layanan", widget.serviceName, theme, isBold: true),
                         const SizedBox(height: 8),
-                        _buildSummaryRow("Diskon Promo", "- ${currencyFormatter.format(_discountAmount)}", theme, color: Colors.green),
+                        _buildSummaryRow("Harga Dasar", currencyFormatter.format(widget.basePrice), theme),
+                        const SizedBox(height: 8),
+                        _buildSummaryRow("Biaya Antar-Jemput", _deliveryFee == 0 ? "Gratis" : currencyFormatter.format(_deliveryFee), theme),
+                        if (_discountAmount > 0) ...[
+                          const SizedBox(height: 8),
+                          _buildSummaryRow("Diskon Promo", "- ${currencyFormatter.format(_discountAmount)}", theme, color: Colors.green),
+                        ],
+                        const Divider(height: 24),
+                        _buildSummaryRow("Total Pembayaran", currencyFormatter.format(totalPrice), theme, isBold: true, fontSize: 18, color: theme.primary),
                       ],
-                      const Divider(height: 24),
-                      _buildSummaryRow("Total Pembayaran", currencyFormatter.format(totalPrice), theme, isBold: true, fontSize: 18, color: theme.primary),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                // --- 2. KODE PROMO ---
-                _buildSectionTitle("Kode Promo", theme),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _promoController,
-                        style: GoogleFonts.plusJakartaSans(color: theme.textMain),
-                        decoration: InputDecoration(
-                          hintText: "Punya kode promo?",
-                          hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey.shade400),
-                          filled: true,
-                          fillColor: theme.surface,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  _buildSectionTitle("Kode Promo", theme),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _promoController,
+                          style: GoogleFonts.plusJakartaSans(color: theme.textMain),
+                          decoration: InputDecoration(
+                            hintText: "Punya kode promo?",
+                            hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey.shade400),
+                            filled: true,
+                            fillColor: theme.surface,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: _applyPromo,
-                      style: ElevatedButton.styleFrom(backgroundColor: theme.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20)),
-                      child: const Text("Pakai"),
-                    )
-                  ],
-                ),
-                const SizedBox(height: 24),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: _applyPromo,
+                        style: ElevatedButton.styleFrom(backgroundColor: theme.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20)),
+                        child: const Text("Pakai"),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 24),
 
-                // --- 3. METODE PEMBAYARAN ---
-                _buildSectionTitle("Metode Pembayaran", theme),
-                _buildPaymentOption("COD", "Bayar Tunai saat Dijemput", Icons.money, theme),
-                const SizedBox(height: 12),
-                _buildPaymentOption("Midtrans", "E-Wallet / Transfer Bank (Otomatis)", Icons.credit_card, theme),
-              ],
-            ),
-          ),
-
-          // --- BOTTOM BAR: TOMBOL BAYAR ---
-          bottomNavigationBar: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: theme.surface, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isProcessing ? null : _processPaymentAndOrder,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 5,
-                ),
-                child: _isProcessing
-                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                  : Text("Bayar ${currencyFormatter.format(totalPrice)}", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                  _buildSectionTitle("Metode Pembayaran", theme),
+                  _buildPaymentOption("COD", "Bayar Tunai saat Dijemput", Icons.money, theme),
+                  const SizedBox(height: 12),
+                  _buildPaymentOption("Midtrans", "E-Wallet / Transfer Bank (Otomatis)", Icons.credit_card, theme),
+                ],
               ),
             ),
-          ),
-        );
-      }
+
+            bottomNavigationBar: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: theme.surface, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  // PERBAIKAN: Diarahkan ke handle PIN terlebih dahulu
+                  onPressed: _isProcessing ? null : _handlePaymentAuth,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 5,
+                  ),
+                  child: _isProcessing
+                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                      : Text("Bayar ${currencyFormatter.format(totalPrice)}", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ),
+            ),
+          );
+        }
     );
   }
 
-  // --- WIDGET HELPER ---
   Widget _buildSectionTitle(String title, AppThemeData theme) {
     return Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)));
   }

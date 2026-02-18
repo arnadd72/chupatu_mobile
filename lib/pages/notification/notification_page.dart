@@ -22,22 +22,22 @@ class _NotificationPageState extends State<NotificationPage> {
         return DefaultTabController(
           length: 2,
           child: Scaffold(
-            backgroundColor: theme.background,
+            backgroundColor: theme.background, // Warna Background Tema
             appBar: AppBar(
-              backgroundColor: Colors.white,
+              backgroundColor: theme.surface, // Warna Header Tema (Bukan Putih Lagi)
               elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.black),
+              iconTheme: IconThemeData(color: theme.textMain), // Ikon ikut warna teks tema
               title: Text(
                 "Notifikasi",
                 style: GoogleFonts.plusJakartaSans(
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: theme.textMain, // Teks ikut warna tema
                 ),
               ),
               bottom: TabBar(
                 indicatorColor: theme.primary,
                 labelColor: theme.primary,
-                unselectedLabelColor: Colors.grey,
+                unselectedLabelColor: theme.textMain.withOpacity(0.5), // Warna abu menyesuaikan tema
                 labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
                 tabs: const [
                   Tab(text: "Info & Promo"),
@@ -60,7 +60,7 @@ class _NotificationPageState extends State<NotificationPage> {
   // --- WIDGET TAB 1: INFO & PROMO ---
   Widget _buildInfoTab(AppThemeData theme) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const Center(child: Text("Silakan login terlebih dahulu"));
+    if (user == null) return Center(child: Text("Silakan login terlebih dahulu", style: TextStyle(color: theme.textMain)));
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -79,9 +79,9 @@ class _NotificationPageState extends State<NotificationPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.notifications_off_outlined, size: 60, color: Colors.grey.shade300),
+                Icon(Icons.notifications_off_outlined, size: 60, color: theme.textMain.withOpacity(0.3)),
                 const SizedBox(height: 16),
-                Text("Belum ada notifikasi", style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                Text("Belum ada notifikasi", style: GoogleFonts.plusJakartaSans(color: theme.textMain.withOpacity(0.5))),
               ],
             ),
           );
@@ -125,9 +125,16 @@ class _NotificationPageState extends State<NotificationPage> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isRead ? Colors.white : theme.primary.withOpacity(0.05),
+                  // Logic Warna Card:
+                  // Kalau belum dibaca: Pakai warna Surface Tema (Terang/Gelap sesuai tema)
+                  // Kalau sudah dibaca: Pakai warna Background Tema (Lebih redup/gelap)
+                  color: isRead ? theme.background : theme.surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: theme.textMain.withOpacity(0.1)),
+                  boxShadow: [
+                    if (!isRead)
+                      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+                  ],
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,12 +159,12 @@ class _NotificationPageState extends State<NotificationPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Expanded(child: Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14), overflow: TextOverflow.ellipsis)),
-                              Text(timeStr, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: Colors.grey)),
+                              Expanded(child: Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain), overflow: TextOverflow.ellipsis)),
+                              Text(timeStr, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: theme.textMain.withOpacity(0.5))),
                             ],
                           ),
                           const SizedBox(height: 4),
-                          Text(body, maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade600)),
+                          Text(body, maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: theme.textMain.withOpacity(0.7))),
                         ],
                       ),
                     ),
@@ -171,14 +178,13 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  // --- WIDGET TAB 2: CHAT ADMIN (FIXED & SYNCHRONIZED) ---
+  // --- WIDGET TAB 2: CHAT ADMIN ---
   Widget _buildChatTab(AppThemeData theme) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return const Center(child: Text("Silakan Login untuk Chat"));
+      return Center(child: Text("Silakan Login untuk Chat", style: TextStyle(color: theme.textMain)));
     }
 
-    // Menggunakan StreamBuilder untuk mencari Room Chat user secara Real-time
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('chats')
@@ -190,19 +196,17 @@ class _NotificationPageState extends State<NotificationPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // SKENARIO 1: Belum ada chat room -> Tampilkan tombol "Mulai Chat"
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.chat_bubble_outline_rounded, size: 80, color: Colors.grey.shade300),
+                Icon(Icons.chat_bubble_outline_rounded, size: 80, color: theme.textMain.withOpacity(0.3)),
                 const SizedBox(height: 16),
-                Text("Belum ada riwayat chat", style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                Text("Belum ada riwayat chat", style: GoogleFonts.plusJakartaSans(color: theme.textMain.withOpacity(0.5))),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
                   onPressed: () async {
-                    // Buat Room Chat Baru di Database
                     await FirebaseFirestore.instance.collection('chats').add({
                       'userId': user.uid,
                       'userName': user.displayName ?? 'Customer',
@@ -210,7 +214,6 @@ class _NotificationPageState extends State<NotificationPage> {
                       'lastTime': FieldValue.serverTimestamp(),
                       'createdAt': FieldValue.serverTimestamp(),
                     });
-                    // Setelah dibuat, StreamBuilder akan otomatis refresh dan masuk ke SKENARIO 2
                   },
                   icon: const Icon(Icons.send_rounded, size: 18),
                   label: const Text("Mulai Chat dengan Admin"),
@@ -226,15 +229,13 @@ class _NotificationPageState extends State<NotificationPage> {
           );
         }
 
-        // SKENARIO 2: Sudah ada chat room -> Langsung tampilkan ChatRoomPage
-        // Ambil ID Dokumen (chatId) yang sudah ada
         String chatId = snapshot.data!.docs.first.id;
 
         return ChatRoomPage(
-          chatId: chatId,        // Kunci Sinkronisasi
-          name: "Admin Pusat",   // Nama Lawan Bicara
-          isOnline: true,        // Status Admin (Dummy)
-          isAdmin: false,        // Customer bukan Admin
+          chatId: chatId,
+          name: "Admin Pusat",
+          isOnline: true,
+          isAdmin: false,
         );
       },
     );

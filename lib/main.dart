@@ -44,16 +44,6 @@ class ThemeConfig {
       textMain: const Color(0xFF0B0F19),
       isDark: false,
     ),
-    // 2. Midnight Dark
-    AppThemeData(
-      name: 'Midnight Dark',
-      primary: const Color(0xFF4F46E5),
-      secondary: const Color(0xFF00D4FF),
-      background: const Color(0xFF0F172A),
-      surface: const Color(0xFF1E293B),
-      textMain: Colors.white,
-      isDark: true,
-    ),
     // 3. Gold Luxury
     AppThemeData(
       name: 'Gold Luxury',
@@ -74,12 +64,72 @@ class ThemeConfig {
       textMain: const Color(0xFF064E3B),
       isDark: false,
     ),
+
+    // --- TEMA BARU DITAMBAHKAN ---
+
+    // 5. Neumorphism (Soft Grey, Low Contrast)
+    AppThemeData(
+      name: 'Neumorphism',
+      primary: const Color(0xFF55677d),
+      secondary: const Color(0xFF7b8fa1),
+      background: const Color(0xFFE0E5EC), // Warna kunci
+      surface: const Color(0xFFE0E5EC),     // Surface sama dengan bg
+      textMain: const Color(0xFF4A5568),
+      isDark: false,
+    ),
+
+    // 6. Glassmorphism (Deep Purple, Blur Base)
+    AppThemeData(
+      name: 'Glassmorphism',
+      primary: const Color(0xFFD946EF),
+      secondary: const Color(0xFF8B5CF6),
+      background: const Color(0xFF2D1B69), // Base gelap
+      surface: const Color(0xFF442A8B),    // Sedikit lebih terang
+      textMain: Colors.white,
+      isDark: true,
+    ),
+
+    // 7. Immersive 3D (Neon Green, True Black)
+    AppThemeData(
+      name: 'Immersive 3D',
+      primary: const Color(0xFF00FF94),
+      secondary: const Color(0xFF00B8D4),
+      background: const Color(0xFF000000), // Hitam pekat
+      surface: const Color(0xFF111111),
+      textMain: const Color(0xFFEEEEEE),
+      isDark: true,
+    ),
+
+    // 8. Retro (Paper/Cream, Vintage Orange)
+    AppThemeData(
+      name: 'Retro Style',
+      primary: const Color(0xFFFF6B6B),
+      secondary: const Color(0xFFE17055),
+      background: const Color(0xFFF7F1E3), // Cream Paper
+      surface: const Color(0xFFFFEAA7),    // Yellowish
+      textMain: const Color(0xFF2D3436),
+      isDark: false,
+    ),
+
+    // 9. Dark Modern (Sleek Grey, Electric Blue)
+    AppThemeData(
+      name: 'Dark Modern',
+      primary: const Color(0xFF2979FF),
+      secondary: const Color(0xFF00E5FF),
+      background: const Color(0xFF181818), // Matte Dark
+      surface: const Color(0xFF252525),    // Matte Surface
+      textMain: Colors.white,
+      isDark: true,
+    ),
   ];
 
   static final ValueNotifier<AppThemeData> currentTheme = ValueNotifier(themes[0]);
 
+  // Fungsi ganti tema berdasarkan index list
   static void changeTheme(int index) {
-    currentTheme.value = themes[index];
+    if (index >= 0 && index < themes.length) {
+      currentTheme.value = themes[index];
+    }
   }
 }
 
@@ -89,11 +139,11 @@ class ThemeConfig {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
+
   runApp(const ChupatuApp());
 }
 
@@ -126,7 +176,7 @@ class ChupatuApp extends StatelessWidget {
             ),
             appBarTheme: AppBarTheme(
               backgroundColor: themeData.surface,
-              surfaceTintColor: Colors.transparent, 
+              surfaceTintColor: Colors.transparent,
               titleTextStyle: TextStyle(color: themeData.textMain, fontSize: 20, fontWeight: FontWeight.bold),
               iconTheme: IconThemeData(color: themeData.textMain),
             ),
@@ -135,7 +185,7 @@ class ChupatuApp extends StatelessWidget {
               surfaceTintColor: Colors.transparent,
             ),
           ),
-          
+
           // --- LOGIC AUTH WRAPPER ---
           home: const AuthWrapper(),
         );
@@ -176,7 +226,7 @@ class AuthWrapper extends StatelessWidget {
 
             if (userSnapshot.hasData && userSnapshot.data!.exists) {
               String role = userSnapshot.data!.get('role') ?? 'user';
-              
+
               if (role == 'admin') {
                 return const AdminHomePage(); // Ke Halaman Admin
               } else {

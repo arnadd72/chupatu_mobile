@@ -95,7 +95,7 @@ class _BookingPageState extends State<BookingPage> {
             _phoneController.text = userData['phoneNumber'] ?? userData['phone'] ?? userData['no_hp'] ?? '';
 
             // Opsional: Jika Bos mau alamat utama otomatis terisi dari profil juga
-            // _mainAddressController.text = userData['address'] ?? userData['alamat'] ?? '';
+             _mainAddressController.text = userData['address'] ?? userData['alamat'] ?? '';
           });
         }
       }
@@ -293,7 +293,7 @@ class _BookingPageState extends State<BookingPage> {
         _detailAddressController.text.isEmpty ||
         _phoneController.text.isEmpty ||
         _selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mohon lengkapi semua data (termasuk No HP)!"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mohon lengkapi semua data!"), backgroundColor: Colors.red));
       return;
     }
 

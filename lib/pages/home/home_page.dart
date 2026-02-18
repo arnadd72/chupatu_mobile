@@ -79,20 +79,115 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  // --- FUNGSI GANTI TEMA (TAMPILAN GRID KECIL) ---
   void _showThemePicker(BuildContext context) {
     showModalBottomSheet(
-      context: context, backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(30))),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text("Select App Theme", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: List.generate(ThemeConfig.themes.length, (index) {
-            final theme = ThemeConfig.themes[index];
-            return GestureDetector(onTap: () { ThemeConfig.changeTheme(index); Navigator.pop(context); }, child: Container(margin: const EdgeInsets.symmetric(horizontal: 8), child: Column(children: [Container(width: 60, height: 60, decoration: BoxDecoration(color: theme.primary, shape: BoxShape.circle, border: Border.all(color: Colors.grey.shade300, width: 2), boxShadow: [BoxShadow(color: theme.primary.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))]), child: ThemeConfig.currentTheme.value == theme ? const Icon(Icons.check, color: Colors.white) : null), const SizedBox(height: 8), Text(theme.name, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600))])));
-          }))), const SizedBox(height: 20)]),
-      ),
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true, // Supaya bisa menyesuaikan tinggi konten
+      builder: (context) {
+        // Ambil tema saat ini untuk styling modal
+        final currentTheme = ThemeConfig.currentTheme.value;
+
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: currentTheme.surface, // Mengikuti warna tema
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Garis Indikator di atas
+              Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+              ),
+
+              Text(
+                "Pilih Tampilan Aplikasi",
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: currentTheme.textMain
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // GRID TEMA (WRAP)
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 20,     // Jarak antar kolom
+                    runSpacing: 20,  // Jarak antar baris
+                    alignment: WrapAlignment.center,
+                    children: List.generate(ThemeConfig.themes.length, (index) {
+                      final themeItem = ThemeConfig.themes[index];
+                      final bool isSelected = currentTheme.name == themeItem.name;
+
+                      return GestureDetector(
+                        onTap: () {
+                          ThemeConfig.changeTheme(index);
+                          Navigator.pop(context); // Tutup modal setelah pilih
+                        },
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // BULATAN WARNA (DIPERKECIL)
+                            Container(
+                              width: 50,  // Ukuran diperkecil (sebelumnya mungkin 60-70)
+                              height: 50,
+                              decoration: BoxDecoration(
+                                  color: themeItem.primary,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: isSelected ? currentTheme.textMain : Colors.transparent,
+                                      width: 2
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                        color: Colors.black.withOpacity(0.1),
+                                        blurRadius: 5,
+                                        offset: const Offset(0, 2)
+                                    )
+                                  ]
+                              ),
+                              child: isSelected
+                                  ? const Icon(Icons.check, color: Colors.white, size: 24)
+                                  : null,
+                            ),
+                            const SizedBox(height: 8),
+
+                            // LABEL NAMA TEMA
+                            SizedBox(
+                              width: 60, // Batasi lebar teks
+                              child: Text(
+                                themeItem.name.replaceAll(' ', '\n'), // Nama jadi 2 baris kalau panjang
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 10, // Font diperkecil
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: isSelected ? currentTheme.textMain : Colors.grey,
+                                    height: 1.2
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
     );
   }
 
