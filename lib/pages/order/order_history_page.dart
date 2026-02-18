@@ -1,12 +1,13 @@
+import 'package:chupatu_mobile/pages/main_page.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:lottie/lottie.dart'; // IMPORT LOTTIE WAJIB ADA
-import 'package:chupatu_mobile/main.dart';
-// IMPORT HALAMAN DETAIL
+import 'package:lottie/lottie.dart';
+import 'package:chupatu_mobile/main.dart'; // Pastikan MainPage ada di sini
 import 'package:chupatu_mobile/pages/order/order_detail_page.dart';
+import 'package:chupatu_mobile/pages/home/home_page.dart';
 
 class OrderHistoryPage extends StatefulWidget {
   const OrderHistoryPage({super.key});
@@ -31,6 +32,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     super.dispose();
   }
 
+  // --- LOGIC BATALKAN PESANAN ---
   Future<void> _cancelOrder(String docId) async {
     showDialog(
       context: context,
@@ -53,28 +55,16 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     );
   }
 
-  // --- MAPPING IKON SERVIS DENGAN FILE LOTTIE ---
+  // --- KONFIGURASI ICON & WARNA ---
   Map<String, dynamic> _getServiceIcon(String serviceName) {
     switch (serviceName.toLowerCase()) {
-      case 'deep clean':
-        return {'icon': Icons.water_drop_rounded, 'color': Colors.blue, 'lottie': 'assets/lottie/water_drop.json'};
-      case 'fast clean':
-        return {'icon': Icons.timer_rounded, 'color': Colors.orange, 'lottie': 'assets/lottie/Stopwatch.json'};
-      case 'unyellowing':
-      case 'unyellow':
-        return {'icon': Icons.auto_awesome_rounded, 'color': Colors.amber, 'lottie': 'assets/lottie/sparkle.json'};
-      case 'repair':
-        return {'icon': Icons.build_rounded, 'color': Colors.grey.shade700, 'lottie': 'assets/lottie/wrench.json'};
-      case 'repaint':
-        return {'icon': Icons.format_paint_rounded, 'color': Colors.purple, 'lottie': 'assets/lottie/paint.json'};
-      case 'waterproof':
-        return {'icon': Icons.umbrella_rounded, 'color': Colors.teal, 'lottie': 'assets/lottie/umbrella.json'};
-      case 'custom':
-        return {'icon': Icons.design_services_rounded, 'color': Colors.pink, 'lottie': 'assets/lottie/pencil.json'};
-      case 'pickup':
-        return {'icon': Icons.two_wheeler_rounded, 'color': Colors.red, 'lottie': 'assets/lottie/delivery.json'};
-      default:
-        return {'icon': Icons.cleaning_services_rounded, 'color': Colors.indigo}; // Fallback jika tidak ada Lottie
+      case 'deep clean': return {'icon': Icons.water_drop_rounded, 'color': Colors.blue, 'lottie': 'assets/lottie/water_drop.json'};
+      case 'fast clean': return {'icon': Icons.timer_rounded, 'color': Colors.orange, 'lottie': 'assets/lottie/Stopwatch.json'};
+      case 'unyellowing': return {'icon': Icons.auto_awesome_rounded, 'color': Colors.amber, 'lottie': 'assets/lottie/sparkle.json'};
+      case 'repair': return {'icon': Icons.build_rounded, 'color': Colors.grey.shade700, 'lottie': 'assets/lottie/wrench.json'};
+      case 'repaint': return {'icon': Icons.format_paint_rounded, 'color': Colors.purple, 'lottie': 'assets/lottie/paint.json'};
+      case 'waterproof': return {'icon': Icons.umbrella_rounded, 'color': Colors.teal, 'lottie': 'assets/lottie/umbrella.json'};
+      default: return {'icon': Icons.cleaning_services_rounded, 'color': Colors.indigo};
     }
   }
 
@@ -104,7 +94,25 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
               centerTitle: true,
               backgroundColor: theme.surface,
               elevation: 0,
-              automaticallyImplyLeading: false,
+
+              // --- PERBAIKAN UTAMA: LOGIKA TOMBOL KEMBALI ---
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back_rounded, color: theme.textMain),
+                onPressed: () {
+                  // Cek: Apakah bisa mundur?
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context); // Mundur biasa
+                  } else {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const MainPage()),
+                          (route) => false,
+                    );
+                  }
+                },
+              ),
+              // ----------------------------------------------
+
               bottom: TabBar(
                 controller: _tabController,
                 labelColor: theme.primary,
@@ -157,7 +165,6 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     final config = _getStatusConfig(status);
     Color statusColor = config['color'];
 
-    // Konfigurasi Lottie dari Fungsi
     String serviceName = data['serviceName'] ?? 'Layanan';
     final serviceConfig = _getServiceIcon(serviceName);
 
@@ -178,7 +185,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
               docId: docId,
               data: data,
               statusColor: statusColor,
-              statusIcon: config['icon'], // Icon banner tetap menggunakan icon statis agar rapi
+              statusIcon: config['icon'],
               statusLabel: config['label'],
             ),
           ),
@@ -193,7 +200,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
         ),
         child: Column(
           children: [
-            // HEADER
+            // Banner Status
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(color: statusColor.withOpacity(0.08), borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
@@ -213,14 +220,13 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  // INFO SEPATU DENGAN LOTTIE ANIMATION
+                  // Info Service & Sepatu
                   Row(
                     children: [
                       Container(
                         width: 55, height: 55,
-                        padding: const EdgeInsets.all(10), // Memberi ruang agar Lottie tidak nabrak pinggiran
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(color: serviceConfig['color'].withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
-                        // LOGIKA LOTTIE
                         child: serviceConfig.containsKey('lottie')
                             ? Lottie.asset(serviceConfig['lottie'], fit: BoxFit.contain)
                             : Icon(serviceConfig['icon'], color: serviceConfig['color'], size: 28),
@@ -243,7 +249,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
 
                   const SizedBox(height: 16),
 
-                  // PROGRESS BAR ANIMASI
+                  // Progress Bar
                   if (isActive && status != 'Cancelled') ...[
                     _buildAnimatedProgressBar(config['step'], statusColor, theme),
                     const SizedBox(height: 16),
@@ -252,7 +258,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                   const Divider(height: 1),
                   const SizedBox(height: 16),
 
-                  // FOOTER
+                  // Footer (Harga & Tombol)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -263,8 +269,6 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                           Text(currency.format(data['totalPrice'] ?? 0), style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w900, color: theme.textMain)),
                         ],
                       ),
-
-                      // DERETAN TOMBOL BATAL & DETAIL
                       Row(
                         children: [
                           if (canCancel) ...[
@@ -286,11 +290,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => OrderDetailPage(
-                                    docId: docId,
-                                    data: data,
-                                    statusColor: statusColor,
-                                    statusIcon: config['icon'],
-                                    statusLabel: config['label'],
+                                    docId: docId, data: data, statusColor: statusColor, statusIcon: config['icon'], statusLabel: config['label'],
                                   ),
                                 ),
                               );
@@ -317,7 +317,6 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     );
   }
 
-  // WIDGET PROGRESS BAR ANIMASI BARU
   Widget _buildAnimatedProgressBar(int currentStep, Color activeColor, AppThemeData theme) {
     const int totalSteps = 6;
     double progress = currentStep / totalSteps;
