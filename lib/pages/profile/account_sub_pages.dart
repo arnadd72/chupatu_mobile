@@ -298,65 +298,177 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
 }
 
 // ==========================================
-// 3. HALAMAN PENGATURAN APLIKASI
+// 3. HALAMAN PENGATURAN APLIKASI (UPDATED)
 // ==========================================
-class AppSettingsPage extends StatelessWidget {
+class AppSettingsPage extends StatefulWidget {
   const AppSettingsPage({super.key});
+
+  @override
+  State<AppSettingsPage> createState() => _AppSettingsPageState();
+}
+
+class _AppSettingsPageState extends State<AppSettingsPage> {
+  String _selectedLanguage = "Bahasa Indonesia"; // Default
+  String _cacheSize = "24.5 MB"; // Dummy Data
+
+  // --- LOGIKA BERSIHKAN CACHE ---
+  void _clearCache() {
+    setState(() => _cacheSize = "0.0 KB");
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Cache aplikasi berhasil dibersihkan!"),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AppThemeData>(
-        valueListenable: ThemeConfig.currentTheme,
-        builder: (context, currentTheme, child) {
-          return Scaffold(
-            backgroundColor: currentTheme.background,
-            appBar: AppBar(
-                title: Text("Pengaturan Aplikasi", style: GoogleFonts.plusJakartaSans(color: currentTheme.textMain, fontWeight: FontWeight.bold)),
-                backgroundColor: currentTheme.surface,
-                elevation: 0,
-                iconTheme: IconThemeData(color: currentTheme.textMain)
-            ),
-            body: ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                Text("Tema Tampilan (Color Theme)", style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: currentTheme.textMain)),
-                const SizedBox(height: 16),
-                ...ThemeConfig.themes.asMap().entries.map((entry) {
-                  int index = entry.key;
-                  AppThemeData themeData = entry.value;
+      valueListenable: ThemeConfig.currentTheme,
+      builder: (context, currentTheme, child) {
+        return Scaffold(
+          backgroundColor: currentTheme.background,
+          appBar: AppBar(
+            title: Text("Pengaturan Aplikasi",
+                style: GoogleFonts.plusJakartaSans(color: currentTheme.textMain, fontWeight: FontWeight.bold)),
+            backgroundColor: currentTheme.surface,
+            elevation: 0,
+            iconTheme: IconThemeData(color: currentTheme.textMain),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              // --- SECTION 1: TEMA ---
+              _buildSectionHeader("Pilih Tema Aplikasi", currentTheme),
+              const SizedBox(height: 16),
+              // Kita pakai Grid agar hemat tempat
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.8,
+                ),
+                itemCount: ThemeConfig.themes.length,
+                itemBuilder: (context, index) {
+                  final themeData = ThemeConfig.themes[index];
                   bool isSelected = currentTheme.name == themeData.name;
-
                   return GestureDetector(
                     onTap: () => ThemeConfig.changeTheme(index),
                     child: Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                       decoration: BoxDecoration(
                         color: themeData.surface,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: isSelected ? themeData.primary : Colors.grey.withOpacity(0.2), width: isSelected ? 2 : 1),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                        border: Border.all(
+                            color: isSelected ? themeData.primary : Colors.grey.withOpacity(0.2),
+                            width: isSelected ? 2 : 1
+                        ),
+                        boxShadow: [
+                          if (isSelected) BoxShadow(color: themeData.primary.withOpacity(0.2), blurRadius: 8)
+                        ],
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Row(
-                            children: [
-                              Container(width: 24, height: 24, decoration: BoxDecoration(color: themeData.primary, shape: BoxShape.circle)),
-                              const SizedBox(width: 16),
-                              Text(themeData.name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: themeData.textMain, fontSize: 16)),
-                            ],
+                          Container(
+                            width: 32, height: 32,
+                            decoration: BoxDecoration(color: themeData.primary, shape: BoxShape.circle),
+                            child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
                           ),
-                          if (isSelected) Icon(Icons.check_circle_rounded, color: themeData.primary)
+                          const SizedBox(height: 8),
+                          Text(themeData.name,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: themeData.textMain
+                              )),
                         ],
                       ),
                     ),
                   );
-                }).toList(),
-              ],
-            ),
-          );
-        }
+                },
+              ),
+
+              const SizedBox(height: 32),
+
+              // --- SECTION 2: BAHASA ---
+              _buildSectionHeader("Bahasa", currentTheme),
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(color: currentTheme.surface, borderRadius: BorderRadius.circular(16)),
+                child: Column(
+                  children: [
+                    _buildRadioTile("Bahasa Indonesia", currentTheme),
+                    const Divider(height: 1),
+                    _buildRadioTile("English (United States)", currentTheme),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // --- SECTION 3: PENYIMPANAN & CACHE ---
+              _buildSectionHeader("Penyimpanan & Cache", currentTheme),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: currentTheme.surface, borderRadius: BorderRadius.circular(16)),
+                child: Row(
+                  children: [
+                    Icon(Icons.storage_rounded, color: currentTheme.primary),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Cache Saat Ini",
+                              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: currentTheme.textMain)),
+                          Text(_cacheSize,
+                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: _clearCache,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.withOpacity(0.1),
+                        foregroundColor: Colors.red,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text("Bersihkan", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // --- WIDGET HELPER ---
+  Widget _buildSectionHeader(String title, AppThemeData theme) {
+    return Text(title,
+        style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey));
+  }
+
+  Widget _buildRadioTile(String lang, AppThemeData theme) {
+    bool isSelected = _selectedLanguage == lang;
+    return ListTile(
+      onTap: () => setState(() => _selectedLanguage = lang),
+      leading: Icon(Icons.language_rounded, color: isSelected ? theme.primary : Colors.grey),
+      title: Text(lang, style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontSize: 14)),
+      trailing: isSelected
+          ? Icon(Icons.radio_button_checked, color: theme.primary)
+          : const Icon(Icons.radio_button_off, color: Colors.grey),
     );
   }
 }
