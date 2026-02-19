@@ -2,11 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // Import wajib untuk bahasa
 
 import 'package:chupatu_mobile/config/firebase_options.dart';
 import 'package:chupatu_mobile/pages/auth/landing_page.dart';
-import 'package:chupatu_mobile/pages/main_page.dart'; // File baru yang ada Navbarnya
-import 'package:chupatu_mobile/pages/admin/dashboard/admin_home_page.dart'; // Halaman Admin
+import 'package:chupatu_mobile/pages/main_page.dart';
+import 'package:chupatu_mobile/pages/admin/dashboard/admin_home_page.dart';
+
+// ============================================================
+// KONFIGURASI BAHASA (LANGUAGE CONFIG)
+// ============================================================
+class LanguageConfig {
+  // Default bahasa Indonesia
+  static final ValueNotifier<Locale> currentLocale = ValueNotifier(const Locale('id', 'ID'));
+
+  static void changeLanguage(String langCode) {
+    if (langCode == 'id') {
+      currentLocale.value = const Locale('id', 'ID');
+    } else {
+      currentLocale.value = const Locale('en', 'US');
+    }
+  }
+}
 
 // ============================================================
 // 1. KONFIGURASI TEMA (THEME CONFIG)
@@ -72,8 +89,8 @@ class ThemeConfig {
       name: 'Neumorphism',
       primary: const Color(0xFF55677d),
       secondary: const Color(0xFF7b8fa1),
-      background: const Color(0xFFE0E5EC), // Warna kunci
-      surface: const Color(0xFFE0E5EC),     // Surface sama dengan bg
+      background: const Color(0xFFE0E5EC),
+      surface: const Color(0xFFE0E5EC),
       textMain: const Color(0xFF4A5568),
       isDark: false,
     ),
@@ -83,8 +100,8 @@ class ThemeConfig {
       name: 'Glassmorphism',
       primary: const Color(0xFFD946EF),
       secondary: const Color(0xFF8B5CF6),
-      background: const Color(0xFF2D1B69), // Base gelap
-      surface: const Color(0xFF442A8B),    // Sedikit lebih terang
+      background: const Color(0xFF2D1B69),
+      surface: const Color(0xFF442A8B),
       textMain: Colors.white,
       isDark: true,
     ),
@@ -94,7 +111,7 @@ class ThemeConfig {
       name: 'Immersive 3D',
       primary: const Color(0xFF00FF94),
       secondary: const Color(0xFF00B8D4),
-      background: const Color(0xFF000000), // Hitam pekat
+      background: const Color(0xFF000000),
       surface: const Color(0xFF111111),
       textMain: const Color(0xFFEEEEEE),
       isDark: true,
@@ -105,8 +122,8 @@ class ThemeConfig {
       name: 'Retro Style',
       primary: const Color(0xFFFF6B6B),
       secondary: const Color(0xFFE17055),
-      background: const Color(0xFFF7F1E3), // Cream Paper
-      surface: const Color(0xFFFFEAA7),    // Yellowish
+      background: const Color(0xFFF7F1E3),
+      surface: const Color(0xFFFFEAA7),
       textMain: const Color(0xFF2D3436),
       isDark: false,
     ),
@@ -116,8 +133,8 @@ class ThemeConfig {
       name: 'Dark Modern',
       primary: const Color(0xFF2979FF),
       secondary: const Color(0xFF00E5FF),
-      background: const Color(0xFF181818), // Matte Dark
-      surface: const Color(0xFF252525),    // Matte Surface
+      background: const Color(0xFF181818),
+      surface: const Color(0xFF252525),
       textMain: Colors.white,
       isDark: true,
     ),
@@ -125,7 +142,6 @@ class ThemeConfig {
 
   static final ValueNotifier<AppThemeData> currentTheme = ValueNotifier(themes[0]);
 
-  // Fungsi ganti tema berdasarkan index list
   static void changeTheme(int index) {
     if (index >= 0 && index < themes.length) {
       currentTheme.value = themes[index];
@@ -152,42 +168,64 @@ class ChupatuApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<AppThemeData>(
-      valueListenable: ThemeConfig.currentTheme,
-      builder: (context, themeData, child) {
-        return MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Chupatu Mobile',
-          theme: ThemeData(
-            useMaterial3: true,
-            brightness: themeData.isDark ? Brightness.dark : Brightness.light,
-            scaffoldBackgroundColor: themeData.background,
-            primaryColor: themeData.primary,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: themeData.primary,
-              brightness: themeData.isDark ? Brightness.dark : Brightness.light,
-              primary: themeData.primary,
-              secondary: themeData.secondary,
-              surface: themeData.surface,
-            ),
-            textTheme: TextTheme(
-              bodyMedium: TextStyle(color: themeData.textMain),
-              titleLarge: TextStyle(color: themeData.textMain),
-            ),
-            appBarTheme: AppBarTheme(
-              backgroundColor: themeData.surface,
-              surfaceTintColor: Colors.transparent,
-              titleTextStyle: TextStyle(color: themeData.textMain, fontSize: 20, fontWeight: FontWeight.bold),
-              iconTheme: IconThemeData(color: themeData.textMain),
-            ),
-            cardTheme: CardThemeData(
-              color: themeData.surface,
-              surfaceTintColor: Colors.transparent,
-            ),
-          ),
+    // --- 1. LISTENER UNTUK BAHASA (BARU) ---
+    return ValueListenableBuilder<Locale>(
+      valueListenable: LanguageConfig.currentLocale,
+      builder: (context, currentLocale, child) {
 
-          // --- LOGIC AUTH WRAPPER ---
-          home: const AuthWrapper(),
+        // --- 2. LISTENER UNTUK TEMA (BAWAAN BOS) ---
+        return ValueListenableBuilder<AppThemeData>(
+          valueListenable: ThemeConfig.currentTheme,
+          builder: (context, themeData, child) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'Chupatu Mobile',
+
+              // --- SETTING BAHASA BERFUNGSI DISINI ---
+              locale: currentLocale,
+              supportedLocales: const [
+                Locale('id', 'ID'), // Indonesia
+                Locale('en', 'US'), // Inggris
+              ],
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              // ----------------------------------------
+
+              theme: ThemeData(
+                useMaterial3: true,
+                brightness: themeData.isDark ? Brightness.dark : Brightness.light,
+                scaffoldBackgroundColor: themeData.background,
+                primaryColor: themeData.primary,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: themeData.primary,
+                  brightness: themeData.isDark ? Brightness.dark : Brightness.light,
+                  primary: themeData.primary,
+                  secondary: themeData.secondary,
+                  surface: themeData.surface,
+                ),
+                textTheme: TextTheme(
+                  bodyMedium: TextStyle(color: themeData.textMain),
+                  titleLarge: TextStyle(color: themeData.textMain),
+                ),
+                appBarTheme: AppBarTheme(
+                  backgroundColor: themeData.surface,
+                  surfaceTintColor: Colors.transparent,
+                  titleTextStyle: TextStyle(color: themeData.textMain, fontSize: 20, fontWeight: FontWeight.bold),
+                  iconTheme: IconThemeData(color: themeData.textMain),
+                ),
+                cardTheme: CardThemeData(
+                  color: themeData.surface,
+                  surfaceTintColor: Colors.transparent,
+                ),
+              ),
+
+              // --- LOGIC AUTH WRAPPER ---
+              home: const AuthWrapper(),
+            );
+          },
         );
       },
     );
@@ -206,17 +244,14 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // 1. Loading saat cek login
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
-        // 2. Jika Belum Login -> Ke Landing Page
         if (!snapshot.hasData) {
           return const LandingPage();
         }
 
-        // 3. Jika Sudah Login -> Cek Role (Admin/User)
         return FutureBuilder<DocumentSnapshot>(
           future: FirebaseFirestore.instance.collection('users').doc(snapshot.data!.uid).get(),
           builder: (context, userSnapshot) {
@@ -228,13 +263,12 @@ class AuthWrapper extends StatelessWidget {
               String role = userSnapshot.data!.get('role') ?? 'user';
 
               if (role == 'admin') {
-                return const AdminHomePage(); // Ke Halaman Admin
+                return const AdminHomePage();
               } else {
-                return const MainPage(); // Ke Halaman User (Ada Navbarnya)
+                return const MainPage();
               }
             }
 
-            // Fallback jika data user tidak ditemukan
             return const LandingPage();
           },
         );

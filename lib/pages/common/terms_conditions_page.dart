@@ -128,45 +128,57 @@ class TermsConditionsPage extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildSectionTitle('1. Introduction', primaryBlue),
+                              _buildSectionTitle('1. Pengantar', primaryBlue),
                               _buildSectionContent(
-                                'Welcome to Chupatu! These Terms and Conditions govern your use of our shoe cleaning services. By using our app, you agree to these terms.'
+                                  'Selamat datang di Chupatu! Syarat dan Ketentuan ini mengatur penggunaan layanan perawatan sepatu kami. Dengan menggunakan aplikasi kami, Anda menyetujui persyaratan ini sepenuhnya.'
                               ),
                               const SizedBox(height: 20),
 
-                              _buildSectionTitle('2. Services Provided', primaryBlue),
+                              _buildSectionTitle('2. Layanan & Ekspektasi', primaryBlue),
                               _buildSectionContent(
-                                'Chupatu provides premium shoe cleaning, repair, and restoration services. We strive to deliver the best results, but the outcome may vary based on the shoe condition.'
+                                  'Chupatu menyediakan layanan cuci, reparasi, dan restorasi sepatu premium. Kami berusaha memberikan hasil terbaik, namun hasil akhir sangat bergantung pada kondisi awal, usia, dan bahan sepatu Anda. Noda membandel yang sudah meresap (seperti tinta atau getah) mungkin tidak bisa 100% hilang.'
                               ),
                               const SizedBox(height: 20),
 
-                              _buildSectionTitle('3. User Responsibilities', primaryBlue),
+                              _buildSectionTitle('3. Estimasi Waktu (Turnaround Time)', primaryBlue),
                               _buildSectionContent(
-                                'You agree to provide accurate information regarding your shoes and any specific cleaning requirements. You represent that you are the owner of the shoes submitted.'
-                              ),
-                              const SizedBox(height: 20),
-                              
-                              _buildSectionTitle('4. Payments', primaryBlue),
-                              _buildSectionContent(
-                                'All payments are processed securely. Prices are final and non-refundable once the service has commenced.'
+                                  'Waktu pengerjaan standar adalah 2-4 hari kerja tergantung jenis layanan. Keterlambatan dapat terjadi pada *peak season* (musim hujan/liburan) atau jika sepatu membutuhkan penanganan khusus.'
                               ),
                               const SizedBox(height: 20),
 
-                              _buildSectionTitle('5. Liability', primaryBlue),
+                              _buildSectionTitle('4. Layanan Antar-Jemput (Delivery)', primaryBlue),
                               _buildSectionContent(
-                                'While we take utmost care, Chupatu is not liable for pre-existing damage or wear and tear that becomes apparent after cleaning.'
+                                  'Kami menyediakan layanan antar-jemput sesuai area cakupan. Pastikan Anda berada di lokasi saat kurir kami tiba. Kegagalan penjemputan/pengantaran akibat pelanggan tidak dapat dihubungi dapat dikenakan biaya tambahan.'
                               ),
                               const SizedBox(height: 20),
 
-                              _buildSectionTitle('6. Changes to Terms', primaryBlue),
+                              _buildSectionTitle('5. Tanggung Jawab & Kerusakan', primaryBlue),
                               _buildSectionContent(
-                                'We reserve the right to modify these terms at any time. Continued use of the service constitutes acceptance of the new terms.'
+                                  'Kami menangani sepatu Anda dengan sangat hati-hati. Namun, Chupatu tidak bertanggung jawab atas kerusakan yang diakibatkan oleh usia sepatu (seperti sol hancur/getas), cacat pabrik, atau material yang sudah lapuk sebelum proses pencucian.'
                               ),
-                              
+                              const SizedBox(height: 20),
+
+                              _buildSectionTitle('6. Garansi Cuci Ulang', primaryBlue),
+                              _buildSectionContent(
+                                  'Jika Anda merasa hasil cuci kurang maksimal karena kelalaian pihak kami, klaim garansi cuci ulang dapat dilakukan maksimal 1x24 jam setelah sepatu diterima, dengan menyertakan foto dan belum pernah dipakai keluar.'
+                              ),
+                              const SizedBox(height: 20),
+
+                              _buildSectionTitle('7. Barang Tidak Diambil', primaryBlue),
+                              _buildSectionContent(
+                                  'Sepatu yang telah selesai dikerjakan namun tidak diklaim/diambil oleh pelanggan dalam waktu 30 hari sejak pemberitahuan selesai, bukan lagi menjadi tanggung jawab Chupatu, dan kami berhak menyumbangkan atau membuang barang tersebut.'
+                              ),
+                              const SizedBox(height: 20),
+
+                              _buildSectionTitle('8. Pembayaran', primaryBlue),
+                              _buildSectionContent(
+                                  'Pembayaran dilakukan secara aman melalui aplikasi (Midtrans) atau Cash on Delivery (COD). Harga yang tertera adalah final. Layanan yang sudah berjalan tidak dapat dibatalkan atau di-refund.'
+                              ),
+
                               const SizedBox(height: 40),
                               Center(
                                 child: Text(
-                                  'Last Updated: October 2023',
+                                  'Terakhir Diperbarui: Oktober 2024',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 12,
                                     color: Colors.grey.shade400,

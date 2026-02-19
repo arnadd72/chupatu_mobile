@@ -15,7 +15,6 @@ import 'package:chupatu_mobile/pages/order/service_detail_page.dart';
 import 'package:chupatu_mobile/pages/home/widgets/auto_magic_card.dart';
 import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
 import 'package:chupatu_mobile/pages/notification/notification_page.dart';
-// Tambahkan import ini
 import 'package:chupatu_mobile/pages/home/garage/garage_page.dart';
 
 // WIDGET IMPORTS
@@ -37,6 +36,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late AnimationController _upgradeAnimController;
   final User? user = FirebaseAuth.instance.currentUser;
   int _totalBanners = 3;
+
+  StreamSubscription<QuerySnapshot>? _bookingSubscription;
 
   @override
   void initState() {
@@ -62,6 +63,55 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
+
+    if (user != null) {
+      _bookingSubscription = FirebaseFirestore.instance
+          .collection('bookings')
+          .where('userId', isEqualTo: user!.uid)
+          .snapshots()
+          .listen((snapshot) {
+        for (var change in snapshot.docChanges) {
+          if (change.type == DocumentChangeType.modified) {
+            var data = change.doc.data() as Map<String, dynamic>;
+            String serviceName = data['serviceName'] ?? 'Pesanan Anda';
+            String newStatus = data['status'] ?? 'Diperbarui';
+
+            _showStatusUpdatePopup(serviceName, newStatus);
+
+            FirebaseFirestore.instance.collection('users').doc(user!.uid).set({
+              'hasUnreadNotif': true
+            }, SetOptions(merge: true));
+          }
+        }
+      });
+    }
+  }
+
+  void _showStatusUpdatePopup(String serviceName, String newStatus) {
+    if (!mounted) return;
+    final theme = ThemeConfig.currentTheme.value;
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "TopNotif",
+      barrierColor: Colors.black.withOpacity(0.1),
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return _TopNotificationPopup(
+          serviceName: serviceName,
+          newStatus: newStatus,
+          theme: theme,
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero)
+              .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+          child: child,
+        );
+      },
+    );
   }
 
   String _getGreeting() {
@@ -76,106 +126,49 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void dispose() {
     _bannerController.dispose();
     _upgradeAnimController.dispose();
+    _bookingSubscription?.cancel();
     super.dispose();
   }
 
-  // --- FUNGSI GANTI TEMA (TAMPILAN GRID KECIL) ---
   void _showThemePicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: true, // Supaya bisa menyesuaikan tinggi konten
+      isScrollControlled: true,
       builder: (context) {
-        // Ambil tema saat ini untuk styling modal
         final currentTheme = ThemeConfig.currentTheme.value;
-
         return Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: currentTheme.surface, // Mengikuti warna tema
+            color: currentTheme.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Garis Indikator di atas
-              Container(
-                width: 40, height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-              ),
-
-              Text(
-                "Pilih Tampilan Aplikasi",
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: currentTheme.textMain
-                ),
-              ),
+              Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20), decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+              Text("Pilih Tampilan Aplikasi", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: currentTheme.textMain)),
               const SizedBox(height: 24),
-
-              // GRID TEMA (WRAP)
               Flexible(
                 child: SingleChildScrollView(
                   child: Wrap(
-                    spacing: 20,     // Jarak antar kolom
-                    runSpacing: 20,  // Jarak antar baris
-                    alignment: WrapAlignment.center,
+                    spacing: 20, runSpacing: 20, alignment: WrapAlignment.center,
                     children: List.generate(ThemeConfig.themes.length, (index) {
                       final themeItem = ThemeConfig.themes[index];
                       final bool isSelected = currentTheme.name == themeItem.name;
-
                       return GestureDetector(
-                        onTap: () {
-                          ThemeConfig.changeTheme(index);
-                          Navigator.pop(context); // Tutup modal setelah pilih
-                        },
+                        onTap: () { ThemeConfig.changeTheme(index); Navigator.pop(context); },
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // BULATAN WARNA (DIPERKECIL)
                             Container(
-                              width: 50,  // Ukuran diperkecil (sebelumnya mungkin 60-70)
-                              height: 50,
-                              decoration: BoxDecoration(
-                                  color: themeItem.primary,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: isSelected ? currentTheme.textMain : Colors.transparent,
-                                      width: 2
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 5,
-                                        offset: const Offset(0, 2)
-                                    )
-                                  ]
-                              ),
-                              child: isSelected
-                                  ? const Icon(Icons.check, color: Colors.white, size: 24)
-                                  : null,
+                              width: 50, height: 50,
+                              decoration: BoxDecoration(color: themeItem.primary, shape: BoxShape.circle, border: Border.all(color: isSelected ? currentTheme.textMain : Colors.transparent, width: 2), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5, offset: const Offset(0, 2))]),
+                              child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 24) : null,
                             ),
                             const SizedBox(height: 8),
-
-                            // LABEL NAMA TEMA
-                            SizedBox(
-                              width: 60, // Batasi lebar teks
-                              child: Text(
-                                themeItem.name.replaceAll(' ', '\n'), // Nama jadi 2 baris kalau panjang
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 10, // Font diperkecil
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                    color: isSelected ? currentTheme.textMain : Colors.grey,
-                                    height: 1.2
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                            SizedBox(width: 60, child: Text(themeItem.name.replaceAll(' ', '\n'), textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? currentTheme.textMain : Colors.grey, height: 1.2), maxLines: 2, overflow: TextOverflow.ellipsis)),
                           ],
                         ),
                       );
@@ -202,22 +195,41 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
           builder: (context, userSnapshot) {
 
-            // --- LOGIC PENGECEKAN STATUS PRO ---
             bool isPro = false;
-            String displayName = user?.displayName ?? 'Guest';
+            String displayName = user?.displayName ?? 'Guest'; // Default Google Name
             String photoURL = user?.photoURL ?? 'https://i.pravatar.cc/150';
+            bool unreadNotif = true;
 
             if (userSnapshot.hasData && userSnapshot.data != null && userSnapshot.data!.exists) {
               var userData = userSnapshot.data!.data() as Map<String, dynamic>;
 
-              // Cek field 'memberType' ATAU field 'role'
               String mType = (userData['memberType'] ?? "").toString();
               String uRole = (userData['role'] ?? "").toString();
-
               isPro = (mType == 'Pro' || uRole == 'Pro');
 
-              if (userData['displayName'] != null) displayName = userData['displayName'];
-              if (userData['photoURL'] != null) photoURL = userData['photoURL'];
+              // ==============================================================
+              // PERBAIKAN LOGIKA PENGAMBILAN NAMA DARI FIRESTORE
+              // Memprioritaskan Username/Nama yang diedit di profil daripada Google
+              // ==============================================================
+              String dbUsername = (userData['username'] ?? '').toString().trim();
+              String dbName = (userData['name'] ?? '').toString().trim();
+              String dbDisplayName = (userData['displayName'] ?? '').toString().trim();
+
+              if (dbUsername.isNotEmpty) {
+                displayName = dbUsername; // 1. Prioritas Pertama: Username Custom
+              } else if (dbName.isNotEmpty) {
+                displayName = dbName;     // 2. Prioritas Kedua: Nama Lengkap Custom
+              } else if (dbDisplayName.isNotEmpty) {
+                displayName = dbDisplayName; // 3. Prioritas Ketiga: Display Name Firebase
+              }
+
+              if (userData['photoURL'] != null && userData['photoURL'].toString().isNotEmpty) {
+                photoURL = userData['photoURL'];
+              }
+
+              if (userData.containsKey('hasUnreadNotif')) {
+                unreadNotif = userData['hasUnreadNotif'] == true;
+              }
             }
 
             return Scaffold(
@@ -242,7 +254,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               Row(children: [
                                 GestureDetector(onTap: () => _showThemePicker(context), child: Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Icon(Icons.palette_rounded, color: theme.primary, size: 20))),
                                 const SizedBox(width: 12),
-                                GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage())), child: Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Stack(alignment: Alignment.center, children: [Icon(Icons.notifications_none_rounded, color: theme.textMain.withOpacity(0.8)), Positioned(top: 10, right: 10, child: CircleAvatar(radius: 3.5, backgroundColor: Colors.redAccent))]))),
+                                AnimatedNotificationIcon(
+                                  hasNewNotif: unreadNotif,
+                                  theme: theme,
+                                  onTap: () {
+                                    FirebaseFirestore.instance.collection('users').doc(user!.uid).set({'hasUnreadNotif': false}, SetOptions(merge: true));
+                                    Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage()));
+                                  },
+                                ),
                               ]),
                             ]),
                           ),
@@ -316,7 +335,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
                           // LIVE TRACKING
                           LiveTrackingWidget(userId: user!.uid, theme: theme),
-
                           const SizedBox(height: 24),
 
                           // mini garage
@@ -435,6 +453,229 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           int rating = item['rating'] as int;
           return Container(width: 280, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [CircleAvatar(radius: 16, backgroundImage: NetworkImage(item['img'] as String)), const SizedBox(width: 10), Expanded(child: Text(item['name'] as String, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: theme.textMain))), Row(children: List.generate(5, (i) => Icon(Icons.star_rounded, size: 14, color: i < rating ? Colors.amber : Colors.grey.shade300)))]), const SizedBox(height: 12), Text('"${item['text']}"', maxLines: 3, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade700, fontStyle: FontStyle.italic))]));
         },
+      ),
+    );
+  }
+}
+
+// ============================================================
+// WIDGET KHUSUS: POP-UP NOTIFIKASI DARI ATAS
+// ============================================================
+class _TopNotificationPopup extends StatefulWidget {
+  final String serviceName;
+  final String newStatus;
+  final AppThemeData theme;
+
+  const _TopNotificationPopup({
+    required this.serviceName,
+    required this.newStatus,
+    required this.theme,
+  });
+
+  @override
+  State<_TopNotificationPopup> createState() => _TopNotificationPopupState();
+}
+
+class _TopNotificationPopupState extends State<_TopNotificationPopup> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+                color: widget.theme.surface,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20, offset: const Offset(0, 10))
+                ]
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: widget.theme.primary.withOpacity(0.1), shape: BoxShape.circle),
+                      child: Icon(Icons.notifications_active_rounded, color: widget.theme.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Update Pesanan!", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: widget.theme.textMain)),
+                          const SizedBox(height: 4),
+                          Text("Status pesanan ${widget.serviceName} Anda telah diperbarui menjadi: ${widget.newStatus.toUpperCase()}", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade600)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        _timer?.cancel();
+                        Navigator.pop(context);
+                      },
+                      child: Text("Tutup", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: widget.theme.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () {
+                        _timer?.cancel();
+                        Navigator.pop(context);
+
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage()));
+                      },
+                      child: const Text("Lihat Detail", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    )
+                  ],
+                )
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// WIDGET KHUSUS: IKON NOTIFIKASI GOYANG & TITIK MERAH
+// ============================================================
+class AnimatedNotificationIcon extends StatefulWidget {
+  final bool hasNewNotif;
+  final VoidCallback onTap;
+  final AppThemeData theme;
+
+  const AnimatedNotificationIcon({
+    super.key,
+    required this.hasNewNotif,
+    required this.onTap,
+    required this.theme,
+  });
+
+  @override
+  State<AnimatedNotificationIcon> createState() => _AnimatedNotificationIconState();
+}
+
+class _AnimatedNotificationIconState extends State<AnimatedNotificationIcon> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  bool _isAnimating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+
+    _animation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: -0.15), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -0.15, end: 0.15), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 0.15, end: -0.15), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -0.15, end: 0.15), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 0.15, end: 0.0), weight: 1),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+    if (widget.hasNewNotif) {
+      _startShaking();
+    }
+  }
+
+  void _startShaking() async {
+    _isAnimating = true;
+    while (_isAnimating && mounted) {
+      await _controller.forward();
+      _controller.reset();
+      await Future.delayed(const Duration(seconds: 2));
+    }
+  }
+
+  @override
+  void didUpdateWidget(AnimatedNotificationIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.hasNewNotif && !oldWidget.hasNewNotif) {
+      _startShaking();
+    }
+    else if (!widget.hasNewNotif && oldWidget.hasNewNotif) {
+      _isAnimating = false;
+      _controller.stop();
+      _controller.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _isAnimating = false;
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Container(
+        width: 42, height: 42,
+        decoration: BoxDecoration(
+          color: widget.theme.surface.withOpacity(0.8),
+          shape: BoxShape.circle,
+          border: Border.all(color: widget.theme.surface),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            AnimatedBuilder(
+                animation: _animation,
+                builder: (context, child) {
+                  return Transform.rotate(
+                    angle: _animation.value,
+                    child: Icon(Icons.notifications_none_rounded, color: widget.theme.textMain.withOpacity(0.8)),
+                  );
+                }
+            ),
+            if (widget.hasNewNotif)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: const CircleAvatar(radius: 3.5, backgroundColor: Colors.redAccent),
+              ),
+          ],
+        ),
       ),
     );
   }
