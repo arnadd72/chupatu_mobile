@@ -17,13 +17,13 @@ class AdminManagementPage extends StatelessWidget {
         valueListenable: ThemeConfig.currentTheme,
         builder: (context, theme, child) {
           return Scaffold(
-            backgroundColor: const Color(0xFFF5F6FA),
+            backgroundColor: theme.background, // PERUBAHAN: Background adaptif
             body: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Pusat Kontrol", style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text("Pusat Kontrol", style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.bold, color: theme.textMain)), // PERUBAHAN: Warna teks
                   const SizedBox(height: 8),
                   Text("Atur semua operasional Chupatu dari sini.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
                   const SizedBox(height: 24),
@@ -35,17 +35,17 @@ class AdminManagementPage extends StatelessWidget {
                     crossAxisCount: 2,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
-                    childAspectRatio: 1.1, // Kotak agak lebar
+                    childAspectRatio: 1.1,
                     children: [
                       // 1. MANAJEMEN LAYANAN
                       _buildAdminMenuCard(
                         context,
+                        theme: theme, // Kirim tema ke widget
                         title: "Layanan",
                         subtitle: "Tambah/Edit Layanan & Harga",
                         icon: Icons.cleaning_services_rounded,
                         color: Colors.blue,
                         onTap: () {
-                          // --- NAVIGASI KE LAYANAN ---
                           Navigator.push(context, MaterialPageRoute(builder: (context) => const ManageServicesPage()));
                         },
                       ),
@@ -53,12 +53,12 @@ class AdminManagementPage extends StatelessWidget {
                       // 2. KODE PROMO & NOTIF
                       _buildAdminMenuCard(
                         context,
+                        theme: theme,
                         title: "Promo & Notif",
                         subtitle: "Broadcast & Kode Kupon",
                         icon: Icons.campaign_rounded,
                         color: Colors.orange,
                         onTap: () {
-                          // --- NAVIGASI KE PROMO ---
                           Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagePromoPage()));
                         },
                       ),
@@ -66,12 +66,12 @@ class AdminManagementPage extends StatelessWidget {
                       // 3. LAPORAN KEUANGAN
                       _buildAdminMenuCard(
                         context,
+                        theme: theme,
                         title: "Keuangan",
                         subtitle: "Grafik Pendapatan & Laporan",
                         icon: Icons.pie_chart_rounded,
                         color: Colors.green,
                         onTap: () {
-                          // --- NAVIGASI KE KEUANGAN ---
                           Navigator.push(context, MaterialPageRoute(builder: (context) => const FinanceReportPage()));
                         },
                       ),
@@ -79,12 +79,12 @@ class AdminManagementPage extends StatelessWidget {
                       // 4. DATA PELANGGAN
                       _buildAdminMenuCard(
                         context,
+                        theme: theme,
                         title: "Pelanggan",
                         subtitle: "Database User Lengkap",
                         icon: Icons.people_alt_rounded,
                         color: Colors.purple,
                         onTap: () {
-                          // --- NAVIGASI KE PELANGGAN ---
                           Navigator.push(context, MaterialPageRoute(builder: (context) => const CustomerListPage()));
                         },
                       ),
@@ -98,15 +98,17 @@ class AdminManagementPage extends StatelessWidget {
     );
   }
 
-  Widget _buildAdminMenuCard(BuildContext context, {required String title, required String subtitle, required IconData icon, required Color color, required VoidCallback onTap}) {
+  // PERUBAHAN: Tambahkan parameter theme
+  Widget _buildAdminMenuCard(BuildContext context, {required AppThemeData theme, required String title, required String subtitle, required IconData icon, required Color color, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.surface, // PERUBAHAN: Warna kotak adaptif
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border.all(color: Colors.grey.withOpacity(0.2)), // Tambahan border halus
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,7 +120,7 @@ class AdminManagementPage extends StatelessWidget {
               child: Icon(icon, color: color, size: 28),
             ),
             const Spacer(),
-            Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain)), // PERUBAHAN: Teks adaptif
             const SizedBox(height: 4),
             Text(subtitle, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey), maxLines: 2, overflow: TextOverflow.ellipsis),
           ],

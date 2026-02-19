@@ -7,6 +7,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:chupatu_mobile/main.dart'; // IMPORT TEMA
 
 class FinanceReportPage extends StatefulWidget {
   const FinanceReportPage({super.key});
@@ -29,11 +30,9 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
   double? _touchedValue;
   String? _touchedDate;
 
-  // Warna UI
+  // Warna UI (Chart)
   final Color _stockGreen = const Color(0xFF00C853);
   final Color _stockRed = const Color(0xFFD50000);
-  final Color _textBlack = const Color(0xFF17191C);
-  final Color _textGrey = const Color(0xFF909399);
 
   @override
   void initState() {
@@ -60,7 +59,7 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
     }
   }
 
-  // --- FITUR SHARE PDF (FIXED: BISA SAVE DRIVE) ---
+  // --- FITUR SHARE PDF ---
   Future<void> _generatePdf(List<QueryDocumentSnapshot> docs, bool isIncome) async {
     final pdf = pw.Document();
     final currencyFormat = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
@@ -173,8 +172,6 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
       ),
     );
 
-    // --- REVISI UTAMA: PAKAI SHARE PDF ---
-    // Ini akan membuka dialog Share (Drive, WA, Email, Files)
     await Printing.sharePdf(
         bytes: await pdf.save(),
         filename: 'Laporan_${isIncome ? "Pemasukan" : "Pengeluaran"}_$_selectedRange.pdf'
@@ -183,33 +180,38 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text("Portfolio Keuangan", style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: _textBlack, fontSize: 18)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: IconThemeData(color: _textBlack),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: _textBlack,
-          unselectedLabelColor: _textGrey,
-          indicatorColor: _textBlack,
-          labelStyle: GoogleFonts.manrope(fontWeight: FontWeight.bold),
-          tabs: const [ Tab(text: "Pemasukan"), Tab(text: "Pengeluaran") ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [ _buildIncomeView(), _buildExpenseView() ],
-      ),
+    return ValueListenableBuilder<AppThemeData>(
+        valueListenable: ThemeConfig.currentTheme,
+        builder: (context, theme, child) {
+          return Scaffold(
+            backgroundColor: theme.background, // Adaptif
+            appBar: AppBar(
+              title: Text("Portfolio Keuangan", style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: theme.textMain, fontSize: 18)),
+              backgroundColor: theme.surface, // Adaptif
+              elevation: 0,
+              iconTheme: IconThemeData(color: theme.textMain),
+              bottom: TabBar(
+                controller: _tabController,
+                labelColor: theme.textMain,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: theme.textMain,
+                labelStyle: GoogleFonts.manrope(fontWeight: FontWeight.bold),
+                tabs: const [ Tab(text: "Pemasukan"), Tab(text: "Pengeluaran") ],
+              ),
+            ),
+            body: TabBarView(
+              controller: _tabController,
+              children: [ _buildIncomeView(theme), _buildExpenseView(theme) ],
+            ),
+          );
+        }
     );
   }
 
   // =========================================================================
   // VIEW PEMASUKAN
   // =========================================================================
-  Widget _buildIncomeView() {
+  Widget _buildIncomeView(AppThemeData theme) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('bookings')
           .where('status', isEqualTo: 'Done')
@@ -267,35 +269,35 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(displayLabel, displayValue, docs.length, true, () => _generatePdf(docs, true)),
-              _buildChart(spots, sortedDocs, true),
-              _buildTimeSelector(),
+              _buildHeader(displayLabel, displayValue, docs.length, true, theme, () => _generatePdf(docs, true)),
+              _buildChart(spots, sortedDocs, true, theme),
+              _buildTimeSelector(theme),
 
-              const Divider(thickness: 8, color: Color(0xFFF5F6FA)),
+              Divider(thickness: 8, color: theme.surface),
 
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Analisa Performa ($_selectedRange)", style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: _textBlack)),
+                    Text("Analisa Performa ($_selectedRange)", style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)),
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        _buildStatBox("Banyaknya Order", "${docs.length} Trx", Icons.receipt_long),
+                        _buildStatBox("Banyaknya Order", "${docs.length} Trx", Icons.receipt_long, theme),
                         const SizedBox(width: 12),
-                        _buildStatBox("Order Tertinggi", currencyFormat.format(maxOrderValue), Icons.emoji_events),
+                        _buildStatBox("Order Tertinggi", currencyFormat.format(maxOrderValue), Icons.emoji_events, theme),
                       ],
                     ),
                     const SizedBox(height: 24),
 
-                    Text("Layanan Terlaris", style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: _textBlack)),
+                    Text("Layanan Terlaris", style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textMain)),
                     const SizedBox(height: 12),
-                    if (sortedServices.isEmpty) const Text("-") else
+                    if (sortedServices.isEmpty) Text("-", style: TextStyle(color: theme.textMain)) else
                       Column(
                         children: sortedServices.take(5).map((e) {
                           double percentage = (e.value / docs.length);
-                          return _buildProgressBar(e.key, "${e.value} Order", percentage, _stockGreen);
+                          return _buildProgressBar(e.key, "${e.value} Order", percentage, _stockGreen, theme);
                         }).toList(),
                       ),
 
@@ -304,37 +306,38 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("List Pelanggan (${sortedCustomers.length})", style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: _textBlack)),
+                        Text("List Pelanggan (${sortedCustomers.length})", style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textMain)),
                         DropdownButton<String>(
                           value: _customerSortType,
-                          style: GoogleFonts.manrope(fontSize: 12, color: _textBlack, fontWeight: FontWeight.bold),
+                          style: GoogleFonts.manrope(fontSize: 12, color: theme.textMain, fontWeight: FontWeight.bold),
+                          dropdownColor: theme.surface,
                           underline: Container(),
-                          icon: const Icon(Icons.sort, size: 16),
+                          icon: Icon(Icons.sort, size: 16, color: theme.textMain),
                           items: ['Terbanyak', 'Termahal'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                           onChanged: (val) => setState(() => _customerSortType = val!),
                         )
                       ],
                     ),
                     const SizedBox(height: 12),
-                    if (sortedCustomers.isEmpty) const Text("-") else
+                    if (sortedCustomers.isEmpty) Text("-", style: TextStyle(color: theme.textMain)) else
                       Container(
-                        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(border: Border.all(color: Colors.grey.withOpacity(0.2)), borderRadius: BorderRadius.circular(12)),
                         child: ListView.separated(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: sortedCustomers.length,
-                          separatorBuilder: (c,i) => Divider(height: 1, color: Colors.grey.shade100),
+                          separatorBuilder: (c,i) => Divider(height: 1, color: Colors.grey.withOpacity(0.2)),
                           itemBuilder: (context, index) {
                             var entry = sortedCustomers[index];
                             return ListTile(
                               dense: true,
                               leading: CircleAvatar(
-                                backgroundColor: index < 3 ? Colors.amber.shade100 : Colors.grey.shade100,
-                                child: Text((index+1).toString(), style: TextStyle(color: index < 3 ? Colors.amber.shade800 : Colors.black, fontWeight: FontWeight.bold)),
+                                backgroundColor: index < 3 ? Colors.amber.shade100 : theme.surface,
+                                child: Text((index+1).toString(), style: TextStyle(color: index < 3 ? Colors.amber.shade800 : theme.textMain, fontWeight: FontWeight.bold)),
                               ),
-                              title: Text(entry.key, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 13)),
-                              subtitle: Text(currencyFormat.format(entry.value['total']), style: GoogleFonts.manrope(fontSize: 11, color: _textGrey)),
-                              trailing: Text("${entry.value['count']}x Order", style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: _textBlack, fontSize: 12)),
+                              title: Text(entry.key, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 13, color: theme.textMain)),
+                              subtitle: Text(currencyFormat.format(entry.value['total']), style: GoogleFonts.manrope(fontSize: 11, color: Colors.grey)),
+                              trailing: Text("${entry.value['count']}x Order", style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: theme.textMain, fontSize: 12)),
                             );
                           },
                         ),
@@ -343,8 +346,8 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
                 ),
               ),
 
-              const Divider(thickness: 8, color: Color(0xFFF5F6FA)),
-              _buildTransactionList(docs, true),
+              Divider(thickness: 8, color: theme.surface),
+              _buildTransactionList(docs, true, theme),
             ],
           ),
         );
@@ -355,7 +358,7 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
   // =========================================================================
   // VIEW PENGELUARAN
   // =========================================================================
-  Widget _buildExpenseView() {
+  Widget _buildExpenseView(AppThemeData theme) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('inventory_logs')
           .where('type', isEqualTo: 'in')
@@ -391,30 +394,30 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(displayLabel, displayValue, docs.length, false, () => _generatePdf(docs, false)),
-              _buildChart(spots, sortedDocs, false),
-              _buildTimeSelector(),
+              _buildHeader(displayLabel, displayValue, docs.length, false, theme, () => _generatePdf(docs, false)),
+              _buildChart(spots, sortedDocs, false, theme),
+              _buildTimeSelector(theme),
 
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Barang Paling Sering Dibeli", style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: _textBlack)),
+                    Text("Barang Paling Sering Dibeli", style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textMain)),
                     const SizedBox(height: 12),
-                    if (sortedItems.isEmpty) const Text("-") else
+                    if (sortedItems.isEmpty) Text("-", style: TextStyle(color: theme.textMain)) else
                       Column(
                         children: sortedItems.take(5).map((e) {
                           double percentage = totalItems > 0 ? (e.value / totalItems) : 0;
-                          return _buildProgressBar(e.key, "${e.value} Pcs", percentage, _stockRed);
+                          return _buildProgressBar(e.key, "${e.value} Pcs", percentage, _stockRed, theme);
                         }).toList(),
                       ),
                   ],
                 ),
               ),
 
-              const Divider(thickness: 8, color: Color(0xFFF5F6FA)),
-              _buildTransactionList(docs, false),
+              Divider(thickness: 8, color: theme.surface),
+              _buildTransactionList(docs, false, theme),
             ],
           ),
         );
@@ -424,7 +427,7 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
 
   // --- WIDGET PENDUKUNG ---
 
-  Widget _buildProgressBar(String label, String value, double percentage, Color color) {
+  Widget _buildProgressBar(String label, String value, double percentage, Color color, AppThemeData theme) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -433,8 +436,8 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: GoogleFonts.manrope(fontSize: 13, color: _textBlack)),
-              Text(value, style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: _textBlack)),
+              Text(label, style: GoogleFonts.manrope(fontSize: 13, color: theme.textMain)),
+              Text(value, style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.bold, color: theme.textMain)),
             ],
           ),
           const SizedBox(height: 6),
@@ -443,7 +446,7 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
             child: LinearProgressIndicator(
               value: percentage,
               minHeight: 6,
-              backgroundColor: Colors.grey.shade100,
+              backgroundColor: Colors.grey.withOpacity(0.2),
               color: color,
             ),
           ),
@@ -452,26 +455,26 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
     );
   }
 
-  Widget _buildStatBox(String label, String value, IconData icon) {
+  Widget _buildStatBox(String label, String value, IconData icon, AppThemeData theme) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(border: Border.all(color: Colors.grey.withOpacity(0.2)), borderRadius: BorderRadius.circular(12)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 18, color: _textGrey),
+            Icon(icon, size: 18, color: Colors.grey),
             const SizedBox(height: 8),
-            Text(label, style: GoogleFonts.manrope(fontSize: 11, color: _textGrey)),
+            Text(label, style: GoogleFonts.manrope(fontSize: 11, color: Colors.grey)),
             const SizedBox(height: 4),
-            Text(value, style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: _textBlack), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(value, style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textMain), maxLines: 1, overflow: TextOverflow.ellipsis),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader(String label, String value, int count, bool isIncome, VoidCallback onPrint) {
+  Widget _buildHeader(String label, String value, int count, bool isIncome, AppThemeData theme, VoidCallback onPrint) {
     Color color = isIncome ? _stockGreen : _stockRed;
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -479,30 +482,29 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.manrope(color: _textGrey, fontSize: 12, fontWeight: FontWeight.w600)), const SizedBox(height: 4), Text(value, style: GoogleFonts.manrope(fontSize: 28, fontWeight: FontWeight.w800, color: _textBlack)), const SizedBox(height: 4), Row(children: [Icon(isIncome ? Icons.arrow_drop_up_rounded : Icons.arrow_drop_down_rounded, color: color, size: 20), Text("$count Transaksi", style: GoogleFonts.manrope(color: color, fontWeight: FontWeight.bold, fontSize: 13))])]),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.manrope(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w600)), const SizedBox(height: 4), Text(value, style: GoogleFonts.manrope(fontSize: 28, fontWeight: FontWeight.w800, color: theme.textMain)), const SizedBox(height: 4), Row(children: [Icon(isIncome ? Icons.arrow_drop_up_rounded : Icons.arrow_drop_down_rounded, color: color, size: 20), Text("$count Transaksi", style: GoogleFonts.manrope(color: color, fontWeight: FontWeight.bold, fontSize: 13))])]),
           IconButton(
-              onPressed: onPrint,
-              icon: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.share_rounded, size: 20)),
-              tooltip: "Download/Share Laporan",
-              color: _textBlack
+            onPressed: onPrint,
+            icon: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(8)), child: Icon(Icons.share_rounded, size: 20, color: theme.textMain)),
+            tooltip: "Download/Share Laporan",
           )
         ],
       ),
     );
   }
 
-  Widget _buildChart(List<FlSpot> spots, List<DocumentSnapshot> sourceData, bool isIncome) {
+  Widget _buildChart(List<FlSpot> spots, List<DocumentSnapshot> sourceData, bool isIncome, AppThemeData theme) {
     Color color = isIncome ? _stockGreen : _stockRed;
-    return Container(height: 250, padding: const EdgeInsets.symmetric(horizontal: 10), child: spots.isEmpty ? Center(child: Text("Tidak ada data", style: GoogleFonts.manrope(color: _textGrey))) : LineChart(LineChartData(gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.shade100, strokeWidth: 1)), titlesData: FlTitlesData(show: false), borderData: FlBorderData(show: false), lineTouchData: LineTouchData(touchTooltipData: LineTouchTooltipData(getTooltipItems: (touchedSpots) { return touchedSpots.map((LineBarSpot touchedSpot) { return LineTooltipItem(isIncome ? NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(touchedSpot.y) : "${touchedSpot.y.toInt()} Pcs", TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)); }).toList(); }), touchCallback: (event, touchResponse) { if (touchResponse != null && touchResponse.lineBarSpots != null && event is! FlPanEndEvent && event is! FlTapUpEvent) { final value = touchResponse.lineBarSpots![0].y; final index = touchResponse.lineBarSpots![0].x.toInt(); if (index >= 0 && index < sourceData.length) { DateTime dt = (sourceData[index]['createdAt'] as Timestamp).toDate(); setState(() { _touchedValue = value; _touchedDate = DateFormat('dd MMM yyyy, HH:mm').format(dt); }); } } else { setState(() { _touchedValue = null; _touchedDate = null; }); } }), lineBarsData: [LineChartBarData(spots: spots, isCurved: true, curveSmoothness: 0.35, color: color, barWidth: 2, isStrokeCapRound: true, dotData: FlDotData(show: false), belowBarData: BarAreaData(show: true, gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [color.withOpacity(0.2), color.withOpacity(0.0)])))])));
+    return Container(height: 250, padding: const EdgeInsets.symmetric(horizontal: 10), child: spots.isEmpty ? Center(child: Text("Tidak ada data", style: GoogleFonts.manrope(color: Colors.grey))) : LineChart(LineChartData(gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.1), strokeWidth: 1)), titlesData: FlTitlesData(show: false), borderData: FlBorderData(show: false), lineTouchData: LineTouchData(touchTooltipData: LineTouchTooltipData(getTooltipItems: (touchedSpots) { return touchedSpots.map((LineBarSpot touchedSpot) { return LineTooltipItem(isIncome ? NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(touchedSpot.y) : "${touchedSpot.y.toInt()} Pcs", TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)); }).toList(); }), touchCallback: (event, touchResponse) { if (touchResponse != null && touchResponse.lineBarSpots != null && event is! FlPanEndEvent && event is! FlTapUpEvent) { final value = touchResponse.lineBarSpots![0].y; final index = touchResponse.lineBarSpots![0].x.toInt(); if (index >= 0 && index < sourceData.length) { DateTime dt = (sourceData[index]['createdAt'] as Timestamp).toDate(); setState(() { _touchedValue = value; _touchedDate = DateFormat('dd MMM yyyy, HH:mm').format(dt); }); } } else { setState(() { _touchedValue = null; _touchedDate = null; }); } }), lineBarsData: [LineChartBarData(spots: spots, isCurved: true, curveSmoothness: 0.35, color: color, barWidth: 2, isStrokeCapRound: true, dotData: FlDotData(show: false), belowBarData: BarAreaData(show: true, gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [color.withOpacity(0.2), color.withOpacity(0.0)])))])));
   }
 
-  Widget _buildTimeSelector() {
-    return SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20), child: Row(children: _ranges.map((range) { bool isSelected = _selectedRange == range; return GestureDetector(onTap: () => setState(() => _selectedRange = range), child: Container(margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: isSelected ? _textBlack : Colors.grey.shade100, borderRadius: BorderRadius.circular(20)), child: Text(range, style: GoogleFonts.manrope(color: isSelected ? Colors.white : _textGrey, fontWeight: FontWeight.bold, fontSize: 12)))); }).toList()));
+  Widget _buildTimeSelector(AppThemeData theme) {
+    return SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20), child: Row(children: _ranges.map((range) { bool isSelected = _selectedRange == range; return GestureDetector(onTap: () => setState(() => _selectedRange = range), child: Container(margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: isSelected ? theme.primary : theme.surface, borderRadius: BorderRadius.circular(20)), child: Text(range, style: GoogleFonts.manrope(color: isSelected ? Colors.white : Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)))); }).toList()));
   }
 
-  Widget _buildTransactionList(List<QueryDocumentSnapshot> docs, bool isIncome) {
+  Widget _buildTransactionList(List<QueryDocumentSnapshot> docs, bool isIncome, AppThemeData theme) {
     final currencyFormat = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     Color color = isIncome ? _stockGreen : _stockRed;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20), child: Text("Riwayat Detail ($_selectedRange)", style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: _textBlack))), ListView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: docs.length, itemBuilder: (context, index) { var data = docs[index].data() as Map<String, dynamic>; DateTime dt = (data['createdAt'] as Timestamp).toDate(); String title = isIncome ? (data['serviceName'] ?? 'Service') : (data['itemName'] ?? 'Item'); String subtitle = isIncome ? (data['customerName'] ?? 'User') : "Stok Masuk"; String valueStr = isIncome ? currencyFormat.format(data['totalPrice'] ?? 0) : "+${data['amount']} Pcs"; return Container(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade100))), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: _textBlack)), const SizedBox(height: 4), Text("${DateFormat('dd MMM HH:mm').format(dt)} • $subtitle", style: GoogleFonts.manrope(fontSize: 12, color: _textGrey))])), Text(valueStr, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: color))])); })]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20), child: Text("Riwayat Detail ($_selectedRange)", style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain))), ListView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: docs.length, itemBuilder: (context, index) { var data = docs[index].data() as Map<String, dynamic>; DateTime dt = (data['createdAt'] as Timestamp).toDate(); String title = isIncome ? (data['serviceName'] ?? 'Service') : (data['itemName'] ?? 'Item'); String subtitle = isIncome ? (data['customerName'] ?? 'User') : "Stok Masuk"; String valueStr = isIncome ? currencyFormat.format(data['totalPrice'] ?? 0) : "+${data['amount']} Pcs"; return Container(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain)), const SizedBox(height: 4), Text("${DateFormat('dd MMM HH:mm').format(dt)} • $subtitle", style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey))])), Text(valueStr, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: color))])); })]);
   }
 }

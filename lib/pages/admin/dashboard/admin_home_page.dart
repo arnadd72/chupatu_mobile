@@ -12,7 +12,7 @@ import 'package:chupatu_mobile/pages/auth/landing_page.dart';
 import 'package:chupatu_mobile/pages/admin/orders/admin_order_detail_page.dart';
 import 'package:chupatu_mobile/pages/admin/dashboard/admin_chat_page.dart';
 import 'package:chupatu_mobile/pages/admin/management/admin_management_page.dart';
-import 'package:chupatu_mobile/pages/admin/widgets/admin_glass_theme.dart';
+import 'package:chupatu_mobile/pages/admin/widgets/admin_glass_theme.dart'; // Tetap di-import meski tidak dipakai disini agar tidak error jika ada ref lain
 import 'package:chupatu_mobile/pages/admin/orders/admin_order_list_page.dart';
 import 'package:chupatu_mobile/pages/admin/pos/admin_pos_page.dart';
 import 'package:chupatu_mobile/pages/admin/inventory/admin_inventory_page.dart';
@@ -48,7 +48,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   Color _getStatusColor(String status) {
-    // Ubah ke lowercase biar aman
     String s = status.toLowerCase();
     if (['pending', 'menunggu'].contains(s)) return Colors.orange;
     if (['confirmed', 'diterima'].contains(s)) return Colors.blue;
@@ -78,16 +77,18 @@ class _AdminHomePageState extends State<AdminHomePage> {
             const AdminManagementPage(),
           ];
 
-          return AdminGlassScaffold(
+          // PERUBAHAN: Gunakan Scaffold biasa (Bukan AdminGlassScaffold) agar super ringan
+          return Scaffold(
+            backgroundColor: theme.background,
             appBar: AppBar(
               automaticallyImplyLeading: false,
-              backgroundColor: Colors.white.withOpacity(0.5),
+              backgroundColor: theme.surface, // Warna solid
               elevation: 0,
-              flexibleSpace: ClipRRect(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), child: Container(color: Colors.transparent))),
+              // PERUBAHAN: Hapus flexibleSpace kaca (BackdropFilter)
 
               title: PopupMenuButton<String>(
                 offset: const Offset(0, 50),
-                color: Colors.white.withOpacity(0.95),
+                color: theme.surface,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 onSelected: (value) {
                   if (value == 'logout') {
@@ -125,6 +126,21 @@ class _AdminHomePageState extends State<AdminHomePage> {
               ),
 
               actions: [
+                // --- PERUBAHAN: TOMBOL SWITCH LIGHT/DARK KHUSUS ADMIN ---
+                IconButton(
+                  tooltip: "Ubah Mode Layar",
+                  icon: Icon(
+                    theme.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    color: theme.primary,
+                  ),
+                  onPressed: () {
+                    if (theme.isDark) {
+                      ThemeConfig.changeTheme(0); // 0 = Default Blue (Light Mode)
+                    } else {
+                      ThemeConfig.changeTheme(7); // 8 = Dark Modern (Dark Mode)
+                    }
+                  },
+                ),
                 IconButton(
                     tooltip: "Scan Barcode Sepatu",
                     onPressed: (){ Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminScanPage())); },
@@ -141,24 +157,24 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
             body: pages[_selectedIndex],
 
-            bottomNavigationBar: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  color: Colors.white.withOpacity(0.6),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildNavItem(Icons.dashboard_rounded, "Home", _selectedIndex == 0, theme, 0),
-                      _buildNavItem(Icons.receipt_long_rounded, "Orders", _selectedIndex == 1, theme, 1),
-                      _buildNavItem(Icons.point_of_sale_rounded, "Kasir", _selectedIndex == 2, theme, 2),
-                      _buildNavItem(Icons.inventory_2_rounded, "Gudang", _selectedIndex == 3, theme, 3),
-                      _buildNavItem(Icons.admin_panel_settings_rounded, "Kelola", _selectedIndex == 4, theme, 4),
-                    ],
-                  ),
-                ),
+            // PERUBAHAN: Navbar solid tanpa blur kaca
+            bottomNavigationBar: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: theme.surface,
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildNavItem(Icons.dashboard_rounded, "Home", _selectedIndex == 0, theme, 0),
+                  _buildNavItem(Icons.receipt_long_rounded, "Orders", _selectedIndex == 1, theme, 1),
+                  _buildNavItem(Icons.point_of_sale_rounded, "Kasir", _selectedIndex == 2, theme, 2),
+                  _buildNavItem(Icons.inventory_2_rounded, "Gudang", _selectedIndex == 3, theme, 3),
+                  _buildNavItem(Icons.admin_panel_settings_rounded, "Kelola", _selectedIndex == 4, theme, 4),
+                ],
               ),
             ),
           );
@@ -172,59 +188,48 @@ class _AdminHomePageState extends State<AdminHomePage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
 
-        // JIKA KOSONG
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.inbox_rounded, size: 80, color: Colors.grey.shade300),
                 const SizedBox(height: 16),
-                const Text("Database Kosong / Belum Terhubung")
+                Text("Database Kosong / Belum Terhubung", style: TextStyle(color: theme.textMain))
               ]
           ));
         }
 
         final allDocs = snapshot.data!.docs;
-        int totalDocsCount = allDocs.length; // Debugging: Cek total data
+        int totalDocsCount = allDocs.length;
 
-        // --- HITUNG STATISTIK (SAFE MODE: HURUF KECIL SEMUA) ---
-
-        // 1. Order Masuk
         int incomingOrders = allDocs.where((doc) {
           var data = doc.data() as Map<String, dynamic>;
           String s = (data['status'] ?? '').toString().toLowerCase();
           return ['pending', 'confirmed', 'menunggu konfirmasi'].contains(s);
         }).length;
 
-        // 2. Sedang Dicuci
         int washingOrders = allDocs.where((doc) {
           var data = doc.data() as Map<String, dynamic>;
           String s = (data['status'] ?? '').toString().toLowerCase();
           return ['picked up', 'processing', 'ongoing', 'sedang dicuci'].contains(s);
         }).length;
 
-        // 3. Siap Ambil
         int readyOrders = allDocs.where((doc) {
           var data = doc.data() as Map<String, dynamic>;
           String s = (data['status'] ?? '').toString().toLowerCase();
           return ['ready', 'delivery', 'siap diambil'].contains(s);
         }).length;
 
-        // 4. Pendapatan (Handle Harga String atau Int)
         int revenue = allDocs.fold(0, (sum, doc) {
           var data = doc.data() as Map<String, dynamic>;
           String s = (data['status'] ?? '').toString().toLowerCase();
 
           if (s == 'done' || s == 'selesai') {
-            // Cek field harga (bisa 'totalPrice', 'price', atau 'cost')
             var rawPrice = data['totalPrice'] ?? data['price'] ?? data['cost'] ?? 0;
-
-            // Konversi paksa ke Integer
             int price = 0;
             if (rawPrice is int) price = rawPrice;
             if (rawPrice is String) price = int.tryParse(rawPrice) ?? 0;
             if (rawPrice is double) price = rawPrice.toInt();
-
             return sum + price;
           }
           return sum;
@@ -241,11 +246,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text("Ringkasan Toko", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
-                  // INDIKATOR DEBUG (Biar tau ada berapa data di DB)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8)),
-                    child: Text("Total Data: $totalDocsCount", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                    decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.withOpacity(0.2))),
+                    child: Text("Total Data: $totalDocsCount", style: TextStyle(fontSize: 10, color: theme.textMain)),
                   )
                 ],
               ),
@@ -270,8 +274,15 @@ class _AdminHomePageState extends State<AdminHomePage> {
                       onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const FinanceReportPage()));
                       },
-                      child: GlassCard(
+                      // PERUBAHAN: Mengganti GlassCard dengan Container solid yang ringan
+                      child: Container(
                         padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -303,14 +314,13 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
               const SizedBox(height: 30),
 
-              const SizedBox(height: 20),
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('inventory')
-                    .where('stock', isLessThanOrEqualTo: 3) // Cari stok <= 3
+                    .where('stock', isLessThanOrEqualTo: 3)
                     .snapshots(),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const SizedBox(); // Kalau aman, sembunyikan
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const SizedBox();
 
                   return Container(
                     padding: const EdgeInsets.all(12),
@@ -337,7 +347,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
                         ),
                         TextButton(
                           onPressed: () {
-                            // Arahkan ke Tab Inventory (Index 3)
                             setState(() => _selectedIndex = 3);
                           },
                           child: const Text("Cek", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
@@ -349,12 +358,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
               ),
               const SizedBox(height: 20),
 
-              // --- LIST ORDER TERBARU (MAX 3) ---
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text("Order Terbaru", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
                 TextButton(
-                    onPressed: () => setState(() => _selectedIndex = 1), // Pindah ke Tab Orders
-                    child: Text("Lihat Semua", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold))
+                    onPressed: () => setState(() => _selectedIndex = 1),
+                    child: Text("Lihat Semua", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.primary))
                 )
               ]),
               const SizedBox(height: 10),
@@ -362,7 +370,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                // LIMIT DATA JADI 3 BIAR RAPI
                 itemCount: allDocs.length > 3 ? 3 : allDocs.length,
                 itemBuilder: (context, index) {
                   var data = allDocs[index].data() as Map<String, dynamic>;
@@ -377,12 +384,19 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
-  void _showLogoutConfirmDialog() { showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text("Konfirmasi"), content: const Text("Yakin ingin keluar?"), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")), ElevatedButton(onPressed: () { Navigator.pop(ctx); _handleLogout(); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("Keluar"))])); }
+  void _showLogoutConfirmDialog() { showDialog(context: context, builder: (ctx) => AlertDialog(backgroundColor: ThemeConfig.currentTheme.value.surface, title: Text("Konfirmasi", style: TextStyle(color: ThemeConfig.currentTheme.value.textMain)), content: Text("Yakin ingin keluar?", style: TextStyle(color: ThemeConfig.currentTheme.value.textMain)), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")), ElevatedButton(onPressed: () { Navigator.pop(ctx); _handleLogout(); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("Keluar"))])); }
 
   Widget _buildStatCard(String title, String value, IconData icon, Color color, AppThemeData theme) {
     return Expanded(
-        child: GlassCard(
+      // PERUBAHAN: Mengganti GlassCard dengan Container solid yang ringan
+        child: Container(
             padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.withOpacity(0.2)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+            ),
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -405,7 +419,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
     Color statusColor = _getStatusColor(status);
     final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
-    // Handle Harga Fleksibel
     var rawPrice = data['totalPrice'] ?? data['basePrice'] ?? data['price'] ?? 0;
     int price = 0;
     if (rawPrice is int) price = rawPrice;
@@ -418,14 +431,21 @@ class _AdminHomePageState extends State<AdminHomePage> {
         onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (context) => AdminOrderDetailPage(docId: docId, data: data)));
         },
-        child: GlassCard(
+        // PERUBAHAN: Mengganti GlassCard dengan Container solid yang ringan
+        child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: theme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.withOpacity(0.2)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+          ),
           child: Row(
             children: [
               Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(8),
                   image: data['shoeImageUrl'] != null ? DecorationImage(image: NetworkImage(data['shoeImageUrl']), fit: BoxFit.cover) : null,
                 ),
@@ -466,9 +486,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
         child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: isActive ? theme.primary : Colors.grey.shade600, size: 24),
+              Icon(icon, color: isActive ? theme.primary : Colors.grey.shade500, size: 24),
               const SizedBox(height: 4),
-              Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: isActive ? FontWeight.bold : FontWeight.normal, color: isActive ? theme.primary : Colors.grey.shade600))
+              Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: isActive ? FontWeight.bold : FontWeight.normal, color: isActive ? theme.primary : Colors.grey.shade500))
             ]
         )
     );

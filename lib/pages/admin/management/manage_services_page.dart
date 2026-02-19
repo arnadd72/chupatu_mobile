@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:chupatu_mobile/main.dart'; // Pastikan import tema aplikasi ada
+import 'package:chupatu_mobile/main.dart';
 
 // ==========================================================
 // 1. HALAMAN UTAMA (KELOLA LAYANAN)
@@ -20,50 +20,41 @@ class ManageServicesPage extends StatefulWidget {
 class _ManageServicesPageState extends State<ManageServicesPage> {
   final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
-  // --- LOGIKA CATAT HISTORY ---
   Future<void> _logActivity(String action, String serviceName) async {
     await FirebaseFirestore.instance.collection('service_logs').add({
-      'action': action, // 'add' atau 'delete'
+      'action': action,
       'serviceName': serviceName,
       'timestamp': FieldValue.serverTimestamp(),
     });
   }
 
-  // --- BUKA FORM TAMBAH ---
-  void _showAddServiceSheet(BuildContext context) {
+  void _showAddServiceSheet(BuildContext context, AppThemeData theme) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => AddServiceForm(onSuccess: (name) => _logActivity('add', name)),
+      builder: (ctx) => AddServiceForm(theme: theme, onSuccess: (name) => _logActivity('add', name)),
     );
   }
 
-  // --- HAPUS LAYANAN ---
-  void _deleteService(String docId, String? imageUrl, String serviceName) {
+  void _deleteService(String docId, String? imageUrl, String serviceName, AppThemeData theme) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Hapus Layanan?"),
-        content: Text("Yakin ingin menghapus '$serviceName'?"),
+        backgroundColor: theme.surface,
+        title: Text("Hapus Layanan?", style: TextStyle(color: theme.textMain)),
+        content: Text("Yakin ingin menghapus '$serviceName'?", style: TextStyle(color: theme.textMain)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal", style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(ctx);
-
-              // 1. Hapus Data
               await FirebaseFirestore.instance.collection('services').doc(docId).delete();
-
-              // 2. Hapus Foto (Jika ada)
               if (imageUrl != null && imageUrl.isNotEmpty) {
                 try { await FirebaseStorage.instance.refFromURL(imageUrl).delete(); } catch (_) {}
               }
-
-              // 3. Catat di History
               _logActivity('delete', serviceName);
-
               if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$serviceName dihapus")));
             },
             child: const Text("Hapus", style: TextStyle(color: Colors.white)),
@@ -75,102 +66,105 @@ class _ManageServicesPageState extends State<ManageServicesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        title: Text("Kelola Layanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.black)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
-        actions: [
-          // TOMBOL HISTORY (Pindah Halaman Internal)
-          IconButton(
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const ServiceHistoryScreen()));
-            },
-            icon: const Icon(Icons.history_rounded, color: Colors.blue),
-            tooltip: "Riwayat Perubahan",
-          )
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddServiceSheet(context),
-        backgroundColor: Colors.blue,
-        icon: const Icon(Icons.add),
-        label: Text("Tambah Layanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('services').orderBy('createdAt', descending: true).snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+    return ValueListenableBuilder<AppThemeData>(
+        valueListenable: ThemeConfig.currentTheme,
+        builder: (context, theme, child) {
+          return Scaffold(
+            backgroundColor: theme.background, // Adaptif
+            appBar: AppBar(
+              title: Text("Kelola Layanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+              backgroundColor: theme.surface, // Adaptif
+              elevation: 0,
+              iconTheme: IconThemeData(color: theme.textMain),
+              actions: [
+                IconButton(
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ServiceHistoryScreen()));
+                  },
+                  icon: Icon(Icons.history_rounded, color: theme.primary),
+                  tooltip: "Riwayat Perubahan",
+                )
+              ],
+            ),
+            floatingActionButton: FloatingActionButton.extended(
+              onPressed: () => _showAddServiceSheet(context, theme),
+              backgroundColor: theme.primary,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: Text("Tambah Layanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+            body: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('services').orderBy('createdAt', descending: true).snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.layers_clear_outlined, size: 80, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  Text("Belum ada layanan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
-                ],
-              ),
-            );
-          }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.layers_clear_outlined, size: 80, color: Colors.grey.shade300),
+                        const SizedBox(height: 16),
+                        Text("Belum ada layanan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                      ],
+                    ),
+                  );
+                }
 
-          var docs = snapshot.data!.docs;
-          return ListView.separated(
-            padding: const EdgeInsets.all(20),
-            itemCount: docs.length,
-            separatorBuilder: (c, i) => const SizedBox(height: 16),
-            itemBuilder: (context, index) {
-              var data = docs[index].data() as Map<String, dynamic>;
-              return _buildServiceCard(
-                docId: docs[index].id,
-                name: data['name'] ?? 'Layanan',
-                price: data['price'] ?? 0,
-                desc: data['description'] ?? '',
-                imageUrl: data['imageUrl'],
-              );
-            },
+                var docs = snapshot.data!.docs;
+                return ListView.separated(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: docs.length,
+                  separatorBuilder: (c, i) => const SizedBox(height: 16),
+                  itemBuilder: (context, index) {
+                    var data = docs[index].data() as Map<String, dynamic>;
+                    return _buildServiceCard(
+                      docId: docs[index].id,
+                      name: data['name'] ?? 'Layanan',
+                      price: data['price'] ?? 0,
+                      desc: data['description'] ?? '',
+                      imageUrl: data['imageUrl'],
+                      theme: theme,
+                    );
+                  },
+                );
+              },
+            ),
           );
-        },
-      ),
+        }
     );
   }
 
-  Widget _buildServiceCard({required String docId, required String name, required int price, required String desc, String? imageUrl}) {
+  Widget _buildServiceCard({required String docId, required String name, required int price, required String desc, String? imageUrl, required AppThemeData theme}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.surface, // Adaptif
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]
+          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // FOTO
           Container(
             width: 70, height: 70,
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: theme.background, // Adaptif
               borderRadius: BorderRadius.circular(12),
               image: (imageUrl != null && imageUrl.isNotEmpty)
                   ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover)
                   : null,
             ),
             child: (imageUrl == null || imageUrl.isEmpty)
-                ? const Icon(Icons.cleaning_services, color: Colors.blue, size: 30)
+                ? Icon(Icons.cleaning_services, color: theme.primary, size: 30)
                 : null,
           ),
           const SizedBox(width: 16),
-
-          // DETAIL
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain)), // Adaptif
                 const SizedBox(height: 4),
                 Text(currencyFormatter.format(price), style: GoogleFonts.plusJakartaSans(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 6),
@@ -178,11 +172,9 @@ class _ManageServicesPageState extends State<ManageServicesPage> {
               ],
             ),
           ),
-
-          // TOMBOL HAPUS
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.red),
-            onPressed: () => _deleteService(docId, imageUrl, name),
+            onPressed: () => _deleteService(docId, imageUrl, name, theme),
           ),
         ],
       ),
@@ -191,11 +183,12 @@ class _ManageServicesPageState extends State<ManageServicesPage> {
 }
 
 // ==========================================================
-// 2. BAGIAN FORM TAMBAH LAYANAN
+// 2. BAGIAN FORM TAMBAH LAYANAN (DENGAN TEMA ADAPTIF)
 // ==========================================================
 class AddServiceForm extends StatefulWidget {
   final Function(String) onSuccess;
-  const AddServiceForm({super.key, required this.onSuccess});
+  final AppThemeData theme;
+  const AddServiceForm({super.key, required this.onSuccess, required this.theme});
 
   @override
   State<AddServiceForm> createState() => _AddServiceFormState();
@@ -215,7 +208,6 @@ class _AddServiceFormState extends State<AddServiceForm> {
 
   Future<void> _saveService() async {
     if (_nameController.text.isEmpty || _priceController.text.isEmpty) return;
-
     setState(() => _isLoading = true);
     try {
       String imageUrl = "";
@@ -235,7 +227,6 @@ class _AddServiceFormState extends State<AddServiceForm> {
       });
 
       widget.onSuccess(_nameController.text.trim());
-
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
@@ -246,16 +237,18 @@ class _AddServiceFormState extends State<AddServiceForm> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = widget.theme;
+
     return Container(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      decoration: BoxDecoration(color: theme.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 20),
-          Text("Tambah Layanan", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text("Tambah Layanan", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
           const SizedBox(height: 20),
 
           // UPLOAD FOTO
@@ -265,31 +258,32 @@ class _AddServiceFormState extends State<AddServiceForm> {
               child: Container(
                 width: 100, height: 100,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: theme.background,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
                   image: _imageFile != null ? DecorationImage(image: FileImage(_imageFile!), fit: BoxFit.cover) : null,
                 ),
                 child: _imageFile == null
-                    ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_a_photo, color: Colors.grey), Text("Foto", style: TextStyle(fontSize: 10))])
+                    ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_a_photo, color: Colors.grey), Text("Foto", style: TextStyle(fontSize: 10, color: Colors.grey))])
                     : null,
               ),
             ),
           ),
           const SizedBox(height: 20),
 
-          TextField(controller: _nameController, decoration: InputDecoration(labelText: "Nama Layanan", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+          // TEXTFIELD ADAPTIF
+          TextField(controller: _nameController, style: TextStyle(color: theme.textMain), decoration: InputDecoration(labelText: "Nama Layanan", labelStyle: const TextStyle(color: Colors.grey), enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.withOpacity(0.5)), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: theme.primary), borderRadius: BorderRadius.circular(12)))),
           const SizedBox(height: 12),
-          TextField(controller: _priceController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: "Harga (Rp)", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+          TextField(controller: _priceController, keyboardType: TextInputType.number, style: TextStyle(color: theme.textMain), decoration: InputDecoration(labelText: "Harga (Rp)", labelStyle: const TextStyle(color: Colors.grey), enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.withOpacity(0.5)), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: theme.primary), borderRadius: BorderRadius.circular(12)))),
           const SizedBox(height: 12),
-          TextField(controller: _descController, maxLines: 2, decoration: InputDecoration(labelText: "Deskripsi Singkat", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+          TextField(controller: _descController, maxLines: 2, style: TextStyle(color: theme.textMain), decoration: InputDecoration(labelText: "Deskripsi Singkat", labelStyle: const TextStyle(color: Colors.grey), enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.withOpacity(0.5)), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: theme.primary), borderRadius: BorderRadius.circular(12)))),
           const SizedBox(height: 24),
 
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _saveService,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              style: ElevatedButton.styleFrom(backgroundColor: theme.primary, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Simpan", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ),
@@ -311,12 +305,12 @@ class ServiceHistoryScreen extends StatelessWidget {
       valueListenable: ThemeConfig.currentTheme,
       builder: (context, theme, child) {
         return Scaffold(
-          backgroundColor: theme.background,
+          backgroundColor: theme.background, // Adaptif
           appBar: AppBar(
-            title: Text("Riwayat Perubahan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.black)),
-            backgroundColor: Colors.white,
+            title: Text("Riwayat Perubahan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+            backgroundColor: theme.surface, // Adaptif
             elevation: 0,
-            iconTheme: const IconThemeData(color: Colors.black),
+            iconTheme: IconThemeData(color: theme.textMain),
           ),
           body: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -344,7 +338,7 @@ class ServiceHistoryScreen extends StatelessWidget {
               return ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: docs.length,
-                separatorBuilder: (c, i) => const Divider(),
+                separatorBuilder: (c, i) => Divider(color: Colors.grey.withOpacity(0.2)),
                 itemBuilder: (context, index) {
                   var data = docs[index].data() as Map<String, dynamic>;
                   String action = data['action'] ?? 'info';
@@ -363,8 +357,8 @@ class ServiceHistoryScreen extends StatelessWidget {
                       backgroundColor: isAdd ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
                       child: Icon(isAdd ? Icons.add_circle_outline : Icons.delete_outline, color: isAdd ? Colors.green : Colors.red),
                     ),
-                    title: Text(isAdd ? "Menambahkan Layanan" : "Menghapus Layanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14)),
-                    subtitle: Text(name, style: GoogleFonts.plusJakartaSans(color: Colors.black87, fontWeight: FontWeight.w600)),
+                    title: Text(isAdd ? "Menambahkan Layanan" : "Menghapus Layanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain)), // Adaptif
+                    subtitle: Text(name, style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontWeight: FontWeight.w600)),
                     trailing: Text(timeStr, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey)),
                   );
                 },

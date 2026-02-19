@@ -12,7 +12,7 @@ class InventoryHistoryPage extends StatefulWidget {
 }
 
 class _InventoryHistoryPageState extends State<InventoryHistoryPage> {
-  String _filter = 'Semua'; // Pilihan: Semua, Minggu Ini, Bulan Ini
+  String _filter = 'Semua';
 
   @override
   Widget build(BuildContext context) {
@@ -22,17 +22,17 @@ class _InventoryHistoryPageState extends State<InventoryHistoryPage> {
           return Scaffold(
             backgroundColor: theme.background,
             appBar: AppBar(
-              title: Text("Riwayat Stok", style: GoogleFonts.plusJakartaSans(color: Colors.black, fontWeight: FontWeight.bold)),
-              backgroundColor: Colors.white,
+              title: Text("Riwayat Stok", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)),
+              backgroundColor: theme.surface, // Background adaptif
               elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.black),
+              iconTheme: IconThemeData(color: theme.textMain), // Ikon adaptif
             ),
             body: Column(
               children: [
                 // --- FILTER CHIPS ---
                 Container(
                   padding: const EdgeInsets.all(16),
-                  color: Colors.white,
+                  color: theme.surface, // Background panel adaptif
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: ['Semua', 'Minggu Ini', 'Bulan Ini'].map((filter) {
@@ -43,7 +43,15 @@ class _InventoryHistoryPageState extends State<InventoryHistoryPage> {
                           label: Text(filter),
                           selected: isSelected,
                           selectedColor: theme.primary.withOpacity(0.2),
-                          labelStyle: TextStyle(color: isSelected ? theme.primary : Colors.grey),
+                          backgroundColor: theme.background, // Chip background
+                          labelStyle: TextStyle(
+                              color: isSelected ? theme.primary : Colors.grey,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
+                          ),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(color: isSelected ? theme.primary : Colors.transparent)
+                          ),
                           onSelected: (val) => setState(() => _filter = filter),
                         ),
                       );
@@ -57,17 +65,17 @@ class _InventoryHistoryPageState extends State<InventoryHistoryPage> {
                     stream: _getLogStream(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("Belum ada riwayat"));
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("Belum ada riwayat", style: TextStyle(color: Colors.grey)));
 
                       var docs = snapshot.data!.docs;
 
                       return ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: docs.length,
-                        separatorBuilder: (c, i) => const Divider(),
+                        separatorBuilder: (c, i) => Divider(color: Colors.grey.withOpacity(0.2)), // Warna divider soft
                         itemBuilder: (context, index) {
                           var data = docs[index].data() as Map<String, dynamic>;
-                          bool isIn = data['type'] == 'in'; // Masuk (Hijau) atau Keluar (Merah)
+                          bool isIn = data['type'] == 'in';
 
                           DateTime date = (data['createdAt'] as Timestamp).toDate();
                           String dateStr = DateFormat('dd MMM, HH:mm').format(date);
@@ -77,7 +85,7 @@ class _InventoryHistoryPageState extends State<InventoryHistoryPage> {
                               backgroundColor: isIn ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
                               child: Icon(isIn ? Icons.arrow_downward : Icons.arrow_upward, color: isIn ? Colors.green : Colors.red, size: 20),
                             ),
-                            title: Text(data['itemName'] ?? '-', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                            title: Text(data['itemName'] ?? '-', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)), // Warna teks utama adaptif
                             subtitle: Text(dateStr, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
                             trailing: Text(
                               "${isIn ? '+' : '-'}${data['amount']}",
@@ -100,7 +108,6 @@ class _InventoryHistoryPageState extends State<InventoryHistoryPage> {
     );
   }
 
-  // Logika Filter Query Firestore
   Stream<QuerySnapshot> _getLogStream() {
     var ref = FirebaseFirestore.instance.collection('inventory_logs').orderBy('createdAt', descending: true);
 

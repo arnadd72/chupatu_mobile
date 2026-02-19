@@ -4,8 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/admin/orders/admin_order_detail_page.dart';
-// IMPORT TEMA KACA
-import 'package:chupatu_mobile/pages/admin/widgets/admin_glass_theme.dart';
 
 class AdminOrderListPage extends StatefulWidget {
   const AdminOrderListPage({super.key});
@@ -15,9 +13,8 @@ class AdminOrderListPage extends StatefulWidget {
 }
 
 class _AdminOrderListPageState extends State<AdminOrderListPage> {
-  String _selectedFilter = 'Semua'; // Filter Default
+  String _selectedFilter = 'Semua';
 
-  // Helper Warna Status
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Pending': return Colors.orange;
@@ -55,9 +52,9 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                         children: [
                           _buildFilterChip('Semua', theme),
                           _buildFilterChip('Pending', theme),
-                          _buildFilterChip('Proses', theme), // Gabungan Picked Up, Processing, Ready, Delivery
-                          _buildFilterChip('Selesai', theme), // Done
-                          _buildFilterChip('Batal', theme),   // Cancelled
+                          _buildFilterChip('Proses', theme),
+                          _buildFilterChip('Selesai', theme),
+                          _buildFilterChip('Batal', theme),
                         ],
                       ),
                     ),
@@ -78,7 +75,6 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                       return Center(child: Text("Belum ada data", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
                     }
 
-                    // LOGIKA FILTERING DATA
                     var docs = snapshot.data!.docs.where((doc) {
                       var data = doc.data() as Map<String, dynamic>;
                       String status = data['status'] ?? 'Pending';
@@ -121,14 +117,16 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
         margin: const EdgeInsets.only(right: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? theme.primary : Colors.white.withOpacity(0.5),
+          // PERUBAHAN: Warna background menyesuaikan tema
+          color: isSelected ? theme.primary : theme.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? theme.primary : Colors.grey.shade300),
+          border: Border.all(color: isSelected ? theme.primary : Colors.grey.withOpacity(0.3)),
         ),
         child: Text(
           label,
           style: GoogleFonts.plusJakartaSans(
-              color: isSelected ? Colors.white : Colors.grey.shade600,
+            // PERUBAHAN: Warna teks menyesuaikan tema
+              color: isSelected ? Colors.white : theme.textMain,
               fontWeight: FontWeight.bold,
               fontSize: 12
           ),
@@ -137,7 +135,7 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
     );
   }
 
-  // WIDGET KARTU ORDER (VERSI LIST)
+  // WIDGET KARTU ORDER
   Widget _buildOrderCard(String docId, Map<String, dynamic> data, AppThemeData theme) {
     String status = data['status'] ?? 'Unknown';
     Color statusColor = _getStatusColor(status);
@@ -146,55 +144,65 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      child: GlassCard( // Pakai Tema Kaca
+      child: InkWell(
         onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (context) => AdminOrderDetailPage(docId: docId, data: data)));
         },
-        child: Row(
-          children: [
-            // FOTO SEPATU
-            Container(
-              width: 60, height: 60,
-              decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  image: data['shoeImageUrl'] != null
-                      ? DecorationImage(image: NetworkImage(data['shoeImageUrl']), fit: BoxFit.cover)
-                      : null
+        // PERUBAHAN: Mengganti GlassCard dengan Container solid yang support Dark Mode
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.withOpacity(0.2)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+          ),
+          child: Row(
+            children: [
+              // FOTO SEPATU
+              Container(
+                width: 60, height: 60,
+                decoration: BoxDecoration(
+                    color: theme.background, // PERUBAHAN: Warna dasar kotak gambar
+                    borderRadius: BorderRadius.circular(12),
+                    image: data['shoeImageUrl'] != null
+                        ? DecorationImage(image: NetworkImage(data['shoeImageUrl']), fit: BoxFit.cover)
+                        : null
+                ),
+                child: data['shoeImageUrl'] == null ? const Icon(Icons.shopping_bag_outlined, color: Colors.grey) : null,
               ),
-              child: data['shoeImageUrl'] == null ? const Icon(Icons.shopping_bag_outlined, color: Colors.grey) : null,
-            ),
-            const SizedBox(width: 16),
+              const SizedBox(width: 16),
 
-            // INFO TEXT
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(data['serviceName'] ?? 'Layanan', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14)),
-                      Text(currencyFormatter.format(price), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14, color: theme.primary)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(data['customerName'] ?? 'Customer', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.black54)),
-                  const SizedBox(height: 8),
+              // INFO TEXT
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(data['serviceName'] ?? 'Layanan', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain)),
+                        Text(currencyFormatter.format(price), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14, color: theme.primary)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(data['customerName'] ?? 'Customer', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 8),
 
-                  // BADGE STATUS
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: statusColor.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                    child: Text(status.toUpperCase(), style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor)),
-                  )
-                ],
+                    // BADGE STATUS
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: statusColor.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
+                      child: Text(status.toUpperCase(), style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor)),
+                    )
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: Colors.grey),
-          ],
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: theme.textMain.withOpacity(0.5)),
+            ],
+          ),
         ),
       ),
     );

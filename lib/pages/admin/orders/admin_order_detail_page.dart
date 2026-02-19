@@ -10,8 +10,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:chupatu_mobile/main.dart';
-
-// IMPORT HALAMAN CHAT ROOM
 import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
 
 class AdminOrderDetailPage extends StatefulWidget {
@@ -27,7 +25,7 @@ class AdminOrderDetailPage extends StatefulWidget {
 class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   late String _currentStatus;
   bool _isUpdating = false;
-  bool _isLoadingChat = false; // Loading chat
+  bool _isLoadingChat = false;
   final GlobalKey _barcodeKey = GlobalKey();
 
   final List<String> _statuses = [
@@ -40,7 +38,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     _currentStatus = widget.data['status'] ?? 'Pending';
   }
 
-  // --- 1. LOGIKA CHAT LANGSUNG KE CUSTOMER (PERBAIKAN ERROR) ---
   Future<void> _openChatWithCustomer() async {
     String customerId = widget.data['userId'] ?? '';
     String customerName = widget.data['customerName'] ?? 'Customer';
@@ -53,7 +50,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     setState(() => _isLoadingChat = true);
 
     try {
-      // 1. CARI ROOM CHAT MILIK USER INI
       var chatQuery = await FirebaseFirestore.instance
           .collection('chats')
           .where('userId', isEqualTo: customerId)
@@ -63,10 +59,8 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
       String chatId;
 
       if (chatQuery.docs.isNotEmpty) {
-        // ADA ROOM -> PAKAI ID LAMA
         chatId = chatQuery.docs.first.id;
       } else {
-        // BELUM ADA -> BUAT BARU
         DocumentReference newChat = await FirebaseFirestore.instance.collection('chats').add({
           'userId': customerId,
           'userName': customerName,
@@ -79,13 +73,12 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
 
       if (!mounted) return;
 
-      // 2. BUKA CHAT (PARAMETER LENGKAP)
       Navigator.push(context, MaterialPageRoute(
           builder: (context) => ChatRoomPage(
-            chatId: chatId,      // ID Dokumen
+            chatId: chatId,
             name: customerName,
             isOnline: false,
-            isAdmin: true,       // <--- FIX: KITA ADMIN
+            isAdmin: true,
           )
       ));
 
@@ -96,7 +89,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     }
   }
 
-  // --- 2. LOGIKA SHARE / DOWNLOAD BARCODE ---
   Future<void> _shareBarcode() async {
     try {
       RenderRepaintBoundary boundary = _barcodeKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -118,8 +110,8 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     }
   }
 
-  // --- 3. TAMPILAN DIALOG BARCODE ---
   void _showBarcodeDialog() {
+    final theme = ThemeConfig.currentTheme.value;
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -132,7 +124,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.surface, // Background modal adaptif
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Column(
@@ -141,30 +133,36 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.local_laundry_service_rounded, color: Theme.of(context).primaryColor, size: 20),
+                        Icon(Icons.local_laundry_service_rounded, color: theme.primary, size: 20),
                         const SizedBox(width: 8),
                         Text("Chupatu Official", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
                       ],
                     ),
                     const SizedBox(height: 16),
 
-                    Text("Barcode Pesanan", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text("Barcode Pesanan", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
                     const SizedBox(height: 8),
-                    Text(widget.data['customerName'] ?? 'Customer', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue)),
+                    Text(widget.data['customerName'] ?? 'Customer', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.primary)),
                     const SizedBox(height: 20),
 
+                    // PERUBAHAN PENTING: Latar QR Code WAJIB putih agar terbaca scanner
                     Container(
                       padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: Colors.grey.shade200),
+                          borderRadius: BorderRadius.circular(12)
+                      ),
                       child: QrImageView(
                         data: widget.docId,
                         version: QrVersions.auto,
                         size: 200.0,
+                        backgroundColor: Colors.white, // Maksa background QR putih
                       ),
                     ),
 
                     const SizedBox(height: 12),
-                    Text("#${widget.docId.toUpperCase().substring(0, 8)}", style: GoogleFonts.robotoMono(fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 16)),
+                    Text("#${widget.docId.toUpperCase().substring(0, 8)}", style: GoogleFonts.robotoMono(fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 16, color: theme.textMain)),
                     const SizedBox(height: 8),
                     Text(widget.data['serviceName'] ?? 'Layanan', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
                   ],
@@ -179,11 +177,10 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                    label: const Text("Tutup"),
+                    icon: Icon(Icons.close, color: theme.textMain),
+                    label: Text("Tutup", style: TextStyle(color: theme.textMain)),
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
+                        backgroundColor: theme.background, // Adaptif dengan background utama
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
                     ),
@@ -196,7 +193,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                     icon: const Icon(Icons.share_rounded),
                     label: const Text("Share / Save"),
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: theme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
@@ -211,16 +208,16 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     );
   }
 
-  // --- LOGIKA UPDATE STATUS ---
   Future<void> _attemptStatusChange(String newStatus) async {
     if (_currentStatus == 'Done') {
       bool? confirm = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text("Peringatan!"),
-          content: const Text("Pesanan ini sudah selesai (DONE).\nMengubah statusnya akan membatalkan perhitungan pendapatan.\n\nYakin ingin mengubah?"),
+          backgroundColor: ThemeConfig.currentTheme.value.surface,
+          title: Text("Peringatan!", style: TextStyle(color: ThemeConfig.currentTheme.value.textMain)),
+          content: Text("Pesanan ini sudah selesai (DONE).\nMengubah statusnya akan membatalkan perhitungan pendapatan.\n\nYakin ingin mengubah?", style: TextStyle(color: ThemeConfig.currentTheme.value.textMain)),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Batal")),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Batal", style: TextStyle(color: Colors.grey))),
             ElevatedButton(onPressed: () => Navigator.pop(context, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("Ya, Ubah")),
           ],
         ),
@@ -276,10 +273,12 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
         valueListenable: ThemeConfig.currentTheme,
         builder: (context, theme, child) {
           Color themeColor = _getStatusColor(_currentStatus);
-          Color pastelBackgroundColor = Color.lerp(Colors.white, themeColor, 0.05)!;
+
+          // PERUBAHAN: Background halaman menyesuaikan tema agar aman di mode gelap
+          Color pageBackgroundColor = theme.background;
 
           return Scaffold(
-            backgroundColor: pastelBackgroundColor,
+            backgroundColor: pageBackgroundColor,
             appBar: AppBar(
               title: Text("Detail Pesanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.white)),
               backgroundColor: themeColor,
@@ -304,7 +303,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: themeColor, width: 2), boxShadow: [BoxShadow(color: themeColor.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4))]),
+                    decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: themeColor, width: 2), boxShadow: [BoxShadow(color: themeColor.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4))]),
                     child: Column(children: [Text("Status Pesanan", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontWeight: FontWeight.bold)), const SizedBox(height: 8), Text(_currentStatus.toUpperCase(), style: GoogleFonts.plusJakartaSans(fontSize: 28, fontWeight: FontWeight.w900, color: themeColor, letterSpacing: 1.5))]),
                   ),
                   const SizedBox(height: 24),
@@ -315,7 +314,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(12)),
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -325,11 +324,12 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                         Color chipColor = _getStatusColor(status);
                         return ChoiceChip(
                             label: Text(status),
-                            labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontSize: 12),
+                            // PERUBAHAN: Teks chip tidak lagi hitam statis
+                            labelStyle: TextStyle(color: isSelected ? Colors.white : theme.textMain, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontSize: 12),
                             selected: isSelected,
                             selectedColor: chipColor,
-                            backgroundColor: Colors.grey.shade100,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Colors.transparent : Colors.grey.shade300)),
+                            backgroundColor: theme.background, // Background chip adaptif
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Colors.transparent : Colors.grey.withOpacity(0.2))),
                             onSelected: _isUpdating ? null : (selected) { if (selected) _attemptStatusChange(status); }
                         );
                       }).toList(),
@@ -360,11 +360,11 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                   const SizedBox(height: 24), const Divider(), const SizedBox(height: 24),
 
                   // INFORMASI PENJEMPUTAN
-                  _buildSectionContainer(title: "Informasi Penjemputan", theme: theme, child: Column(children: [_buildDetailRow(Icons.calendar_today, "Jadwal Pickup", pickupInfo, themeColor), const SizedBox(height: 12), _buildDetailRow(Icons.location_on, "Alamat", widget.data['mainAddress'] ?? '-', themeColor), const SizedBox(height: 12), _buildDetailRow(Icons.home, "Patokan", widget.data['detailAddress'] ?? '-', themeColor)])),
+                  _buildSectionContainer(title: "Informasi Penjemputan", theme: theme, child: Column(children: [_buildDetailRow(Icons.calendar_today, "Jadwal Pickup", pickupInfo, themeColor, theme), const SizedBox(height: 12), _buildDetailRow(Icons.location_on, "Alamat", widget.data['mainAddress'] ?? '-', themeColor, theme), const SizedBox(height: 12), _buildDetailRow(Icons.home, "Patokan", widget.data['detailAddress'] ?? '-', themeColor, theme)])),
                   const SizedBox(height: 20),
 
                   // DATA PELANGGAN
-                  _buildSectionContainer(title: "Data Pelanggan", theme: theme, child: Column(children: [_buildInfoRow(Icons.person, "Nama", widget.data['customerName'] ?? '-', themeColor), _buildInfoRow(Icons.phone, "No. HP", widget.data['customerPhone'] ?? '-', themeColor), _buildInfoRow(Icons.confirmation_number, "Order ID", "#${widget.docId.substring(0, 8).toUpperCase()}", themeColor)])),
+                  _buildSectionContainer(title: "Data Pelanggan", theme: theme, child: Column(children: [_buildInfoRow(Icons.person, "Nama", widget.data['customerName'] ?? '-', themeColor, theme), _buildInfoRow(Icons.phone, "No. HP", widget.data['customerPhone'] ?? '-', themeColor, theme), _buildInfoRow(Icons.confirmation_number, "Order ID", "#${widget.docId.substring(0, 8).toUpperCase()}", themeColor, theme)])),
                   const SizedBox(height: 20),
 
                   // RINCIAN BIAYA
@@ -379,12 +379,12 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.withOpacity(0.5)), boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.1), blurRadius: 10)]),
+                      decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.withOpacity(0.5)), boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.1), blurRadius: 10)]),
                       child: Column(
                         children: [
                           const Icon(Icons.auto_awesome, size: 40, color: Colors.green),
                           const SizedBox(height: 8),
-                          Text("Upload Foto Hasil Cuci", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                          Text("Upload Foto Hasil Cuci", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
                           Text("Foto ini akan muncul di aplikasi customer.", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
                           const SizedBox(height: 16),
                           OutlinedButton.icon(
@@ -401,7 +401,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
 
                   // TOMBOL BATAL
                   if (_currentStatus != 'Done' && _currentStatus != 'Cancelled')
-                    SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: () { showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text("Batalkan Pesanan?"), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Tidak")), ElevatedButton(onPressed: () { Navigator.pop(ctx); _updateStatus('Cancelled'); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("Ya, Batalkan"))])); }, icon: const Icon(Icons.cancel, color: Colors.white), label: const Text("Batalkan Pesanan", style: TextStyle(fontWeight: FontWeight.bold)), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
+                    SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: () { showDialog(context: context, builder: (ctx) => AlertDialog(backgroundColor: theme.surface, title: Text("Batalkan Pesanan?", style: TextStyle(color: theme.textMain)), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Tidak", style: TextStyle(color: Colors.grey))), ElevatedButton(onPressed: () { Navigator.pop(ctx); _updateStatus('Cancelled'); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("Ya, Batalkan"))])); }, icon: const Icon(Icons.cancel, color: Colors.white), label: const Text("Batalkan Pesanan", style: TextStyle(fontWeight: FontWeight.bold)), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -411,9 +411,20 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     );
   }
 
-  // WIDGET HELPER
-  Widget _buildSectionContainer({required String title, required Widget child, required AppThemeData theme}) { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)), const SizedBox(height: 8), Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]), child: child)]); }
-  Widget _buildDetailRow(IconData icon, String label, String value, Color color) { return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 20, color: color), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)), Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87))]))]); }
-  Widget _buildInfoRow(IconData icon, String label, String value, Color color) { return Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 20, color: color), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)), Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87))]))])); }
-  Widget _buildDetailItem(String label, String? value, AppThemeData theme, {bool isBold = false, Color? color}) { return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: GoogleFonts.plusJakartaSans(color: Colors.grey.shade600)), Text(value ?? '-', style: GoogleFonts.plusJakartaSans(fontWeight: isBold ? FontWeight.bold : FontWeight.normal, color: color ?? theme.textMain))])); }
+  // WIDGET HELPER (PERUBAHAN WARNA TEKS SESUAI TEMA)
+  Widget _buildSectionContainer({required String title, required Widget child, required AppThemeData theme}) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)), const SizedBox(height: 8), Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]), child: child)]);
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value, Color color, AppThemeData theme) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 20, color: color), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)), Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textMain))]))]);
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value, Color color, AppThemeData theme) {
+    return Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 20, color: color), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)), Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: theme.textMain))]))]));
+  }
+
+  Widget _buildDetailItem(String label, String? value, AppThemeData theme, {bool isBold = false, Color? color}) {
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: GoogleFonts.plusJakartaSans(color: Colors.grey.shade600)), Text(value ?? '-', style: GoogleFonts.plusJakartaSans(fontWeight: isBold ? FontWeight.bold : FontWeight.normal, color: color ?? theme.textMain))]));
+  }
 }
