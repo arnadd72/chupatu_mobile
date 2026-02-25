@@ -17,6 +17,8 @@ import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
 import 'package:chupatu_mobile/pages/notification/notification_page.dart';
 import 'package:chupatu_mobile/pages/home/garage/garage_page.dart';
 import 'package:chupatu_mobile/pages/order/custom_service_page.dart';
+import 'package:chupatu_mobile/pages/home/review_rating_section.dart'; // <-- FILE REVIEW ASLI
+
 // WIDGET IMPORTS
 import 'package:chupatu_mobile/pages/home/widgets/shoe_tips_widget.dart';
 import 'package:chupatu_mobile/pages/home/widgets/live_tracking_widget.dart';
@@ -371,15 +373,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
                           const SizedBox(height: 30),
 
-                          // TESTIMONI
+                          // REVIEW & RATING
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Happy Customers ❤️', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
-                                const SizedBox(height: 12),
-                                _buildTestimonials(theme),
+                                // MEMANGGIL CLASS ASLI DARI FIREBASE (BUKAN DUMMY LAGI)
+                                const ReviewRatingSection(),
                               ],
                             ),
                           ),
@@ -416,18 +417,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       description = "Pencucian cepat khusus bagian luar sepatu.";
       imageUrl = "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=800";
     }
-    // --- TAMBAHAN UNTUK CUSTOM ---
     else if (serviceName == 'Custom Painting' || serviceName == 'Custom') {
-      price = 30000; // Harga mulai dari
+      price = 30000;
       description = "Layanan perawatan sepatu profesional dengan teknik khusus. Anda dapat merakit dan menggabungkan beberapa layanan sekaligus di halaman selanjutnya.";
-      imageUrl = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=800"; // Gambar sepatu merah seperti di screenshot
+      imageUrl = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=800";
     }
     else {
       price = 30000;
       description = "Layanan perawatan sepatu profesional.";
     }
 
-    // Tetap arahkan ke Service Detail Page
     Navigator.push(context, MaterialPageRoute(builder: (context) => ServiceDetailPage(serviceName: serviceName, price: price, description: description, imageUrl: imageUrl)));
   }
 
@@ -453,25 +452,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ]
             )
         )
-    );
-  }
-
-  Widget _buildTestimonials(AppThemeData theme) {
-    final reviews = [
-      {'name': 'Rizky Billar', 'rating': 5, 'text': 'Gila sih, Air Jordan gue yang udah kuning jadi putih lagi! Pelayanan cepet.', 'img': 'https://i.pravatar.cc/150?u=1'},
-      {'name': 'Anya Geraldine', 'rating': 5, 'text': 'Suka banget sama wanginya, ga bau apek lagi. Bakal langganan terus disini.', 'img': 'https://i.pravatar.cc/150?u=2'},
-      {'name': 'Deddy C.', 'rating': 4, 'text': 'Pickup service nya membantu banget buat yg sibuk. Hasilnya solid.', 'img': 'https://i.pravatar.cc/150?u=3'},
-    ];
-    return SizedBox(
-      height: 140,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal, clipBehavior: Clip.none, itemCount: reviews.length, separatorBuilder: (c, i) => const SizedBox(width: 16),
-        itemBuilder: (context, index) {
-          var item = reviews[index];
-          int rating = item['rating'] as int;
-          return Container(width: 280, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [CircleAvatar(radius: 16, backgroundImage: NetworkImage(item['img'] as String)), const SizedBox(width: 10), Expanded(child: Text(item['name'] as String, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: theme.textMain))), Row(children: List.generate(5, (i) => Icon(Icons.star_rounded, size: 14, color: i < rating ? Colors.amber : Colors.grey.shade300)))]), const SizedBox(height: 12), Text('"${item['text']}"', maxLines: 3, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade700, fontStyle: FontStyle.italic))]));
-        },
-      ),
     );
   }
 }

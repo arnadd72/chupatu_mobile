@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lottie/lottie.dart';
-import 'package:chupatu_mobile/main.dart'; // Pastikan MainPage ada di sini
+import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/order_detail_page.dart';
 import 'package:chupatu_mobile/pages/home/home_page.dart';
 
@@ -37,11 +37,12 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: ThemeConfig.currentTheme.value.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text("Batalkan Pesanan?", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-        content: Text("Tindakan ini tidak dapat diurungkan.", style: GoogleFonts.plusJakartaSans()),
+        title: Text("Batalkan Pesanan?", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: ThemeConfig.currentTheme.value.textMain)),
+        content: Text("Tindakan ini tidak dapat diurungkan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Kembali")),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Kembali", style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
@@ -55,9 +56,139 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     );
   }
 
+  // --- LOGIC KIRIM ULASAN & RATING (SUDAH DIPERBAIKI) ---
+  Future<void> _showReviewDialog(String docId, String serviceName, AppThemeData theme) async {
+    int rating = 5;
+    TextEditingController reviewController = TextEditingController();
+    bool isSubmitting = false;
+
+    // 1. Simpan messenger & navigator sebelum masuk area async & dialog
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (stateCtx, setDialogState) {
+          return AlertDialog(
+            backgroundColor: theme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Text("Beri Ulasan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain), textAlign: TextAlign.center),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text("Bagaimana layanan $serviceName kami?", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 13), textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => rating = index + 1),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Icon(
+                            index < rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                            color: Colors.amber,
+                            size: 40,
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: reviewController,
+                    maxLines: 3,
+                    style: TextStyle(color: theme.textMain),
+                    decoration: InputDecoration(
+                      hintText: "Tulis pengalamanmu di sini (Opsional)...",
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                      filled: true,
+                      fillColor: theme.background,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actionsAlignment: MainAxisAlignment.spaceEvenly,
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(dialogCtx),
+                child: const Text("Nanti Saja", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+              ),
+              ElevatedButton(
+                onPressed: isSubmitting ? null : () async {
+                  // 2. Tutup keyboard otomatis biar gak nyangkut waktu loading
+                  FocusManager.instance.primaryFocus?.unfocus();
+
+                  setDialogState(() => isSubmitting = true);
+
+                  try {
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user != null) {
+                      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+                      String userName = user.displayName ?? 'Pelanggan';
+                      String userPhoto = user.photoURL ?? '';
+
+                      if (userDoc.exists) {
+                        var uData = userDoc.data() as Map<String, dynamic>;
+                        userName = uData['username'] ?? uData['name'] ?? uData['displayName'] ?? userName;
+                        userPhoto = uData['photoURL'] ?? userPhoto;
+                      }
+
+                      // Simpan ulasan ke Collection 'reviews'
+                      await FirebaseFirestore.instance.collection('reviews').add({
+                        'userId': user.uid,
+                        'userName': userName,
+                        'userPhoto': userPhoto,
+                        'rating': rating,
+                        'reviewText': reviewController.text.trim(),
+                        'serviceName': serviceName,
+                        'orderId': docId,
+                        'createdAt': FieldValue.serverTimestamp(),
+                      });
+
+                      // Tandai pesanan sudah di-review
+                      await FirebaseFirestore.instance.collection('bookings').doc(docId).update({
+                        'isReviewed': true,
+                      });
+                    }
+
+                    // 3. Gunakan navigator & messenger dari luar dialog secara aman
+                    if (mounted) {
+                      navigator.pop();
+                      scaffoldMessenger.showSnackBar(const SnackBar(content: Text("Terima kasih atas ulasannya! ⭐")));
+                    }
+                  } catch (e) {
+                    setDialogState(() => isSubmitting = false);
+                    scaffoldMessenger.showSnackBar(SnackBar(content: Text("Gagal mengirim ulasan: $e")));
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
+                ),
+                child: isSubmitting
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text("Kirim", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              )
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   // --- KONFIGURASI ICON & WARNA ---
   Map<String, dynamic> _getServiceIcon(String serviceName) {
-    switch (serviceName.toLowerCase()) {
+    String lowerService = serviceName.toLowerCase();
+    if (lowerService.contains('custom')) return {'icon': Icons.design_services_rounded, 'color': Colors.pink, 'lottie': 'assets/lottie/pencil.json'};
+
+    switch (lowerService) {
       case 'deep clean': return {'icon': Icons.water_drop_rounded, 'color': Colors.blue, 'lottie': 'assets/lottie/water_drop.json'};
       case 'fast clean': return {'icon': Icons.timer_rounded, 'color': Colors.orange, 'lottie': 'assets/lottie/Stopwatch.json'};
       case 'unyellowing': return {'icon': Icons.auto_awesome_rounded, 'color': Colors.amber, 'lottie': 'assets/lottie/sparkle.json'};
@@ -94,25 +225,16 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
               centerTitle: true,
               backgroundColor: theme.surface,
               elevation: 0,
-
-              // --- PERBAIKAN UTAMA: LOGIKA TOMBOL KEMBALI ---
               leading: IconButton(
                 icon: Icon(Icons.arrow_back_rounded, color: theme.textMain),
                 onPressed: () {
-                  // Cek: Apakah bisa mundur?
                   if (Navigator.canPop(context)) {
-                    Navigator.pop(context); // Mundur biasa
+                    Navigator.pop(context);
                   } else {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (context) => const MainPage()),
-                          (route) => false,
-                    );
+                    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const MainPage()), (route) => false);
                   }
                 },
               ),
-              // ----------------------------------------------
-
               bottom: TabBar(
                 controller: _tabController,
                 labelColor: theme.primary,
@@ -148,13 +270,20 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
 
         if (filteredDocs.isEmpty) return const Center(child: Text("Belum ada pesanan."));
 
-        return ListView.separated(
-          padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 100),
-          itemCount: filteredDocs.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 16),
-          itemBuilder: (context, index) {
-            return _buildPremiumCard(filteredDocs[index].id, filteredDocs[index].data() as Map<String, dynamic>, theme, isActive);
-          },
+        // PERBAIKAN: Center + ConstrainedBox agar cantik di web/laptop 14 inch (Tidak kepanjangan ke samping)
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: ListView.separated(
+              padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 100),
+              itemCount: filteredDocs.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 16),
+              itemBuilder: (context, index) {
+                var document = filteredDocs[index];
+                return _buildPremiumCard(document.id, document.data() as Map<String, dynamic>, theme, isActive);
+              },
+            ),
+          ),
         );
       },
     );
@@ -169,7 +298,11 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     final serviceConfig = _getServiceIcon(serviceName);
 
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+
+    // Status Logic
     bool canCancel = (status == 'Pending' || status == 'Confirmed');
+    bool isDone = (status == 'Done');
+    bool isReviewed = data['isReviewed'] == true;
 
     String dateStr = "-";
     if (data['createdAt'] != null) {
@@ -271,6 +404,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                       ),
                       Row(
                         children: [
+                          // TOMBOL BATALKAN
                           if (canCancel) ...[
                             OutlinedButton(
                               onPressed: () => _cancelOrder(docId),
@@ -284,6 +418,24 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                             ),
                             const SizedBox(width: 8),
                           ],
+
+                          // TOMBOL ULASAN
+                          if (isDone && !isReviewed) ...[
+                            ElevatedButton(
+                              onPressed: () => _showReviewDialog(docId, serviceName, theme),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.amber,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                              ),
+                              child: Text("Beri Ulasan", style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+
+                          // TOMBOL DETAIL
                           ElevatedButton(
                             onPressed: () {
                               Navigator.push(
