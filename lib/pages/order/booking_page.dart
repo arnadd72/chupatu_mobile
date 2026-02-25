@@ -368,10 +368,43 @@ class _BookingPageState extends State<BookingPage> {
                     // HEADER LAYANAN
                     Container(
                       padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: theme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(20), border: Border.all(color: theme.primary.withOpacity(0.2))),
-                      child: Row(children: [Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: theme.primary.withOpacity(0.2), shape: BoxShape.circle), child: Icon(Icons.cleaning_services_rounded, color: theme.primary, size: 28)), const SizedBox(width: 16), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(widget.serviceName, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 18, color: theme.textMain)), const SizedBox(height: 4), Text(formattedPrice, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.primary))])]),
+                      decoration: BoxDecoration(
+                          color: theme.primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: theme.primary.withOpacity(0.2))
+                      ),
+                      child: Row(
+                          children: [
+                            Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(color: theme.primary.withOpacity(0.2), shape: BoxShape.circle),
+                                child: Icon(Icons.cleaning_services_rounded, color: theme.primary, size: 28)
+                            ),
+                            const SizedBox(width: 16),
+
+                            // --- PERBAIKAN: BUNGKUS DENGAN EXPANDED ---
+                            Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      widget.serviceName,
+                                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 18, color: theme.textMain),
+                                      // Tambahan biar teks turun ke bawah kalau kepanjangan
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                        formattedPrice,
+                                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.primary)
+                                    )
+                                  ]
+                              ),
+                            )
+                          ]
+                      ),
                     ),
-                    const SizedBox(height: 24),
 
                     // DETAIL SEPATU
                     _buildSectionTitle("Detail Sepatu", theme),

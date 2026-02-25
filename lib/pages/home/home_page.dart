@@ -16,7 +16,7 @@ import 'package:chupatu_mobile/pages/home/widgets/auto_magic_card.dart';
 import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
 import 'package:chupatu_mobile/pages/notification/notification_page.dart';
 import 'package:chupatu_mobile/pages/home/garage/garage_page.dart';
-
+import 'package:chupatu_mobile/pages/order/custom_service_page.dart';
 // WIDGET IMPORTS
 import 'package:chupatu_mobile/pages/home/widgets/shoe_tips_widget.dart';
 import 'package:chupatu_mobile/pages/home/widgets/live_tracking_widget.dart';
@@ -400,16 +400,34 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // --- HELPER METHODS ---
+// --- HELPER METHODS ---
   void _navigateToService(BuildContext context, String serviceName) {
     int price = 0;
     String description = "";
     String imageUrl = "https://images.unsplash.com/photo-1542291026-7eec264c27ff";
 
-    if (serviceName == 'Deep Clean') { price = 40000; description = "Perawatan cuci sepatu secara menyeluruh untuk semua jenis bahan."; imageUrl = "https://images.unsplash.com/photo-1595341888016-a392ef81b7de?q=80&w=800"; }
-    else if (serviceName == 'Fast Clean') { price = 25000; description = "Pencucian cepat khusus bagian luar sepatu."; imageUrl = "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=800"; }
-    else { price = 30000; description = "Layanan perawatan sepatu profesional."; }
+    if (serviceName == 'Deep Clean') {
+      price = 40000;
+      description = "Perawatan cuci sepatu secara menyeluruh untuk semua jenis bahan.";
+      imageUrl = "https://images.unsplash.com/photo-1595341888016-a392ef81b7de?q=80&w=800";
+    }
+    else if (serviceName == 'Fast Clean') {
+      price = 25000;
+      description = "Pencucian cepat khusus bagian luar sepatu.";
+      imageUrl = "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=800";
+    }
+    // --- TAMBAHAN UNTUK CUSTOM ---
+    else if (serviceName == 'Custom Painting' || serviceName == 'Custom') {
+      price = 30000; // Harga mulai dari
+      description = "Layanan perawatan sepatu profesional dengan teknik khusus. Anda dapat merakit dan menggabungkan beberapa layanan sekaligus di halaman selanjutnya.";
+      imageUrl = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=800"; // Gambar sepatu merah seperti di screenshot
+    }
+    else {
+      price = 30000;
+      description = "Layanan perawatan sepatu profesional.";
+    }
 
+    // Tetap arahkan ke Service Detail Page
     Navigator.push(context, MaterialPageRoute(builder: (context) => ServiceDetailPage(serviceName: serviceName, price: price, description: description, imageUrl: imageUrl)));
   }
 

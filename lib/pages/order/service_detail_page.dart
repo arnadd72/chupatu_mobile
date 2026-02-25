@@ -3,11 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/booking_page.dart';
+import 'package:chupatu_mobile/pages/order/custom_service_page.dart';
 
 class ServiceDetailPage extends StatelessWidget {
   final String serviceName;
   final dynamic price;
-  final String description; // Kita terima, tapi nanti kita timpa dengan yang lebih bagus
+  final String description;
   final String? imageUrl;
 
   const ServiceDetailPage({
@@ -20,46 +21,47 @@ class ServiceDetailPage extends StatelessWidget {
 
   // --- 1. LOGIKA GAMBAR HD OTOMATIS ---
   String _getSmartImage(String service) {
-    switch (service.toLowerCase()) {
+    String lowerService = service.toLowerCase();
+    if (lowerService.contains('custom')) {
+      return 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?auto=format&fit=crop&q=80&w=1000';
+    }
+
+    switch (lowerService) {
       case 'deep clean': return 'https://images.unsplash.com/photo-1600185365926-3a6d3de3dddb?auto=format&fit=crop&q=80&w=1000';
       case 'fast clean': return 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&q=80&w=1000';
       case 'unyellowing': return 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?auto=format&fit=crop&q=80&w=1000';
       case 'repair': return 'https://images.unsplash.com/photo-1581102854955-455b8045a557?auto=format&fit=crop&q=80&w=1000';
       case 'repaint': return 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&q=80&w=1000';
       case 'waterproof': return 'https://images.unsplash.com/photo-1543508282-6319a3e2621f?auto=format&fit=crop&q=80&w=1000';
-      case 'custom': return 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?auto=format&fit=crop&q=80&w=1000';
       case 'pickup': return 'https://images.unsplash.com/photo-1616406432452-07bc59280cd3?auto=format&fit=crop&q=80&w=1000';
       default: return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=1000';
     }
   }
 
-  // --- 2. LOGIKA DESKRIPSI MARKETING (BARU) ---
+  // --- 2. LOGIKA DESKRIPSI MARKETING ---
   String _getSmartDescription(String service) {
-    switch (service.toLowerCase()) {
+    String lowerService = service.toLowerCase();
+
+    // UBAH DESKRIPSI KHUSUS CUSTOM DI SINI
+    if (lowerService.contains('custom')) {
+      return "Layanan perawatan sepatu profesional yang fleksibel dan dapat disesuaikan dengan kebutuhan spesifik sepatu Anda.\n\nDi sini Anda dapat merakit dan menggabungkan beberapa layanan sekaligus (misal: Deep Clean + Waterproof). Klik tombol 'Pesan Sekarang' di bawah untuk mulai merakit paket layanan Anda sendiri!";
+    }
+
+    switch (lowerService) {
       case 'deep clean':
         return "Berikan perawatan terbaik untuk sepatu kesayanganmu! Layanan Deep Clean membersihkan debu, noda membandel, dan bakteri hingga ke pori-pori terdalam.\n\nCocok untuk semua bahan (Canvas, Suede, Leather, Nubuck). Hasilnya sepatu bersih total, wangi segar, dan higienis seperti baru kembali.";
-
       case 'fast clean':
         return "Butuh sepatu bersih dadakan buat hangout atau meeting? Fast Clean solusinya! \n\nFokus pembersihan pada bagian Upper dan Midsole yang cepat namun tetap detail. Proses kilat, sepatu langsung glowing dan siap diajak jalan lagi dalam waktu singkat.";
-
       case 'unyellowing':
         return "Midsole sepatu menguning bikin gak pede? Jangan dibuang dulu! \n\nTeknik Unyellowing kami ampuh menghilangkan noda oksidasi membandel yang bikin sepatu terlihat kusam. Kami kembalikan warna putih cerah pada sol sepatumu, bikin tampilannya fresh lagi seperti baru beli.";
-
       case 'repair':
         return "Sol sepatu mangap atau jebol saat dipakai? Tenang, serahkan pada ahlinya!\n\nKami melakukan Reglue (pengeleman ulang) dengan lem standar pabrik yang super kuat dan teknik press mesin. Sepatu tempur andalanmu bakal kokoh lagi, siap melangkah jauh tanpa khawatir rusak di jalan.";
-
       case 'repaint':
         return "Warna sepatu pudar termakan usia? Atau bosan dengan warna lama?\n\nLayanan Repaint kami menggunakan cat premium anti-luntur/crack. Bisa kembalikan warna asli agar tajam kembali, atau ganti warna total (Custom Color) sesuai kepribadianmu. Finishing presisi dan tahan lama.";
-
       case 'waterproof':
         return "Lindungi investasimu! Lapisan Nano-Coating transparan yang memberikan efek daun talas pada sepatu.\n\nAir, kopi, saus, atau lumpur gak bakal nempel! Melindungi bahan sepatu dari noda cair agar lebih awet, mudah dibersihkan, dan tetap bernapas. Wajib buat sneakers mahal!";
-
-      case 'custom':
-        return "Ekspresikan gayamu! Jasa lukis sepatu custom oleh artist berpengalaman.\n\nBisa request gambar karakter, pola abstrak, atau tulisan nama. Menggunakan cat khusus yang fleksibel dan tidak pecah. Bikin sepatumu jadi satu-satunya di dunia (Limited Edition punya kamu sendiri!).";
-
       case 'pickup':
         return "Males keluar rumah macet-macetan? Biar kurir kami yang jemput sepatumu!\n\nLayanan antar-jemput gratis untuk area tertentu dengan minimal transaksi. Kurir ramah, amanah, dan tepat waktu. Kamu cukup duduk manis, sepatu kotor dijemput, pulang-pulang sudah bersih kinclong.";
-
       default:
         return "Layanan perawatan sepatu profesional dengan teknik khusus, bahan pembersih premium, dan peralatan modern untuk memberikan hasil maksimal pada setiap pasang sepatu Anda. Kepuasan pelanggan adalah prioritas utama kami.";
     }
@@ -84,9 +86,12 @@ class ServiceDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String finalImage = _getSmartImage(serviceName);
-
-    // PANGGIL DESKRIPSI MARKETING DISINI
     final String finalDescription = _getSmartDescription(serviceName);
+
+    // LOGIKA UBAH JUDUL JIKA CUSTOM
+    final String displayTitle = serviceName.toLowerCase().contains('custom')
+        ? 'Custom Perawatan'
+        : serviceName;
 
     return ValueListenableBuilder<AppThemeData>(
       valueListenable: ThemeConfig.currentTheme,
@@ -154,9 +159,9 @@ class ServiceDetailPage extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(child: Text(serviceName, style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.bold, color: theme.textMain))),
+                          Expanded(child: Text(displayTitle, style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.bold, color: theme.textMain))),
                           const SizedBox(width: 10),
-                          Text(_getDisplayPrice(), style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w800, color: theme.primary)),
+                          Text(serviceName.toLowerCase().contains('custom') ? 'Mulai Rp 30rb' : _getDisplayPrice(), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: theme.primary)),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -183,7 +188,7 @@ class ServiceDetailPage extends StatelessWidget {
                       Expanded(
                         child: SingleChildScrollView(
                           child: Text(
-                            finalDescription, // <-- Pakai teks marketing kita
+                            finalDescription,
                             style: GoogleFonts.plusJakartaSans(fontSize: 14, color: theme.textMain.withOpacity(0.7), height: 1.6),
                           ),
                         ),
@@ -197,14 +202,23 @@ class ServiceDetailPage extends StatelessWidget {
                         height: 56,
                         child: ElevatedButton(
                           onPressed: () {
-                            int intPrice = _getIntPrice();
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => BookingPage(serviceName: serviceName, basePrice: intPrice),
-                              ),
-                            );
+                            if (serviceName.toLowerCase().contains('custom')) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const CustomServicePage()),
+                              );
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => BookingPage(
+                                    serviceName: serviceName,
+                                    // PENTING: Gunakan _getIntPrice agar tidak error Type Mismatch!
+                                    basePrice: _getIntPrice(),
+                                  ),
+                                ),
+                              );
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: theme.primary,
