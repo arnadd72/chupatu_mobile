@@ -1,5 +1,0 @@
-0 Sneaker
-1 Converse_Canvas
-2 loafers_leather
-3 Soccer_Shoes
-4 Boots_shoes
