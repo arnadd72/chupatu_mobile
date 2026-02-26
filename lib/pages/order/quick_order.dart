@@ -28,7 +28,7 @@ class QuickOrder extends StatelessWidget {
         children: [
           Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 24),
-          Text("Mau layanan apa bos?", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+          Text("Mau layanan apa?", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
           const SizedBox(height: 20),
 
           // Tombol Manual - Pindah ke Halaman Full Firebase
