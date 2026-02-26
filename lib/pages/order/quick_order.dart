@@ -1,14 +1,9 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http; // Pastikan package http ada di pubspec.yaml
-import 'package:chupatu_mobile/main.dart'; // Sesuaikan path ini
-import 'package:chupatu_mobile/pages/order/booking_page.dart'; // Sesuaikan path ini
-
-// --- MASUKKAN API KEY DARI AISTUDIO.GOOGLE.COM (BUKAN CLOUD CONSOLE) ---
-const String _apiKey = 'PASTE_API_KEY_DARI_AI_STUDIO_DISINI';
+import 'package:tflite_v2/tflite_v2.dart';
+import 'package:chupatu_mobile/pages/order/booking_page.dart';
 
 class QuickOrder extends StatefulWidget {
   const QuickOrder({super.key});
@@ -30,25 +25,58 @@ class _QuickOrderState extends State<QuickOrder> {
 
   final ImagePicker _picker = ImagePicker();
 
+  @override
+  void initState() {
+    super.initState();
+    // Nyalakan mesin SATU KALI SAJA saat halaman dibuka
+    _loadModel();
+  }
+
+  Future<void> _loadModel() async {
+    try {
+      await Tflite.loadModel(
+        model: "assets/ml/model.tflite",
+        labels: "assets/ml/labels.txt",
+        numThreads: 1,
+        isAsset: true,
+        useGpuDelegate: false,
+      );
+    } catch (e) {
+      debugPrint("Error Load AI: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    Tflite.close(); // Tutup mesin HANYA saat keluar dari halaman
+    super.dispose();
+  }
+
   Future<void> _pickImage(ImageSource source, StateSetter setModalState) async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(source: source, imageQuality: 40);
+      // OBAT 1: Ukuran asli Teachable Machine adalah 224x224.
+      // Ini dijamin RAM tidak akan kepenuhan!
+      final XFile? pickedFile = await _picker.pickImage(
+          source: source,
+          maxWidth: 224,
+          maxHeight: 224,
+          imageQuality: 50
+      );
+
       if (pickedFile != null) {
         setModalState(() {
           _selectedImage = File(pickedFile.path);
           _hasResult = false;
           _errorMessage = null;
         });
-        // Jalankan analisa
-        _analyzeShoeConditionHTTP(setModalState);
+        _analyzeShoeConditionTFLite(setModalState);
       }
     } catch (e) {
       debugPrint("Error picking image: $e");
     }
   }
 
-  // --- LOGIC HTTP REQUEST (ANTI ERROR VERSION) ---
-  Future<void> _analyzeShoeConditionHTTP(StateSetter setModalState) async {
+  Future<void> _analyzeShoeConditionTFLite(StateSetter setModalState) async {
     if (_selectedImage == null) return;
 
     setModalState(() {
@@ -56,75 +84,86 @@ class _QuickOrderState extends State<QuickOrder> {
       _errorMessage = null;
     });
 
+    // Kasih jeda 0.2 detik biar loading ungu muncul di layar
+    await Future.delayed(const Duration(milliseconds: 200));
+
     try {
-      List<int> imageBytes = await _selectedImage!.readAsBytes();
-      String base64Image = base64Encode(imageBytes);
-
-      // URL STANDAR (Paling Aman untuk Akun Baru)
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_apiKey');
-
-      final body = jsonEncode({
-        "contents": [
-          {
-            "parts": [
-              {
-                "text": "Analisa gambar sepatu ini sebagai Ahli Perawatan Sepatu. Format Jawaban WAJIB dipisah tanda pipa '|' : [Jenis Sepatu] | [Kondisi Fisik & Noda] | [Rekomendasi Layanan] | [Tips Perawatan Singkat]. Pilihan Layanan: Deep Clean, Fast Clean, Unyellowing, Repair, Repaint, Waterproof."
-              },
-              {
-                "inline_data": {
-                  "mime_type": "image/jpeg",
-                  "data": base64Image
-                }
-              }
-            ]
-          }
-        ]
-      });
-
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: body,
+      // OBAT 2: asynch: false.
+      // Ini akan memaksa Android mengeksekusi AI sampai tuntas, anti macet!
+      var recognitions = await Tflite.runModelOnImage(
+          path: _selectedImage!.path,
+          imageMean: 127.5,
+          imageStd: 127.5,
+          numResults: 1,
+          threshold: 0.1,
+          asynch: false
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        // Ambil teks dari JSON yang njelimet
-        String rawText = data['candidates'][0]['content']['parts'][0]['text'];
-
-        final parts = rawText.split('|');
-        if (parts.length >= 4) {
-          setModalState(() {
-            _shoeType = parts[0].trim();
-            _condition = parts[1].trim();
-            _recommendation = parts[2].trim();
-            _careTips = parts[3].trim();
-            _hasResult = true;
-          });
-        } else {
-          setModalState(() {
-            _condition = rawText;
-            _recommendation = "Konsultasi Admin";
-            _hasResult = true;
-          });
-        }
+      if (recognitions != null && recognitions.isNotEmpty) {
+        String label = recognitions[0]['label'];
+        label = label.replaceAll(RegExp(r'[0-9]'), '').trim();
+        _generateRecommendationFromLabel(label, setModalState);
       } else {
-        // Jika Error, tampilkan pesan aslinya
-        final errorData = jsonDecode(response.body);
-        String errorMsg = errorData['error']['message'] ?? "Unknown Error";
-        throw Exception("Server Error (${response.statusCode}): $errorMsg");
+        setModalState(() {
+          _errorMessage = "AI ragu ini sepatu apa. Coba foto lebih jelas.";
+        });
       }
-
     } catch (e) {
       setModalState(() {
-        _errorMessage = "Gagal: $e";
+        _errorMessage = "Error Sistem AI: $e";
       });
+      debugPrint("Error Analisa Asli: $e");
     } finally {
       setModalState(() => _isAnalyzing = false);
     }
   }
 
-  // --- UI MODAL (POPUP) ---
+  // --- PEMETAAN 5 LABEL ---
+  void _generateRecommendationFromLabel(String detectedLabel, StateSetter setModalState) {
+    String type = detectedLabel;
+    String condition = "Kotor pemakaian wajar";
+    String rec = "Deep Clean";
+    String tips = "Bersihkan secara rutin agar kotoran tidak mengerak.";
+
+    String labelLower = detectedLabel.toLowerCase();
+
+    if (labelLower.contains("converse") || labelLower.contains("canvas")) {
+      type = "Converse / Canvas";
+      condition = "Noda menyerap ke kain & sol menguning (yellowing).";
+      rec = "Deep Clean + Unyellowing";
+      tips = "Jangan dijemur di bawah matahari langsung agar warna tidak pudar.";
+    } else if (labelLower.contains("sneaker")) {
+      type = "Sneakers Umum";
+      condition = "Debu membandel di bagian midsole & upper.";
+      rec = "Deep Clean";
+      tips = "Gunakan shoe tree agar bentuk sepatu tetap terjaga.";
+    } else if (labelLower.contains("loafers") || labelLower.contains("leather")) {
+      type = "Loafers / Leather";
+      condition = "Kulit kusam dan butuh hidrasi agar tidak retak.";
+      rec = "Leather Care / Premium Clean";
+      tips = "Gunakan lotion khusus kulit secara berkala.";
+    } else if (labelLower.contains("soccer") || labelLower.contains("bola")) {
+      type = "Sepatu Bola / Futsal";
+      condition = "Kerak lumpur & sisa rumput di sela-sela sol.";
+      rec = "Hard Clean";
+      tips = "Segera bersihkan lumpur setelah pemakaian.";
+    } else if (labelLower.contains("boots")) {
+      type = "Boots";
+      condition = "Lumpur tebal & butuh proteksi air (waterproof).";
+      rec = "Deep Clean + Waterproofing";
+      tips = "Semprot water repellent setelah kering sempurna.";
+    }
+
+    setModalState(() {
+      _shoeType = type;
+      _condition = condition;
+      _recommendation = rec;
+      _careTips = tips;
+      _hasResult = true;
+    });
+  }
+
+  // --- UI MODAL & BUILDER ---
   void _showAIShoeCheckModal(BuildContext context) {
     showModalBottomSheet(
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
@@ -138,7 +177,7 @@ class _QuickOrderState extends State<QuickOrder> {
                   children: [
                     const SizedBox(height: 16),
                     Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
-                    Padding(padding: const EdgeInsets.all(24), child: Row(children: [Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.purpleAccent.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.auto_awesome, color: Colors.purpleAccent)), const SizedBox(width: 12), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("AI Shoe Check", style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.bold)), Text("Deteksi kondisi sepatu otomatis", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey))])])),
+                    Padding(padding: const EdgeInsets.all(24), child: Row(children: [Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.purpleAccent.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.auto_awesome, color: Colors.purpleAccent)), const SizedBox(width: 12), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("AI Shoe Check", style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.bold)), Text("Deteksi kondisi sepatu *On-Device*", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey))])])),
 
                     Expanded(
                       child: SingleChildScrollView(
@@ -151,11 +190,10 @@ class _QuickOrderState extends State<QuickOrder> {
                             ),
                             const SizedBox(height: 24),
 
-                            // STATE HANDLING
                             if (_isAnalyzing) ...[
                               const CircularProgressIndicator(color: Colors.purpleAccent),
                               const SizedBox(height: 16),
-                              Text("Sedang menganalisa...", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey))
+                              Text("Menganalisa Sepatu...", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.purpleAccent, fontWeight: FontWeight.bold))
                             ] else if (_errorMessage != null) ...[
                               Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.shade200)),
                                   child: Text(_errorMessage!, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.red.shade800)))
@@ -168,7 +206,6 @@ class _QuickOrderState extends State<QuickOrder> {
                       ),
                     ),
 
-                    // BUTTONS
                     Container(
                       padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]),
                       child: Row(children: [
@@ -178,14 +215,16 @@ class _QuickOrderState extends State<QuickOrder> {
                             onPressed: _isAnalyzing ? null : () {
                               if (_hasResult) {
                                 Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Memesan: $_recommendation")));
-                                // Masukkan navigasi ke BookingPage disini jika mau
+                                Navigator.push(context, MaterialPageRoute(builder: (context) => BookingPage(
+                                  serviceName: _recommendation,
+                                  basePrice: 50000,
+                                )));
                               } else {
-                                if (_selectedImage != null) _analyzeShoeConditionHTTP(setModalState);
+                                if (_selectedImage != null) _analyzeShoeConditionTFLite(setModalState);
                               }
                             },
                             style: ElevatedButton.styleFrom(backgroundColor: _hasResult ? Colors.green : Colors.purpleAccent, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                            child: Text(_isAnalyzing ? "Loading..." : (_hasResult ? "Pesan Sekarang" : "Foto Dulu"), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.white)))),
+                            child: Text(_isAnalyzing ? "Loading..." : (_hasResult ? "Pesan Layanan Ini" : "Foto Dulu"), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.white)))),
                       ]),
                     )
                   ],
@@ -216,7 +255,22 @@ class _QuickOrderState extends State<QuickOrder> {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
         const SizedBox(height: 24), Text("Mau layanan apa bos?", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)), const SizedBox(height: 20),
-        _buildMenuItem(context, icon: Icons.add_circle_outline_rounded, title: "Booking Order", subtitle: "Pilih layanan manual.", color: Colors.blueAccent, onTap: () { Navigator.pop(context); /* Panggil selector manual */ }),
+
+        _buildMenuItem(
+            context,
+            icon: Icons.add_circle_outline_rounded,
+            title: "Booking Order",
+            subtitle: "Pilih layanan manual.",
+            color: Colors.blueAccent,
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const BookingPage(
+                serviceName: "Layanan Manual",
+                basePrice: 0,
+              )));
+            }
+        ),
+
         const SizedBox(height: 12),
         _buildMenuItem(context, icon: Icons.auto_awesome, title: "Cek Kondisi (AI)", subtitle: "Foto sepatu, biar kami analisa.", color: Colors.purpleAccent, onTap: () { Navigator.pop(context); _showAIShoeCheckModal(context); }),
         const SizedBox(height: 24),

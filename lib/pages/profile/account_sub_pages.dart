@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/common/terms_conditions_page.dart';
 import 'package:chupatu_mobile/pages/common/privacy_policy_page.dart';
@@ -43,6 +45,188 @@ class _SecurityPageState extends State<SecurityPage> {
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  // --- LOGIKA POP-UP OTP BISA DIPAKAI UNTUK PASSWORD & PIN ---
+  // Parameter isForPassword: true (Ubah Password), false (Lupa PIN)
+  void _showOtpResetDialog(AppThemeData theme, {required bool isForPassword}) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    String? phoneNumber;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
+      phoneNumber = doc.data()?['phoneNumber'] ?? doc.data()?['phone'];
+    } catch (e) {
+      debugPrint("Gagal ambil nomor: $e");
+    }
+
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    if (phoneNumber == null || phoneNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Nomor WhatsApp belum diatur di Profil!"), backgroundColor: Colors.red)
+      );
+      return;
+    }
+
+    String inputOtp = "";
+    String? localError;
+    bool isOtpSent = false;
+    bool isSending = false;
+    String? generatedOtp;
+
+    String dialogTitle = isForPassword ? "Verifikasi Ubah Password" : "Verifikasi Reset PIN";
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return AlertDialog(
+            backgroundColor: theme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text(dialogTitle, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!isOtpSent) ...[
+                  Text(
+                      "Klik tombol di bawah untuk mengirim 6 digit kode OTP ke nomor WhatsApp Anda:\n\n$phoneNumber",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 13, color: Colors.grey, height: 1.5)
+                  ),
+                ] else ...[
+                  Text("Masukkan 6 digit kode yang kami kirim ke WhatsApp Anda.", textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 20),
+                  TextField(
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 10, color: theme.textMain),
+                    decoration: InputDecoration(
+                      counterText: "",
+                      filled: true,
+                      fillColor: theme.background,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                    onChanged: (val) {
+                      inputOtp = val;
+                      if (localError != null) setModalState(() => localError = null);
+                    },
+                  ),
+                ],
+                if (localError != null)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(localError!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold))
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Batal", style: TextStyle(color: Colors.grey))
+              ),
+              if (!isOtpSent)
+                ElevatedButton(
+                  onPressed: isSending ? null : () async {
+                    setModalState(() { isSending = true; localError = null; });
+
+                    var rnd = math.Random();
+                    generatedOtp = (rnd.nextInt(900000) + 100000).toString();
+
+                    String formattedPhone = phoneNumber!;
+                    if (formattedPhone.startsWith('0')) {
+                      formattedPhone = '62${formattedPhone.substring(1)}';
+                    }
+
+                    try {
+                      final response = await http.post(
+                        Uri.parse('https://api.fonnte.com/send'),
+                        headers: {
+                          'Authorization': 'Zi3f46rXBWaxt6p9ysvG', // <-- NANTI GANTI TOKEN ASLI BOS DI SINI
+                        },
+                        body: {
+                          'target': formattedPhone,
+                          'message': '*Chupatu Mobile*\n\nKode OTP Anda adalah: *$generatedOtp*\n\n_Jangan berikan kode ini kepada siapapun._',
+                        },
+                      );
+
+                      if (response.statusCode == 200) {
+                        setModalState(() { isOtpSent = true; isSending = false; });
+                        if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kode OTP berhasil dikirim!"), backgroundColor: Colors.green));
+                      } else {
+                        debugPrint("=================================");
+                        debugPrint("MODE TESTING - OTP ANDA: $generatedOtp");
+                        debugPrint("=================================");
+                        setModalState(() {
+                          isOtpSent = true;
+                          isSending = false;
+                          localError = "Mode Testing: Buka terminal VS Code untuk melihat kode OTP.";
+                        });
+                      }
+                    } catch (e) {
+                      debugPrint("=================================");
+                      debugPrint("MODE TESTING - OTP ANDA: $generatedOtp");
+                      debugPrint("=================================");
+                      setModalState(() {
+                        isOtpSent = true;
+                        isSending = false;
+                        localError = "Mode Testing: Buka terminal VS Code untuk melihat kode OTP.";
+                      });
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                  ),
+                  child: isSending
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text("Kirim OTP", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                )
+              else
+                ElevatedButton(
+                  onPressed: () async {
+                    if (inputOtp.length != 6) return;
+
+                    if (inputOtp == generatedOtp) {
+                      Navigator.pop(ctx);
+
+                      // KONDISI SETELAH OTP BENAR:
+                      if (isForPassword) {
+                        // 1. JIKA UNTUK UBAH PASSWORD
+                        if (user?.email == null) return;
+                        try {
+                          await FirebaseAuth.instance.sendPasswordResetEmail(email: user!.email!);
+                          if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text("Link reset dikirim ke ${user!.email}! Silakan cek email Anda."), backgroundColor: Colors.green));
+                        } catch (e) {
+                          if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red));
+                        }
+                      } else {
+                        // 2. JIKA UNTUK RESET PIN
+                        _showPinDialog(isCreating: true);
+                      }
+
+                    } else {
+                      setModalState(() => localError = "Kode OTP Salah!");
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                  ),
+                  child: const Text("Verifikasi", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   void _showPinDialog({required bool isCreating, bool isDisabling = false}) {
@@ -115,7 +299,7 @@ class _SecurityPageState extends State<SecurityPage> {
                           'isPinEnabled': true,
                         });
                         setState(() => _isPinEnabled = true);
-                        if(mounted) ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(content: Text("PIN Berhasil Dibuat!"), backgroundColor: Colors.green));
+                        if(mounted) ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(content: Text("PIN Berhasil Disimpan!"), backgroundColor: Colors.green));
                       } else if (isDisabling) {
                         final doc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
                         if (doc.data()?['securityPin'] == inputPin) {
@@ -194,14 +378,68 @@ class _SecurityPageState extends State<SecurityPage> {
                 title: Text("Ubah Password", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
                 subtitle: const Text("Kirim link reset ke email", style: TextStyle(fontSize: 12)),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () async {
-                  if (user?.email == null) return;
-                  try {
-                    await FirebaseAuth.instance.sendPasswordResetEmail(email: user!.email!);
-                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Link reset dikirim ke ${user!.email}!"), backgroundColor: Colors.green));
-                  } catch (e) {
-                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red));
+                // --- PERUBAHAN: Tambah Pop-up Konfirmasi Sebelum Kirim Email ---
+                onTap: () {
+                  if (user?.email == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Email tidak ditemukan!"), backgroundColor: Colors.red)
+                    );
+                    return;
                   }
+
+                  // 1. Munculkan Pop-up Konfirmasi Dulu
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: theme.surface,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      title: Text("Ubah Password", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+                      content: Text(
+                        "Apakah Anda yakin ingin mengirim link reset password ke email ${user!.email}?",
+                        style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 13, height: 1.5),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text("Batal", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                        ),
+                        ElevatedButton(
+                          onPressed: () async {
+                            Navigator.pop(ctx); // Tutup dialog konfirmasi
+
+                            // 2. Munculkan loading sebentar saat ngirim
+                            showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (loadingCtx) => const Center(child: CircularProgressIndicator())
+                            );
+
+                            try {
+                              await FirebaseAuth.instance.sendPasswordResetEmail(email: user!.email!);
+                              if (context.mounted) {
+                                Navigator.pop(context); // Tutup loading
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text("Link reset dikirim ke ${user!.email}! Silakan cek email Anda."), backgroundColor: Colors.green)
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                Navigator.pop(context); // Tutup loading
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text("Gagal mengirim link: $e"), backgroundColor: Colors.red)
+                                );
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.primary,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text("Kirim Link", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        )
+                      ],
+                    ),
+                  );
                 },
               ),
               const SizedBox(height: 32),
@@ -221,9 +459,15 @@ class _SecurityPageState extends State<SecurityPage> {
                         else _showPinDialog(isCreating: false, isDisabling: true);
                       },
                     ),
+
+                    // --- FITUR GANTI/LUPA PIN MENGGUNAKAN OTP WA ---
                     if (_isPinEnabled) const Divider(height: 1),
                     if (_isPinEnabled)
-                      ListTile(title: const Text("Ganti PIN"), trailing: const Icon(Icons.edit, size: 18), onTap: () => _showPinDialog(isCreating: true))
+                      ListTile(
+                        title: Text("Ganti / Lupa PIN?", style: GoogleFonts.plusJakartaSans(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                        trailing: const Icon(Icons.lock_reset_rounded, size: 20, color: Colors.redAccent),
+                        onTap: () => _showOtpResetDialog(theme, isForPassword: false),
+                      ),
                   ],
                 ),
               ),
@@ -248,6 +492,45 @@ class NotificationSettingsPage extends StatefulWidget {
 class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   bool orderNotif = true;
   bool promoNotif = true;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (doc.exists && doc.data() != null) {
+          final data = doc.data() as Map<String, dynamic>;
+          if (mounted) {
+            setState(() {
+              orderNotif = data['orderNotif'] ?? true;
+              promoNotif = data['promoNotif'] ?? true;
+              _isLoading = false;
+            });
+          }
+          return;
+        }
+      } catch (e) {
+        debugPrint("Gagal memuat pengaturan: $e");
+      }
+    }
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _saveSetting(String key, bool value) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        key: value,
+      }, SetOptions(merge: true));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -257,12 +540,14 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           return Scaffold(
             backgroundColor: theme.background,
             appBar: AppBar(title: Text("Pengaturan Notifikasi", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)), backgroundColor: theme.surface, elevation: 0, iconTheme: IconThemeData(color: theme.textMain)),
-            body: ListView(
+            body: _isLoading
+                ? Center(child: CircularProgressIndicator(color: theme.primary))
+                : ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                SwitchListTile(title: Text("Update Status Pesanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)), subtitle: Text("Notifikasi saat sepatu dijemput, dicuci, dan selesai", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)), activeColor: theme.primary, value: orderNotif, onChanged: (val) => setState(() => orderNotif = val)),
+                SwitchListTile(title: Text("Update Status Pesanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)), subtitle: Text("Notifikasi saat sepatu dijemput, dicuci, dan selesai", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)), activeColor: theme.primary, value: orderNotif, onChanged: (val) { setState(() => orderNotif = val); _saveSetting('orderNotif', val); }),
                 const Divider(),
-                SwitchListTile(title: Text("Promo & Diskon", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)), subtitle: Text("Dapatkan info potongan harga terbaru", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)), activeColor: theme.primary, value: promoNotif, onChanged: (val) => setState(() => promoNotif = val)),
+                SwitchListTile(title: Text("Promo & Diskon", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)), subtitle: Text("Dapatkan info potongan harga terbaru", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)), activeColor: theme.primary, value: promoNotif, onChanged: (val) { setState(() => promoNotif = val); _saveSetting('promoNotif', val); }),
               ],
             ),
           );
@@ -287,10 +572,9 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _calculateCacheSize(); // Hitung ukuran cache saat halaman dibuka
+    _calculateCacheSize();
   }
 
-  // Menghitung total file sampah sementara
   Future<void> _calculateCacheSize() async {
     try {
       final tempDir = await getTemporaryDirectory();
@@ -310,15 +594,14 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
     }
   }
 
-  // Membersihkan direktori sementara
   Future<void> _clearCache() async {
     try {
       final tempDir = await getTemporaryDirectory();
       if (tempDir.existsSync()) {
         tempDir.deleteSync(recursive: true);
-        await tempDir.create(); // Buat ulang foldernya agar aman
+        await tempDir.create();
       }
-      await _calculateCacheSize(); // Update tulisan sizenya jadi 0
+      await _calculateCacheSize();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cache berhasil dibersihkan!"), backgroundColor: Colors.green));
@@ -350,7 +633,6 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
           body: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              // --- SECTION 1: TEMA ---
               _buildSectionHeader("Pilih Tema Aplikasi", currentTheme),
               const SizedBox(height: 16),
               GridView.builder(
@@ -386,30 +668,27 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
               ),
 
               const SizedBox(height: 32),
-
-              // --- SECTION 2: BAHASA (REAL) ---
               _buildSectionHeader("Bahasa / Language", currentTheme),
               const SizedBox(height: 12),
 
-              // Dengarkan secara live dari LanguageConfig
               ValueListenableBuilder<Locale>(
                   valueListenable: LanguageConfig.currentLocale,
                   builder: (context, currentLocale, _) {
-                    String activeLang = currentLocale.languageCode; // 'id' atau 'en'
+                    String activeLang = currentLocale.languageCode;
 
                     return Container(
                       decoration: BoxDecoration(color: currentTheme.surface, borderRadius: BorderRadius.circular(16)),
                       child: Column(
                         children: [
                           ListTile(
-                            onTap: () => LanguageConfig.changeLanguage("id"), // Ganti Global
+                            onTap: () => LanguageConfig.changeLanguage("id"),
                             leading: Icon(Icons.language, color: activeLang == "id" ? currentTheme.primary : Colors.grey),
                             title: Text("Bahasa Indonesia", style: GoogleFonts.plusJakartaSans(color: currentTheme.textMain, fontSize: 14)),
                             trailing: activeLang == "id" ? Icon(Icons.radio_button_checked, color: currentTheme.primary) : const Icon(Icons.radio_button_off, color: Colors.grey),
                           ),
                           const Divider(height: 1),
                           ListTile(
-                            onTap: () => LanguageConfig.changeLanguage("en"), // Ganti Global
+                            onTap: () => LanguageConfig.changeLanguage("en"),
                             leading: Icon(Icons.language, color: activeLang == "en" ? currentTheme.primary : Colors.grey),
                             title: Text("English (US)", style: GoogleFonts.plusJakartaSans(color: currentTheme.textMain, fontSize: 14)),
                             trailing: activeLang == "en" ? Icon(Icons.radio_button_checked, color: currentTheme.primary) : const Icon(Icons.radio_button_off, color: Colors.grey),
@@ -421,8 +700,6 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
               ),
 
               const SizedBox(height: 32),
-
-              // --- SECTION 3: PENYIMPANAN & CACHE ---
               _buildSectionHeader("Penyimpanan & Cache", currentTheme),
               const SizedBox(height: 12),
               Container(
@@ -442,7 +719,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                       ),
                     ),
                     ElevatedButton(
-                      onPressed: _clearCache, // Panggil fungsi hapus cache fisik
+                      onPressed: _clearCache,
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.red.withOpacity(0.1), foregroundColor: Colors.red, elevation: 0),
                       child: const Text("Bersihkan", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     ),
@@ -492,8 +769,6 @@ class AboutPage extends StatelessWidget {
                         style: GoogleFonts.plusJakartaSans(color: Colors.grey, height: 1.5)
                     ),
                     const SizedBox(height: 32),
-
-                    // --- TOMBOL SYARAT & KETENTUAN BERFUNGSI ---
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
@@ -512,8 +787,6 @@ class AboutPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-
-                    // --- TOMBOL KEBIJAKAN PRIVASI BERFUNGSI ---
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
