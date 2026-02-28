@@ -20,6 +20,7 @@ class PaymentPage extends StatefulWidget {
   final String detailAddress;
   final String phoneNumber;
   final File? shoeImageFile;
+  final String? shoeImageUrl;
 
   const PaymentPage({
     super.key,
@@ -35,6 +36,7 @@ class PaymentPage extends StatefulWidget {
     required this.detailAddress,
     required this.phoneNumber,
     this.shoeImageFile,
+    this.shoeImageUrl,
   });
 
   @override
@@ -77,7 +79,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
     try {
       String? imageUrl;
-
+      /*
       if (widget.shoeImageFile != null) {
         final ref = FirebaseStorage.instance
             .ref()
@@ -86,6 +88,7 @@ class _PaymentPageState extends State<PaymentPage> {
         await ref.putFile(widget.shoeImageFile!);
         imageUrl = await ref.getDownloadURL();
       }
+       */
 
       await FirebaseFirestore.instance.collection('bookings').add({
         'userId': user?.uid,
@@ -107,7 +110,7 @@ class _PaymentPageState extends State<PaymentPage> {
         'pickupTime': widget.pickupTime,
         'mainAddress': widget.mainAddress,
         'detailAddress': widget.detailAddress,
-        'shoeImageUrl': imageUrl,
+        'shoeImageUrl': widget.shoeImageUrl ?? '',
         'createdAt': FieldValue.serverTimestamp(),
       });
 
