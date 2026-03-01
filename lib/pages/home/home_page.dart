@@ -17,7 +17,7 @@ import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
 import 'package:chupatu_mobile/pages/notification/notification_page.dart';
 import 'package:chupatu_mobile/pages/home/garage/garage_page.dart';
 import 'package:chupatu_mobile/pages/order/custom_service_page.dart';
-import 'package:chupatu_mobile/pages/home/review_rating_section.dart'; // <-- FILE REVIEW ASLI
+import 'package:chupatu_mobile/pages/home/review_rating_section.dart';
 
 // WIDGET IMPORTS
 import 'package:chupatu_mobile/pages/home/widgets/shoe_tips_widget.dart';
@@ -198,7 +198,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           builder: (context, userSnapshot) {
 
             bool isPro = false;
-            String displayName = user?.displayName ?? 'Guest'; // Default Google Name
+            String displayName = user?.displayName ?? 'Guest';
             String photoURL = user?.photoURL ?? 'https://i.pravatar.cc/150';
             bool unreadNotif = true;
 
@@ -209,25 +209,29 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               String uRole = (userData['role'] ?? "").toString();
               isPro = (mType == 'Pro' || uRole == 'Pro');
 
-              // ==============================================================
-              // PERBAIKAN LOGIKA PENGAMBILAN NAMA DARI FIRESTORE
-              // Memprioritaskan Username/Nama yang diedit di profil daripada Google
-              // ==============================================================
               String dbUsername = (userData['username'] ?? '').toString().trim();
               String dbName = (userData['name'] ?? '').toString().trim();
               String dbDisplayName = (userData['displayName'] ?? '').toString().trim();
 
               if (dbUsername.isNotEmpty) {
-                displayName = dbUsername; // 1. Prioritas Pertama: Username Custom
+                displayName = dbUsername;
               } else if (dbName.isNotEmpty) {
-                displayName = dbName;     // 2. Prioritas Kedua: Nama Lengkap Custom
+                displayName = dbName;
               } else if (dbDisplayName.isNotEmpty) {
-                displayName = dbDisplayName; // 3. Prioritas Ketiga: Display Name Firebase
+                displayName = dbDisplayName;
               }
 
-              if (userData['photoURL'] != null && userData['photoURL'].toString().isNotEmpty) {
+              // --- FIX SINKRONISASI FOTO ---
+              // Cek penulisan photoUrl (kecil) dan photoURL (besar)
+              if (userData['photoUrl'] != null && userData['photoUrl'].toString().isNotEmpty) {
+                photoURL = userData['photoUrl'];
+              } else if (userData['photoURL'] != null && userData['photoURL'].toString().isNotEmpty) {
                 photoURL = userData['photoURL'];
               }
+
+              // Wajib Replace HTTP ke HTTPS biar gak ditolak Flutter
+              photoURL = photoURL.replaceAll("http://", "https://");
+              // -----------------------------
 
               if (userData.containsKey('hasUnreadNotif')) {
                 unreadNotif = userData['hasUnreadNotif'] == true;
@@ -252,7 +256,38 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
                             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                              GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())), child: Row(children: [Container(width: 50, height: 50, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: theme.surface, width: 2), image: DecorationImage(image: NetworkImage(photoURL), fit: BoxFit.cover), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)])), const SizedBox(width: 12), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_getGreeting(), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade600)), Row(children: [Text(displayName, style: GoogleFonts.plusJakartaSans(fontSize: 18, color: theme.textMain, fontWeight: FontWeight.w800)), if (isPro) ...[const SizedBox(width: 6), const Icon(Icons.verified, color: Colors.blue, size: 16)]])])])),
+                              GestureDetector(
+                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())),
+                                  child: Row(children: [
+                                    // --- FIX NETWORK IMAGE NGROK HEADERS ---
+                                    Container(
+                                        width: 50, height: 50,
+                                        decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: theme.surface, width: 2),
+                                            image: DecorationImage(
+                                                image: NetworkImage(
+                                                    photoURL,
+                                                    headers: const {
+                                                      'ngrok-skip-browser-warning': 'true',
+                                                      'User-Agent': 'ChupatuApp'
+                                                    }
+                                                ),
+                                                fit: BoxFit.cover
+                                            ),
+                                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]
+                                        )
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Text(_getGreeting(), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade600)),
+                                      Row(children: [
+                                        Text(displayName, style: GoogleFonts.plusJakartaSans(fontSize: 18, color: theme.textMain, fontWeight: FontWeight.w800)),
+                                        if (isPro) ...[const SizedBox(width: 6), const Icon(Icons.verified, color: Colors.blue, size: 16)]
+                                      ])
+                                    ])
+                                  ])
+                              ),
                               Row(children: [
                                 GestureDetector(onTap: () => _showThemePicker(context), child: Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Icon(Icons.palette_rounded, color: theme.primary, size: 20))),
                                 const SizedBox(width: 12),
@@ -379,7 +414,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // MEMANGGIL CLASS ASLI DARI FIREBASE (BUKAN DUMMY LAGI)
                                 const ReviewRatingSection(),
                               ],
                             ),
@@ -402,53 +436,228 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
 // --- HELPER METHODS ---
-  void _navigateToService(BuildContext context, String serviceName) {
-    int price = 0;
-    String description = "";
-    String imageUrl = "https://images.unsplash.com/photo-1542291026-7eec264c27ff";
+  Future<void> _navigateToService(BuildContext context, String serviceName) async {
+    // 1. Munculin loading muter-muter sebentar buat nunggu data dari Firebase
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+          child: CircularProgressIndicator(color: Colors.white)
+      ),
+    );
 
-    if (serviceName == 'Deep Clean') {
-      price = 40000;
-      description = "Perawatan cuci sepatu secara menyeluruh untuk semua jenis bahan.";
-      imageUrl = "https://images.unsplash.com/photo-1595341888016-a392ef81b7de?q=80&w=800";
-    }
-    else if (serviceName == 'Fast Clean') {
-      price = 25000;
-      description = "Pencucian cepat khusus bagian luar sepatu.";
-      imageUrl = "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=800";
-    }
-    else if (serviceName == 'Custom Painting' || serviceName == 'Custom') {
-      price = 30000;
-      description = "Layanan perawatan sepatu profesional dengan teknik khusus. Anda dapat merakit dan menggabungkan beberapa layanan sekaligus di halaman selanjutnya.";
-      imageUrl = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=800";
-    }
-    else {
-      price = 30000;
-      description = "Layanan perawatan sepatu profesional.";
-    }
+    try {
+      // 2. Set nilai bawaan (buat jaga-jaga kalau Firebase lagi error)
+      int price = 30000;
+      String description = "Layanan perawatan sepatu profesional.";
+      String imageUrl = "https://images.unsplash.com/photo-1542291026-7eec264c27ff";
 
-    Navigator.push(context, MaterialPageRoute(builder: (context) => ServiceDetailPage(serviceName: serviceName, price: price, description: description, imageUrl: imageUrl)));
+      // Set gambar estetik sesuai nama layanan
+      if (serviceName == 'Deep Clean') {
+        imageUrl = "https://images.unsplash.com/photo-1595341888016-a392ef81b7de?q=80&w=800";
+      } else if (serviceName == 'Fast Clean') {
+        imageUrl = "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=800";
+      } else if (serviceName == 'Custom Painting' || serviceName == 'Custom') {
+        imageUrl = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=800";
+      }
+
+      // 3. Tarik data ASLI dari Firebase (cari yang namanya sama persis)
+      var querySnapshot = await FirebaseFirestore.instance
+          .collection('services')
+          .where('name', isEqualTo: serviceName)
+          .limit(1)
+          .get();
+
+      // 4. Tutup loading dialog
+      if (context.mounted) Navigator.pop(context);
+
+      // 5. Timpa nilai default pakai data dari Admin Firebase (kalau ketemu)
+      if (querySnapshot.docs.isNotEmpty) {
+        var data = querySnapshot.docs.first.data();
+
+        if (data['price'] != null) {
+          price = int.tryParse(data['price'].toString()) ?? price;
+        }
+        if (data['description'] != null && data['description'].toString().isNotEmpty) {
+          description = data['description'];
+        }
+      } else {
+        debugPrint("Layanan $serviceName belum disetting di Firebase. Pakai harga default.");
+      }
+
+      // 6. Lempar semua datanya dan pindah ke halaman Detail Service
+      if (context.mounted) {
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) => ServiceDetailPage(
+                    serviceName: serviceName,
+                    price: price,
+                    description: description,
+                    imageUrl: imageUrl
+                )
+            )
+        );
+      }
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context); // Pastiin loading ketutup kalau error
+      debugPrint("Error Fetching Service Price: $e");
+    }
   }
 
   Widget _buildLottieServiceItem(String fileName, String label, AppThemeData theme, Color itemColor, IconData fallbackIcon, VoidCallback onTap) {
-    return GestureDetector(onTap: onTap, child: Column(children: [Expanded(child: Container(width: double.infinity, padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: itemColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: itemColor.withOpacity(0.3)), boxShadow: [BoxShadow(color: itemColor.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4))]), child: Lottie.asset('assets/lottie/$fileName', fit: BoxFit.contain, errorBuilder: (c, e, s) => Icon(fallbackIcon, color: itemColor, size: 30)))), const SizedBox(height: 8), Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: theme.textMain))]));
+    return GestureDetector(
+        onTap: onTap,
+        child: Column(
+            children: [
+              Expanded(
+                  child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                          color: itemColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: itemColor.withOpacity(0.3)),
+                          boxShadow: [
+                            BoxShadow(color: itemColor.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4))
+                          ]
+                      ),
+                      child: Lottie.asset(
+                          'assets/lottie/$fileName',
+                          fit: BoxFit.contain,
+                          errorBuilder: (c, e, s) => Icon(fallbackIcon, color: itemColor, size: 30)
+                      )
+                  )
+              ),
+              const SizedBox(height: 8),
+              Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textMain
+                  )
+              )
+            ]
+        )
+    );
   }
 
   Widget _buildChupatuPro(AppThemeData theme) {
-    return Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFFFF9E6), Color(0xFFFDF4D4)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(24), border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.4)), boxShadow: [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.15), blurRadius: 20, offset: const Offset(0, 8))]), child: Row(children: [Container(height: 60, width: 60, padding: const EdgeInsets.all(8), decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)]), child: Lottie.asset('assets/lottie/trophy.json', fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.emoji_events, color: Color(0xFFD4AF37), size: 30))), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Join Chupatu Pro', style: GoogleFonts.plusJakartaSans(color: const Color(0xFF0B0F19), fontWeight: FontWeight.w800, fontSize: 16)), Text('Priority service & Gold status.', style: GoogleFonts.plusJakartaSans(color: Colors.grey.shade600, fontSize: 12))])), AnimatedBuilder(animation: _upgradeAnimController, builder: (context, child) { double scale = 1.0 + (_upgradeAnimController.value * 0.1); double rotate = math.sin(_upgradeAnimController.value * math.pi * 2) * 0.05; return Transform.scale(scale: scale, child: Transform.rotate(angle: rotate, child: GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberPaymentPage(onPaymentSuccess: (){}))), child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), decoration: BoxDecoration(color: const Color(0xFF1E1E2C), borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5, offset: const Offset(0, 3))]), child: Text("Upgrade", style: GoogleFonts.plusJakartaSans(color: const Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 12)))))); })])));
+    return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [Color(0xFFFFF9E6), Color(0xFFFDF4D4)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.4)),
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.15), blurRadius: 20, offset: const Offset(0, 8))
+                ]
+            ),
+            child: Row(
+                children: [
+                  Container(
+                      height: 60, width: 60, padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                          color: Colors.white, shape: BoxShape.circle,
+                          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)]
+                      ),
+                      child: Lottie.asset(
+                          'assets/lottie/trophy.json',
+                          fit: BoxFit.contain,
+                          errorBuilder: (c, e, s) => const Icon(Icons.emoji_events, color: Color(0xFFD4AF37), size: 30)
+                      )
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Join Chupatu Pro', style: GoogleFonts.plusJakartaSans(color: const Color(0xFF0B0F19), fontWeight: FontWeight.w800, fontSize: 16)),
+                            Text('Priority service & Gold status.', style: GoogleFonts.plusJakartaSans(color: Colors.grey.shade600, fontSize: 12))
+                          ]
+                      )
+                  ),
+                  AnimatedBuilder(
+                      animation: _upgradeAnimController,
+                      builder: (context, child) {
+                        double scale = 1.0 + (_upgradeAnimController.value * 0.1);
+                        double rotate = math.sin(_upgradeAnimController.value * math.pi * 2) * 0.05;
+                        return Transform.scale(
+                            scale: scale,
+                            child: Transform.rotate(
+                                angle: rotate,
+                                child: GestureDetector(
+                                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MemberPaymentPage(onPaymentSuccess: (){}))),
+                                    child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                        decoration: BoxDecoration(
+                                            color: const Color(0xFF1E1E2C),
+                                            borderRadius: BorderRadius.circular(20),
+                                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 5, offset: const Offset(0, 3))]
+                                        ),
+                                        child: Text("Upgrade", style: GoogleFonts.plusJakartaSans(color: const Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 12))
+                                    )
+                                )
+                            )
+                        );
+                      }
+                  )
+                ]
+            )
+        )
+    );
   }
 
   Widget _buildImageBanner(String imgUrl, String title, String subtitle, Color accentColor) {
     return Container(
         margin: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: accentColor.withOpacity(0.25), blurRadius: 15, offset: const Offset(0, 8))]),
+        decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [BoxShadow(color: accentColor.withOpacity(0.25), blurRadius: 15, offset: const Offset(0, 8))]
+        ),
         child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: Stack(
                 children: [
                   Image.network(imgUrl, width: double.infinity, height: double.infinity, fit: BoxFit.cover),
-                  Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [accentColor.withOpacity(0.9), accentColor.withOpacity(0.2)]))),
-                  Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white.withOpacity(0.25), borderRadius: BorderRadius.circular(8)), child: Text('PROMO', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))), const SizedBox(height: 8), Text(title, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)), const SizedBox(height: 4), Text(subtitle, style: GoogleFonts.plusJakartaSans(color: Colors.white.withOpacity(0.95), fontSize: 12))]))
+                  Container(
+                      decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: [accentColor.withOpacity(0.9), accentColor.withOpacity(0.2)]
+                          )
+                      )
+                  ),
+                  Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.25),
+                                    borderRadius: BorderRadius.circular(8)
+                                ),
+                                child: Text('PROMO', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))
+                            ),
+                            const SizedBox(height: 8),
+                            Text(title, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            Text(subtitle, style: GoogleFonts.plusJakartaSans(color: Colors.white.withOpacity(0.95), fontSize: 12))
+                          ]
+                      )
+                  )
                 ]
             )
         )

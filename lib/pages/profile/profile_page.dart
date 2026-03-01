@@ -15,6 +15,12 @@ class ApiConfig {
   static const String baseUrl =
       'https://malik-pseudomonocyclic-misti.ngrok-free.dev/api';
   static const String uploadUrl = '$baseUrl/upload';
+
+  // TAMBAHAN: Header global Ngrok untuk Profile
+  static const Map<String, String> ngrokHeaders = {
+    'ngrok-skip-browser-warning': 'true',
+    'User-Agent': 'ChupatuApp'
+  };
 }
 
 class ProfilePage extends StatefulWidget {
@@ -26,7 +32,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool _isUpdatingPhoto = false;
-  File? _localImageFile; // TAMBAHAN: Buat nampung foto lokal HP biar instan
+  File? _localImageFile;
 
   // --- FUNGSI UPDATE FOTO PROFIL KE LARAVEL & FIREBASE ---
   Future<void> _updateProfilePicture() async {
@@ -39,7 +45,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (image == null) return;
 
-    // LANGSUNG TAMPILIN FOTO LOKAL KE UI DETIK ITU JUGA
     setState(() {
       _localImageFile = File(image.path);
       _isUpdatingPhoto = true;
@@ -49,10 +54,10 @@ class _ProfilePageState extends State<ProfilePage> {
       var request = http.MultipartRequest(
           'POST', Uri.parse(ApiConfig.uploadUrl));
 
-      request.files.add(await http.MultipartFile.fromPath(
-          'foto', image.path));
-
-      request.fields['kategori'] = 'profile_pictures';
+      // Kasih tau Laravel kalau kita nerima JSON
+      request.headers.addAll({'Accept': 'application/json'});
+      request.files.add(await http.MultipartFile.fromPath('foto', image.path));
+      request.fields['kategori'] = 'profil';
 
       var response = await request.send();
 
@@ -60,9 +65,10 @@ class _ProfilePageState extends State<ProfilePage> {
         var resData = await response.stream.bytesToString();
         var jsonRes = json.decode(resData);
 
-        // --- TRIK CACHE BUSTING ---
+        // Paksa HTTPS biar gak diblokir Flutter
+        String baseUploadUrl = jsonRes['url'].toString().replaceAll("http://", "https://");
         String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-        String newUrl = "${jsonRes['url']}?v=$timestamp";
+        String newUrl = "$baseUploadUrl?v=$timestamp";
 
         // 1. Update ke Firestore
         await FirebaseFirestore.instance.collection('users')
@@ -75,19 +81,27 @@ class _ProfilePageState extends State<ProfilePage> {
         await freshUser.reload();
 
         if (mounted) {
-          // Bersihin memori cache paksa
           PaintingBinding.instance.imageCache.clear();
           PaintingBinding.instance.imageCache.clearLiveImages();
 
-          setState(() {});
+          // Setelah sukses upload, kita kosongin file lokal biar dia maksa ambil dari URL
+          setState(() {
+            _localImageFile = null;
+          });
+
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                   content: Text("Foto Profil Berhasil Diperbarui! ✨"),
                   backgroundColor: Colors.green));
         }
+      } else {
+        throw "Gagal upload. Status: ${response.statusCode}";
       }
     } catch (e) {
       debugPrint("Error Ganti Profil: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red));
+      }
     } finally {
       if (mounted) setState(() => _isUpdatingPhoto = false);
     }
@@ -393,14 +407,17 @@ class _ProfilePageState extends State<ProfilePage> {
                                     shape: BoxShape.circle,
                                     color: theme.primary.withOpacity(0.1),
                                     border: Border.all(color: theme.primary, width: 2),
-                                    // PRIORITAS: Tampilkan Foto Lokal HP dulu!
+                                    // PERBAIKAN: NetworkImage sekarang bawa HTTPS + Ngrok Headers
                                     image: _localImageFile != null
                                         ? DecorationImage(
                                         image: FileImage(_localImageFile!),
                                         fit: BoxFit.cover)
                                         : (photoUrl != null
                                         ? DecorationImage(
-                                        image: NetworkImage(photoUrl),
+                                        image: NetworkImage(
+                                            photoUrl.replaceAll("http://", "https://"),
+                                            headers: ApiConfig.ngrokHeaders
+                                        ),
                                         fit: BoxFit.cover)
                                         : null),
                                   ),
