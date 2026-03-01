@@ -6,12 +6,16 @@ import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/booking_page.dart';
 
 class CustomServicePage extends StatefulWidget {
-  // 1. Tambahkan parameter opsional untuk saran AI
+  // 1. Parameter untuk saran AI
   final String? aiRecommendation;
+
+  // 2. PARAMETER BARU UNTUK TRANSIT DATA SEPATU DARI GARASI
+  final Map<String, dynamic>? selectedShoe;
 
   const CustomServicePage({
     super.key,
-    this.aiRecommendation, // Ditangkap di sini
+    this.aiRecommendation,
+    this.selectedShoe, // Tangkap di sini
   });
 
   @override
@@ -60,6 +64,8 @@ class _CustomServicePageState extends State<CustomServicePage> {
         builder: (context) => BookingPage(
           serviceName: "Custom: $combinedNames",
           basePrice: _totalPrice,
+          // 3. LEMPAR DATA SEPATU KE BOOKING PAGE
+          selectedShoe: widget.selectedShoe,
         ),
       ),
     );
@@ -87,7 +93,7 @@ class _CustomServicePageState extends State<CustomServicePage> {
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- WIDGET REKOMENDASI AI (BARU) ---
+              // --- WIDGET REKOMENDASI AI ---
               if (widget.aiRecommendation != null)
                 Container(
                   width: double.infinity,

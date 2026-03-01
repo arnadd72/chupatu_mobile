@@ -15,7 +15,6 @@ import 'package:chupatu_mobile/pages/order/payment_page.dart';
 // --- VARIABEL GLOBAL DRAFT ---
 Map<String, dynamic> _bookingDraft = {};
 
-// Sesuai config lo di Quick Order
 class ApiConfig {
   static const String baseUrl =
       'https://malik-pseudomonocyclic-misti.ngrok-free.dev/api';
@@ -26,10 +25,14 @@ class BookingPage extends StatefulWidget {
   final String serviceName;
   final int basePrice;
 
+  // --- 1. TAMBAHAN PARAMETER DARI MY GARAGE ---
+  final Map<String, dynamic>? selectedShoe;
+
   const BookingPage({
     super.key,
     required this.serviceName,
     required this.basePrice,
+    this.selectedShoe, // Inisialisasi di sini
   });
 
   @override
@@ -60,21 +63,39 @@ class _BookingPageState extends State<BookingPage> {
 
   bool _isLocating = false;
   bool _isLoadingUserData = true;
-  bool _isUploading = false; // Flag buat loading upload
+  bool _isUploading = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+
+    // --- 2. CEK DAN ISI OTOMATIS DATA DARI MY GARAGE ---
+    if (widget.selectedShoe != null) {
+      // Gabungin nama brand dan nama sepatu ke dalam satu textfield
+      String brand = widget.selectedShoe!['brand'] ?? '';
+      String name = widget.selectedShoe!['name'] ?? '';
+      _shoeDetailController.text = "$brand - $name";
+
+      // Notes kalau ada dari garasi, kita tambahin juga
+      if (widget.selectedShoe!['note'] != null) {
+        _noteController.text = widget.selectedShoe!['note'];
+      }
+    }
   }
 
-  // --- FUNGSI UPLOAD (NYAWA BARU) ---
+  // --- FUNGSI UPLOAD ---
   Future<String?> _uploadFotoKeLaravel() async {
+    // Kalau pesen dari garasi, foto dari HP (_selectedImage) pasti kosong.
+    // Kita langsung balikin link foto yang udah ada di garasi.
+    if (widget.selectedShoe != null && widget.selectedShoe!['image'] != null) {
+      return widget.selectedShoe!['image'];
+    }
+
     if (_selectedImage == null) return null;
     try {
       var request = http.MultipartRequest('POST', Uri.parse(ApiConfig.uploadUrl));
-      request.files.add(await http.MultipartFile.fromPath(
-          'foto', _selectedImage!.path));
+      request.files.add(await http.MultipartFile.fromPath('foto', _selectedImage!.path));
       request.fields['kategori'] = 'order_customer';
 
       var response = await request.send();
@@ -96,8 +117,7 @@ class _BookingPageState extends State<BookingPage> {
       final user = FirebaseAuth.instance.currentUser;
       Map<String, dynamic> userData = {};
       if (user != null) {
-        final doc = await FirebaseFirestore.instance
-            .collection('users').doc(user.uid).get();
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
         if (doc.exists) userData = doc.data()!;
       }
 
@@ -128,8 +148,7 @@ class _BookingPageState extends State<BookingPage> {
     showModalBottomSheet(
       context: context,
       backgroundColor: theme.surface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(20),
@@ -137,20 +156,15 @@ class _BookingPageState extends State<BookingPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Pilih Alamat Tersimpan",
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+              Text("Pilih Alamat Tersimpan", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
               const SizedBox(height: 16),
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('users').doc(user.uid)
-                      .collection('addresses').orderBy('createdAt', descending: true).snapshots(),
+                  stream: FirebaseFirestore.instance.collection('users').doc(user.uid).collection('addresses').orderBy('createdAt', descending: true).snapshots(),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting)
-                      return const Center(child: CircularProgressIndicator());
+                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return Center(child: Text("Belum ada alamat tersimpan.",
-                          style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
+                      return Center(child: Text("Belum ada alamat tersimpan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
                     }
 
                     return ListView.separated(
@@ -161,13 +175,8 @@ class _BookingPageState extends State<BookingPage> {
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(Icons.location_on_outlined, color: theme.primary),
-                          title: Text(data['label'] ?? 'Alamat',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontWeight: FontWeight.bold, color: theme.textMain)),
-                          subtitle: Text("${data['fullAddress']}\n(${data['detail']})",
-                              maxLines: 2, overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
-                                  color: Colors.grey.shade600, fontSize: 12)),
+                          title: Text(data['label'] ?? 'Alamat', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+                          subtitle: Text("${data['fullAddress']}\n(${data['detail']})", maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(color: Colors.grey.shade600, fontSize: 12)),
                           onTap: () {
                             setState(() {
                               _mainAddressController.text = data['fullAddress'] ?? '';
@@ -195,12 +204,10 @@ class _BookingPageState extends State<BookingPage> {
     String currentDetail = _detailAddressController.text.trim();
     if (currentAddress.isEmpty) return;
 
-    final query = await FirebaseFirestore.instance.collection('users').doc(user.uid)
-        .collection('addresses').where('fullAddress', isEqualTo: currentAddress).get();
+    final query = await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('addresses').where('fullAddress', isEqualTo: currentAddress).get();
 
     if (query.docs.isEmpty) {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid)
-          .collection('addresses').add({
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('addresses').add({
         'label': 'Alamat Baru (${DateFormat('dd/MM').format(DateTime.now())})',
         'fullAddress': currentAddress,
         'detail': currentDetail,
@@ -211,12 +218,16 @@ class _BookingPageState extends State<BookingPage> {
 
   void _loadDraft() {
     setState(() {
-      _shoeDetailController.text = _bookingDraft['shoeDetail'] ?? '';
-      _noteController.text = _bookingDraft['note'] ?? '';
+      // Jangan timpa text kalau udah diisi dari garasi
+      if (widget.selectedShoe == null) {
+        _shoeDetailController.text = _bookingDraft['shoeDetail'] ?? '';
+        _noteController.text = _bookingDraft['note'] ?? '';
+        _selectedCategory = _bookingDraft['category'] ?? 'Sneakers';
+      }
+
       _mainAddressController.text = _bookingDraft['mainAddress'] ?? '';
       _detailAddressController.text = _bookingDraft['detailAddress'] ?? '';
       _phoneController.text = _bookingDraft['phoneNumber'] ?? '';
-      _selectedCategory = _bookingDraft['category'] ?? 'Sneakers';
       _selectedTime = _bookingDraft['time'] ?? 'Pagi (09-12)';
       _isDeliveryIncluded = _bookingDraft['isDelivery'] ?? true;
     });
@@ -275,14 +286,11 @@ class _BookingPageState extends State<BookingPage> {
   Future<void> _getCurrentLocation() async {
     setState(() => _isLocating = true);
     try {
-      Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude, position.longitude);
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
-        String mainAddress = "${place.street}, ${place.subLocality}, ${place.locality}, "
-            "${place.subAdministrativeArea}, ${place.postalCode}";
+        String mainAddress = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.subAdministrativeArea}, ${place.postalCode}";
         setState(() => _mainAddressController.text = mainAddress);
       }
     } catch (e) {
@@ -298,24 +306,19 @@ class _BookingPageState extends State<BookingPage> {
         _detailAddressController.text.isEmpty ||
         _phoneController.text.isEmpty ||
         _selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Mohon lengkapi semua data!"),
-              backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mohon lengkapi semua data!"), backgroundColor: Colors.red));
       return;
     }
 
     setState(() => _isUploading = true);
 
-    // 1. TANGKAP URL DARI LARAVEL
-    String? urlFotoLaravel;
-    if (_selectedImage != null) {
-      urlFotoLaravel = await _uploadFotoKeLaravel(); // Kita simpan hasilnya di sini
-      if (urlFotoLaravel == null) {
-        setState(() => _isUploading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Gagal upload foto ke server!")));
-        return;
-      }
+    String? urlFotoLaravel = await _uploadFotoKeLaravel();
+
+    // Kalau bukan dari garasi dan belum upload foto
+    if (widget.selectedShoe == null && urlFotoLaravel == null && _selectedImage != null) {
+      setState(() => _isUploading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal upload foto ke server!")));
+      return;
     }
 
     await _checkAndSaveNewAddress();
@@ -323,14 +326,16 @@ class _BookingPageState extends State<BookingPage> {
 
     if (!mounted) return;
 
-    // 2. KIRIM URL TERSEBUT KE PAYMENT PAGE
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => PaymentPage(
           serviceName: widget.serviceName,
           basePrice: widget.basePrice,
-          category: _selectedCategory,
+
+          // --- 3. AMBIL KATEGORI SEPATU DARI GARASI (JIKA ADA) ---
+          category: widget.selectedShoe != null ? "My Garage" : _selectedCategory,
+
           shoeDetail: _shoeDetailController.text,
           notes: _noteController.text,
           pickupDate: _selectedDate!,
@@ -340,7 +345,7 @@ class _BookingPageState extends State<BookingPage> {
           detailAddress: _detailAddressController.text,
           shoeImageFile: _selectedImage,
           phoneNumber: _phoneController.text,
-          shoeImageUrl: urlFotoLaravel, // Tambahkan parameter baru ini!
+          shoeImageUrl: urlFotoLaravel,
         ),
       ),
     );
@@ -366,6 +371,9 @@ class _BookingPageState extends State<BookingPage> {
     final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     String formattedPrice = currencyFormatter.format(widget.basePrice);
 
+    // Status apakah user order lewat My Garage atau ngga
+    bool isFromGarage = widget.selectedShoe != null;
+
     return WillPopScope(
       onWillPop: _onWillPop,
       child: ValueListenableBuilder<AppThemeData>(
@@ -390,44 +398,37 @@ class _BookingPageState extends State<BookingPage> {
                   children: [
                     Container(
                       padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                          color: theme.primary.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: theme.primary.withOpacity(0.2))
-                      ),
+                      decoration: BoxDecoration(color: theme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(20), border: Border.all(color: theme.primary.withOpacity(0.2))),
                       child: Row(
                           children: [
-                            Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: theme.primary.withOpacity(0.2), shape: BoxShape.circle),
-                                child: Icon(Icons.cleaning_services_rounded, color: theme.primary, size: 28)
-                            ),
+                            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: theme.primary.withOpacity(0.2), shape: BoxShape.circle), child: Icon(Icons.cleaning_services_rounded, color: theme.primary, size: 28)),
                             const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(widget.serviceName, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 18, color: theme.textMain), maxLines: 2, overflow: TextOverflow.ellipsis),
-                                    const SizedBox(height: 4),
-                                    Text(formattedPrice, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.primary))
-                                  ]
-                              ),
-                            )
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(widget.serviceName, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 18, color: theme.textMain), maxLines: 2, overflow: TextOverflow.ellipsis), const SizedBox(height: 4), Text(formattedPrice, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.primary))]))
                           ]
                       ),
                     ),
 
                     _buildSectionTitle("Detail Sepatu", theme),
-                    _buildLabel("Kategori", theme),
-                    Wrap(spacing: 10, runSpacing: 0, children: _shoeCategories.map((category) { bool isSelected = _selectedCategory == category; return ChoiceChip(label: Text(category), labelStyle: GoogleFonts.plusJakartaSans(color: isSelected ? Colors.white : theme.textMain, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal), selected: isSelected, onSelected: (selected) { if (selected) setState(() => _selectedCategory = category); }, selectedColor: theme.primary, backgroundColor: theme.background, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Colors.transparent : Colors.grey.shade300))); }).toList()),
-                    const SizedBox(height: 16),
+
+                    // --- 4. SEMBUNYIKAN PILIHAN JIKA DARI GARAGE ---
+                    if (!isFromGarage) ...[
+                      _buildLabel("Kategori", theme),
+                      Wrap(spacing: 10, runSpacing: 0, children: _shoeCategories.map((category) { bool isSelected = _selectedCategory == category; return ChoiceChip(label: Text(category), labelStyle: GoogleFonts.plusJakartaSans(color: isSelected ? Colors.white : theme.textMain, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal), selected: isSelected, onSelected: (selected) { if (selected) setState(() => _selectedCategory = category); }, selectedColor: theme.primary, backgroundColor: theme.background, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Colors.transparent : Colors.grey.shade300))); }).toList()),
+                      const SizedBox(height: 16),
+                    ],
+
                     _buildLabel("Merk & Tipe Spesifik", theme),
-                    _buildTextField(controller: _shoeDetailController, hint: "Contoh: Nike Air Jordan 1 High Panda", icon: Icons.edit_note_rounded, theme: theme),
+                    // Jika dari garasi, field ini di-lock (readOnly: true)
+                    _buildTextField(controller: _shoeDetailController, hint: "Contoh: Nike Air Jordan 1 High Panda", icon: Icons.edit_note_rounded, theme: theme, readOnly: isFromGarage),
                     const SizedBox(height: 16),
-                    _buildLabel("Foto Sepatu (Opsional)", theme),
-                    GestureDetector(onTap: _pickImage, child: Container(height: 150, width: double.infinity, decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade300), image: _selectedImage != null ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover) : null), child: _selectedImage == null ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_photo_alternate_rounded, color: theme.primary, size: 40), const SizedBox(height: 8), Text("Tap untuk upload foto", style: GoogleFonts.plusJakartaSans(color: Colors.grey))]) : null)),
-                    if (_selectedImage != null) Padding(padding: const EdgeInsets.only(top: 8), child: GestureDetector(onTap: () => setState(() => _selectedImage = null), child: Text("Hapus Foto", style: GoogleFonts.plusJakartaSans(color: Colors.red, fontWeight: FontWeight.bold)))),
-                    const SizedBox(height: 16),
+
+                    if (!isFromGarage) ...[
+                      _buildLabel("Foto Sepatu (Opsional)", theme),
+                      GestureDetector(onTap: _pickImage, child: Container(height: 150, width: double.infinity, decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade300), image: _selectedImage != null ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover) : null), child: _selectedImage == null ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_photo_alternate_rounded, color: theme.primary, size: 40), const SizedBox(height: 8), Text("Tap untuk upload foto", style: GoogleFonts.plusJakartaSans(color: Colors.grey))]) : null)),
+                      if (_selectedImage != null) Padding(padding: const EdgeInsets.only(top: 8), child: GestureDetector(onTap: () => setState(() => _selectedImage = null), child: Text("Hapus Foto", style: GoogleFonts.plusJakartaSans(color: Colors.red, fontWeight: FontWeight.bold)))),
+                      const SizedBox(height: 16),
+                    ],
+
                     _buildLabel("Catatan Khusus", theme),
                     _buildTextField(controller: _noteController, hint: "Misal: Noda di midsole susah hilang...", icon: Icons.note_alt_outlined, theme: theme, maxLines: 2),
                     const SizedBox(height: 30), const Divider(), const SizedBox(height: 20),
@@ -467,8 +468,27 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
-  // --- REPRODUKSI EXACT HELPER WIDGETS LO ---
+  // --- REPRODUKSI EXACT HELPER WIDGETS LO (Tambahan readOnly) ---
   Widget _buildSectionTitle(String title, AppThemeData theme) { return Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain))); }
   Widget _buildLabel(String text, AppThemeData theme) { return Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(text, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade600))); }
-  Widget _buildTextField({required TextEditingController controller, required String hint, required IconData icon, required AppThemeData theme, int maxLines = 1, bool isNumber = false}) { return TextField(controller: controller, maxLines: maxLines, keyboardType: isNumber ? TextInputType.phone : TextInputType.text, style: GoogleFonts.plusJakartaSans(color: theme.textMain), decoration: InputDecoration(hintText: hint, hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey.shade400, fontSize: 13), prefixIcon: Padding(padding: const EdgeInsets.only(top: 12), child: Icon(icon, color: Colors.grey.shade400, size: 22)), filled: true, fillColor: theme.surface, contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: theme.primary)))); }
+  Widget _buildTextField({required TextEditingController controller, required String hint, required IconData icon, required AppThemeData theme, int maxLines = 1, bool isNumber = false, bool readOnly = false}) {
+    return TextField(
+        controller: controller,
+        maxLines: maxLines,
+        keyboardType: isNumber ? TextInputType.phone : TextInputType.text,
+        readOnly: readOnly, // Di-lock kalo dari My Garage
+        style: GoogleFonts.plusJakartaSans(color: readOnly ? Colors.grey : theme.textMain),
+        decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey.shade400, fontSize: 13),
+            prefixIcon: Padding(padding: const EdgeInsets.only(top: 12), child: Icon(icon, color: Colors.grey.shade400, size: 22)),
+            filled: true,
+            fillColor: readOnly ? Colors.grey.shade100 : theme.surface,
+            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: theme.primary))
+        )
+    );
+  }
 }

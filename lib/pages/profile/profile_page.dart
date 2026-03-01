@@ -26,6 +26,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool _isUpdatingPhoto = false;
+  File? _localImageFile; // TAMBAHAN: Buat nampung foto lokal HP biar instan
 
   // --- FUNGSI UPDATE FOTO PROFIL KE LARAVEL & FIREBASE ---
   Future<void> _updateProfilePicture() async {
@@ -38,7 +39,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (image == null) return;
 
-    setState(() => _isUpdatingPhoto = true);
+    // LANGSUNG TAMPILIN FOTO LOKAL KE UI DETIK ITU JUGA
+    setState(() {
+      _localImageFile = File(image.path);
+      _isUpdatingPhoto = true;
+    });
 
     try {
       var request = http.MultipartRequest(
@@ -70,6 +75,10 @@ class _ProfilePageState extends State<ProfilePage> {
         await freshUser.reload();
 
         if (mounted) {
+          // Bersihin memori cache paksa
+          PaintingBinding.instance.imageCache.clear();
+          PaintingBinding.instance.imageCache.clearLiveImages();
+
           setState(() {});
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -351,7 +360,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     userData = snapshot.data!.data() as Map<String, dynamic>;
                   }
 
-                  // --- LOGIKA DATA (FIXED: NO DUPLICATE DECLARATION) ---
                   String name = userData['name'] ?? freshUser?.displayName ?? "Pelanggan";
                   String username = userData['username'] ?? "";
                   String bio = userData['bio'] ?? "";
@@ -360,12 +368,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   String birthdate = userData['birthdate'] ?? "";
                   bool isPro = (userData['memberType'] == 'Pro');
 
-                  // --- LOGIKA PHOTO URL ---
                   String? photoUrl;
                   if (userData['photoUrl'] != null && userData['photoUrl'] != "") {
-                    photoUrl = userData['photoUrl']; // Ambil dari Firestore
+                    photoUrl = userData['photoUrl'];
                   } else {
-                    photoUrl = freshUser?.photoURL; // Fallback ke Auth
+                    photoUrl = freshUser?.photoURL;
                   }
 
                   return SingleChildScrollView(
@@ -380,23 +387,27 @@ class _ProfilePageState extends State<ProfilePage> {
                               GestureDetector(
                                 onTap: _isUpdatingPhoto ? null : _updateProfilePicture,
                                 child: Container(
-                                  // VALUE KEY: Penting agar Flutter buang cache lama
                                   key: ValueKey(photoUrl),
                                   width: 100, height: 100,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: theme.primary.withOpacity(0.1),
                                     border: Border.all(color: theme.primary, width: 2),
-                                    image: photoUrl != null
+                                    // PRIORITAS: Tampilkan Foto Lokal HP dulu!
+                                    image: _localImageFile != null
+                                        ? DecorationImage(
+                                        image: FileImage(_localImageFile!),
+                                        fit: BoxFit.cover)
+                                        : (photoUrl != null
                                         ? DecorationImage(
                                         image: NetworkImage(photoUrl),
                                         fit: BoxFit.cover)
-                                        : null,
+                                        : null),
                                   ),
                                   child: _isUpdatingPhoto
                                       ? Center(child: CircularProgressIndicator(
                                       strokeWidth: 3, color: theme.primary))
-                                      : (photoUrl == null
+                                      : (_localImageFile == null && photoUrl == null
                                       ? Icon(Icons.person, size: 50, color: theme.primary)
                                       : null),
                                 ),
