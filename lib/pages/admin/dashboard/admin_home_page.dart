@@ -12,7 +12,7 @@ import 'package:chupatu_mobile/pages/auth/landing_page.dart';
 import 'package:chupatu_mobile/pages/admin/orders/admin_order_detail_page.dart';
 import 'package:chupatu_mobile/pages/admin/dashboard/admin_chat_page.dart';
 import 'package:chupatu_mobile/pages/admin/management/admin_management_page.dart';
-import 'package:chupatu_mobile/pages/admin/widgets/admin_glass_theme.dart'; // Tetap di-import meski tidak dipakai disini agar tidak error jika ada ref lain
+import 'package:chupatu_mobile/pages/admin/widgets/admin_glass_theme.dart';
 import 'package:chupatu_mobile/pages/admin/orders/admin_order_list_page.dart';
 import 'package:chupatu_mobile/pages/admin/pos/admin_pos_page.dart';
 import 'package:chupatu_mobile/pages/admin/inventory/admin_inventory_page.dart';
@@ -31,13 +31,21 @@ class _AdminHomePageState extends State<AdminHomePage> {
   int _selectedIndex = 0;
 
   Future<void> _handleLogout() async {
-    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+    showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator())
+    );
     try {
       await GoogleSignIn().signOut();
       await FirebaseAuth.instance.signOut();
       if (mounted) {
         Navigator.pop(context);
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LandingPage()), (route) => false);
+        Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LandingPage()),
+                (route) => false
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -77,15 +85,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
             const AdminManagementPage(),
           ];
 
-          // PERUBAHAN: Gunakan Scaffold biasa (Bukan AdminGlassScaffold) agar super ringan
           return Scaffold(
             backgroundColor: theme.background,
             appBar: AppBar(
               automaticallyImplyLeading: false,
-              backgroundColor: theme.surface, // Warna solid
+              backgroundColor: theme.surface,
               elevation: 0,
-              // PERUBAHAN: Hapus flexibleSpace kaca (BackdropFilter)
-
               title: PopupMenuButton<String>(
                 offset: const Offset(0, 50),
                 color: theme.surface,
@@ -94,31 +99,65 @@ class _AdminHomePageState extends State<AdminHomePage> {
                   if (value == 'logout') {
                     _showLogoutConfirmDialog();
                   } else if (value == 'settings') {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminSettingsPage())).then((_) => setState((){}));
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const AdminSettingsPage())
+                    ).then((_) => setState((){}));
                   }
                 },
                 itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                  PopupMenuItem<String>(value: 'settings', child: Row(children: [Icon(Icons.settings_outlined, color: theme.textMain, size: 20), const SizedBox(width: 12), Text('Pengaturan', style: GoogleFonts.plusJakartaSans(color: theme.textMain))])),
+                  PopupMenuItem<String>(
+                      value: 'settings',
+                      child: Row(
+                          children: [
+                            Icon(Icons.settings_outlined, color: theme.textMain, size: 20),
+                            const SizedBox(width: 12),
+                            Text('Pengaturan', style: GoogleFonts.plusJakartaSans(color: theme.textMain))
+                          ]
+                      )
+                  ),
                   const PopupMenuDivider(),
-                  PopupMenuItem<String>(value: 'logout', child: Row(children: [const Icon(Icons.logout, color: Colors.red, size: 20), const SizedBox(width: 12), Text('Keluar Akun', style: GoogleFonts.plusJakartaSans(color: Colors.red, fontWeight: FontWeight.bold))])),
+                  PopupMenuItem<String>(
+                      value: 'logout',
+                      child: Row(
+                          children: [
+                            const Icon(Icons.logout, color: Colors.red, size: 20),
+                            const SizedBox(width: 12),
+                            Text('Keluar Akun', style: GoogleFonts.plusJakartaSans(color: Colors.red, fontWeight: FontWeight.bold))
+                          ]
+                      )
+                  ),
                 ],
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CircleAvatar(
                       backgroundColor: theme.primary.withOpacity(0.2),
-                      backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
-                      child: user?.photoURL == null ? Icon(Icons.person, color: theme.primary) : null,
+                      // --- PERBAIKAN 1: Foto Profil Admin (Bypass Ngrok + Null Check) ---
+                      backgroundImage: (user?.photoURL != null && user!.photoURL!.isNotEmpty)
+                          ? NetworkImage(
+                          user.photoURL!.replaceAll("http://", "https://"),
+                          headers: const {
+                            'ngrok-skip-browser-warning': 'true',
+                            'User-Agent': 'ChupatuApp'
+                          }
+                      )
+                          : null,
+                      child: (user?.photoURL == null || user!.photoURL!.isEmpty)
+                          ? Icon(Icons.person, color: theme.primary)
+                          : null,
                     ),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
-                          Text("Halo, ", style: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.grey)),
-                          Text(displayName, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textMain)),
-                          const Icon(Icons.arrow_drop_down, color: Colors.grey, size: 18)
-                        ]),
+                        Row(
+                            children: [
+                              Text("Halo, ", style: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.grey)),
+                              Text(displayName, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textMain)),
+                              const Icon(Icons.arrow_drop_down, color: Colors.grey, size: 18)
+                            ]
+                        ),
                       ],
                     ),
                   ],
@@ -126,7 +165,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
               ),
 
               actions: [
-                // --- PERUBAHAN: TOMBOL SWITCH LIGHT/DARK KHUSUS ADMIN ---
                 IconButton(
                   tooltip: "Ubah Mode Layar",
                   icon: Icon(
@@ -135,9 +173,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
                   ),
                   onPressed: () {
                     if (theme.isDark) {
-                      ThemeConfig.changeTheme(0); // 0 = Default Blue (Light Mode)
+                      ThemeConfig.changeTheme(0);
                     } else {
-                      ThemeConfig.changeTheme(7); // 8 = Dark Modern (Dark Mode)
+                      ThemeConfig.changeTheme(7);
                     }
                   },
                 ),
@@ -157,7 +195,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
             body: pages[_selectedIndex],
 
-            // PERUBAHAN: Navbar solid tanpa blur kaca
             bottomNavigationBar: Container(
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
@@ -189,14 +226,16 @@ class _AdminHomePageState extends State<AdminHomePage> {
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.inbox_rounded, size: 80, color: Colors.grey.shade300),
-                const SizedBox(height: 16),
-                Text("Database Kosong / Belum Terhubung", style: TextStyle(color: theme.textMain))
-              ]
-          ));
+          return Center(
+              child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.inbox_rounded, size: 80, color: Colors.grey.shade300),
+                    const SizedBox(height: 16),
+                    Text("Database Kosong / Belum Terhubung", style: TextStyle(color: theme.textMain))
+                  ]
+              )
+          );
         }
 
         final allDocs = snapshot.data!.docs;
@@ -274,7 +313,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
                       onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const FinanceReportPage()));
                       },
-                      // PERUBAHAN: Mengganti GlassCard dengan Container solid yang ringan
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -358,13 +396,16 @@ class _AdminHomePageState extends State<AdminHomePage> {
               ),
               const SizedBox(height: 20),
 
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text("Order Terbaru", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
-                TextButton(
-                    onPressed: () => setState(() => _selectedIndex = 1),
-                    child: Text("Lihat Semua", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.primary))
-                )
-              ]),
+              Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Order Terbaru", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+                    TextButton(
+                        onPressed: () => setState(() => _selectedIndex = 1),
+                        child: Text("Lihat Semua", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.primary))
+                    )
+                  ]
+              ),
               const SizedBox(height: 10),
 
               ListView.builder(
@@ -384,11 +425,33 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
-  void _showLogoutConfirmDialog() { showDialog(context: context, builder: (ctx) => AlertDialog(backgroundColor: ThemeConfig.currentTheme.value.surface, title: Text("Konfirmasi", style: TextStyle(color: ThemeConfig.currentTheme.value.textMain)), content: Text("Yakin ingin keluar?", style: TextStyle(color: ThemeConfig.currentTheme.value.textMain)), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")), ElevatedButton(onPressed: () { Navigator.pop(ctx); _handleLogout(); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("Keluar"))])); }
+  void _showLogoutConfirmDialog() {
+    showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+            backgroundColor: ThemeConfig.currentTheme.value.surface,
+            title: Text("Konfirmasi", style: TextStyle(color: ThemeConfig.currentTheme.value.textMain)),
+            content: Text("Yakin ingin keluar?", style: TextStyle(color: ThemeConfig.currentTheme.value.textMain)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Batal")
+              ),
+              ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _handleLogout();
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                  child: const Text("Keluar")
+              )
+            ]
+        )
+    );
+  }
 
   Widget _buildStatCard(String title, String value, IconData icon, Color color, AppThemeData theme) {
     return Expanded(
-      // PERUBAHAN: Mengganti GlassCard dengan Container solid yang ringan
         child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -425,20 +488,38 @@ class _AdminHomePageState extends State<AdminHomePage> {
     if (rawPrice is String) price = int.tryParse(rawPrice) ?? 0;
     if (rawPrice is double) price = rawPrice.toInt();
 
+    // --- PERBAIKAN 2: Pengecekan Gambar Sepatu Customer ---
+    String? imageUrl = data['shoeImageUrl']?.toString();
+    bool hasValidImage = imageUrl != null && imageUrl.trim().isNotEmpty;
+
+// --- TAMBAHAN BARU: Akalin data lama ---
+    if (hasValidImage) {
+      // Ubah http ke https, DAN ubah /storage/ jadi /foto/ biar gak diblokir 403
+      imageUrl = imageUrl!
+          .replaceAll("http://", "https://")
+          .replaceAll("/storage/", "/foto/");
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => AdminOrderDetailPage(docId: docId, data: data)));
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => AdminOrderDetailPage(docId: docId, data: data)
+              )
+          );
         },
-        // PERUBAHAN: Mengganti GlassCard dengan Container solid yang ringan
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: theme.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.grey.withOpacity(0.2)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)],
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)
+            ],
           ),
           child: Row(
             children: [
@@ -447,9 +528,22 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(8),
-                  image: data['shoeImageUrl'] != null ? DecorationImage(image: NetworkImage(data['shoeImageUrl']), fit: BoxFit.cover) : null,
+                  image: hasValidImage
+                      ? DecorationImage(
+                      image: NetworkImage(
+                          imageUrl!, // <--- Tinggal panggil ini aja karena udah rapi di atas
+                          headers: const {
+                            'ngrok-skip-browser-warning': 'true',
+                            'User-Agent': 'ChupatuApp'
+                          }
+                      ),
+                      fit: BoxFit.cover
+                  )
+                      : null,
                 ),
-                child: data['shoeImageUrl'] == null ? const Icon(Icons.shopping_bag_outlined, color: Colors.grey, size: 20) : null,
+                child: !hasValidImage
+                    ? const Icon(Icons.shopping_bag_outlined, color: Colors.grey, size: 20)
+                    : null,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -488,7 +582,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
             children: [
               Icon(icon, color: isActive ? theme.primary : Colors.grey.shade500, size: 24),
               const SizedBox(height: 4),
-              Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: isActive ? FontWeight.bold : FontWeight.normal, color: isActive ? theme.primary : Colors.grey.shade500))
+              Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                      color: isActive ? theme.primary : Colors.grey.shade500
+                  )
+              )
             ]
         )
     );

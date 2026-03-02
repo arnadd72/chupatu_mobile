@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert'; // <-- TAMBAHAN: Untuk Encode JSON Notifikasi
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:http/http.dart' as http; // <-- TAMBAHAN: Untuk nembak API Laravel
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
 
@@ -124,7 +126,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: theme.surface, // Background modal adaptif
+                  color: theme.surface,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Column(
@@ -145,7 +147,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                     Text(widget.data['customerName'] ?? 'Customer', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.primary)),
                     const SizedBox(height: 20),
 
-                    // PERUBAHAN PENTING: Latar QR Code WAJIB putih agar terbaca scanner
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
@@ -157,7 +158,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                         data: widget.docId,
                         version: QrVersions.auto,
                         size: 200.0,
-                        backgroundColor: Colors.white, // Maksa background QR putih
+                        backgroundColor: Colors.white,
                       ),
                     ),
 
@@ -180,7 +181,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                     icon: Icon(Icons.close, color: theme.textMain),
                     label: Text("Tutup", style: TextStyle(color: theme.textMain)),
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.background, // Adaptif dengan background utama
+                        backgroundColor: theme.background,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
                     ),
@@ -208,6 +209,40 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     );
   }
 
+  // --- TAMBAHAN: FUNGSI PEMICU NOTIFIKASI KE LARAVEL ---
+  Future<void> _sendNotificationToCustomer(String customerUid, String newStatus) async {
+    try {
+      var userDoc = await FirebaseFirestore.instance.collection('users').doc(customerUid).get();
+      if (!userDoc.exists) return;
+
+      String? fcmToken = userDoc.data()?['fcmToken'];
+      if (fcmToken == null || fcmToken.isEmpty) {
+        debugPrint("Customer belum ngasih izin notif / belum punya token.");
+        return;
+      }
+
+      String title = "Pesanan Chupatu Diupdate! 👟";
+      String body = "Status sepatu kamu sekarang: $newStatus";
+
+      var response = await http.post(
+          Uri.parse('https://malik-pseudomonocyclic-misti.ngrok-free.dev/api/kirim-notif'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode({
+            'token': fcmToken,
+            'title': title,
+            'body': body,
+          })
+      );
+
+      debugPrint("Hasil tembak notif Laravel: ${response.body}");
+    } catch(e) {
+      debugPrint("Gagal nge-trigger notif: $e");
+    }
+  }
+
   Future<void> _attemptStatusChange(String newStatus) async {
     if (_currentStatus == 'Done') {
       bool? confirm = await showDialog<bool>(
@@ -230,7 +265,15 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   Future<void> _updateStatus(String newStatus) async {
     setState(() => _isUpdating = true);
     try {
+      // 1. Update status di Firestore
       await FirebaseFirestore.instance.collection('bookings').doc(widget.docId).update({'status': newStatus});
+
+      // 2. TAMBAHAN: Kirim Notifikasi Otomatis ke Customer
+      String customerId = widget.data['userId'] ?? '';
+      if (customerId.isNotEmpty) {
+        await _sendNotificationToCustomer(customerId, newStatus);
+      }
+
       setState(() { _currentStatus = newStatus; _isUpdating = false; });
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Status diubah ke $newStatus"), backgroundColor: _getStatusColor(newStatus)));
     } catch (e) {
@@ -273,8 +316,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
         valueListenable: ThemeConfig.currentTheme,
         builder: (context, theme, child) {
           Color themeColor = _getStatusColor(_currentStatus);
-
-          // PERUBAHAN: Background halaman menyesuaikan tema agar aman di mode gelap
           Color pageBackgroundColor = theme.background;
 
           return Scaffold(
@@ -324,11 +365,10 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                         Color chipColor = _getStatusColor(status);
                         return ChoiceChip(
                             label: Text(status),
-                            // PERUBAHAN: Teks chip tidak lagi hitam statis
                             labelStyle: TextStyle(color: isSelected ? Colors.white : theme.textMain, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontSize: 12),
                             selected: isSelected,
                             selectedColor: chipColor,
-                            backgroundColor: theme.background, // Background chip adaptif
+                            backgroundColor: theme.background,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Colors.transparent : Colors.grey.withOpacity(0.2))),
                             onSelected: _isUpdating ? null : (selected) { if (selected) _attemptStatusChange(status); }
                         );

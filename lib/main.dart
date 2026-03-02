@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; // Import wajib untuk bahasa
+import 'package:firebase_messaging/firebase_messaging.dart'; // <-- TAMBAHAN: Import FCM
 
 import 'package:chupatu_mobile/config/firebase_options.dart';
 import 'package:chupatu_mobile/pages/auth/landing_page.dart';
@@ -150,8 +151,16 @@ class ThemeConfig {
 }
 
 // ============================================================
-// 2. MAIN FUNCTION
+// 2. MAIN FUNCTION & BACKGROUND HANDLER
 // ============================================================
+
+// --- TAMBAHAN: PENJAGA NOTIF SAAT APLIKASI DITUTUP ---
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Pastikan Firebase jalan di background
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint("Notif masuk pas app ditutup: ${message.messageId}");
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -159,6 +168,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // --- TAMBAHAN: Daftarin penjaga notif background ---
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(const ChupatuApp());
 }

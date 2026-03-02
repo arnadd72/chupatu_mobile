@@ -6,12 +6,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // <-- TAMBAHAN: Import FCM
 import 'package:chupatu_mobile/main.dart';
 
 // PAGE IMPORTS
 import 'package:chupatu_mobile/pages/profile/profile_page.dart';
 import 'package:chupatu_mobile/pages/profile/member_payment_page.dart';
 import 'package:chupatu_mobile/pages/order/service_detail_page.dart';
+import 'package:chupatu_mobile/pages/order/order_detail_page.dart'; // <-- FIX: Import Order Detail Page
 import 'package:chupatu_mobile/pages/home/widgets/auto_magic_card.dart';
 import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
 import 'package:chupatu_mobile/pages/notification/notification_page.dart';
@@ -45,6 +47,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
+    // --- TAMBAHAN: Setup Notifikasi pas masuk Home ---
+    _setupPushNotifications();
+
     Timer.periodic(const Duration(seconds: 5), (Timer timer) {
       if (!mounted) return;
       if (_currentBannerIndex < _totalBanners - 1) {
@@ -77,8 +82,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             var data = change.doc.data() as Map<String, dynamic>;
             String serviceName = data['serviceName'] ?? 'Pesanan Anda';
             String newStatus = data['status'] ?? 'Diperbarui';
+            String docId = change.doc.id; // <-- FIX: Ambil ID Pesanan
 
-            _showStatusUpdatePopup(serviceName, newStatus);
+            // <-- FIX: Lempar docId dan data lengkap ke Pop-up
+            _showStatusUpdatePopup(docId, data, serviceName, newStatus);
 
             FirebaseFirestore.instance.collection('users').doc(user!.uid).set({
               'hasUnreadNotif': true
@@ -89,7 +96,34 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
-  void _showStatusUpdatePopup(String serviceName, String newStatus) {
+  // --- FUNGSI BARU BUAT SETUP NOTIF ---
+  Future<void> _setupPushNotifications() async {
+    final fcm = FirebaseMessaging.instance;
+
+    // 1. Minta izin nampilin notif (wajib buat Android 13+)
+    NotificationSettings settings = await fcm.requestPermission(
+      alert: true, badge: true, sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      debugPrint('User ngasih izin notif!');
+
+      // 2. Ambil FCM Token
+      String? token = await fcm.getToken();
+      debugPrint('FCM Token HP ini: $token');
+
+      // 3. Simpan Token ke Firestore
+      if (token != null && user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user!.uid)
+            .set({'fcmToken': token}, SetOptions(merge: true));
+      }
+    }
+  }
+
+  // <-- FIX: Tambahkan parameter docId dan data
+  void _showStatusUpdatePopup(String docId, Map<String, dynamic> data, String serviceName, String newStatus) {
     if (!mounted) return;
     final theme = ThemeConfig.currentTheme.value;
 
@@ -101,6 +135,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       transitionDuration: const Duration(milliseconds: 400),
       pageBuilder: (context, animation, secondaryAnimation) {
         return _TopNotificationPopup(
+          docId: docId, // <-- FIX: Kirim ID
+          data: data,   // <-- FIX: Kirim Data
           serviceName: serviceName,
           newStatus: newStatus,
           theme: theme,
@@ -222,14 +258,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               }
 
               // --- FIX SINKRONISASI FOTO ---
-              // Cek penulisan photoUrl (kecil) dan photoURL (besar)
               if (userData['photoUrl'] != null && userData['photoUrl'].toString().isNotEmpty) {
                 photoURL = userData['photoUrl'];
               } else if (userData['photoURL'] != null && userData['photoURL'].toString().isNotEmpty) {
                 photoURL = userData['photoURL'];
               }
 
-              // Wajib Replace HTTP ke HTTPS biar gak ditolak Flutter
               photoURL = photoURL.replaceAll("http://", "https://");
               // -----------------------------
 
@@ -255,52 +289,75 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           // HEADER PROFILE
                           Padding(
                             padding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
-                            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                              GestureDetector(
-                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())),
-                                  child: Row(children: [
-                                    // --- FIX NETWORK IMAGE NGROK HEADERS ---
-                                    Container(
-                                        width: 50, height: 50,
-                                        decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: theme.surface, width: 2),
-                                            image: DecorationImage(
-                                                image: NetworkImage(
-                                                    photoURL,
-                                                    headers: const {
-                                                      'ngrok-skip-browser-warning': 'true',
-                                                      'User-Agent': 'ChupatuApp'
-                                                    }
-                                                ),
-                                                fit: BoxFit.cover
+                            child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  GestureDetector(
+                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())),
+                                      child: Row(
+                                          children: [
+                                            Container(
+                                                width: 50, height: 50,
+                                                decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(color: theme.surface, width: 2),
+                                                    image: DecorationImage(
+                                                        image: NetworkImage(
+                                                            photoURL,
+                                                            headers: const {
+                                                              'ngrok-skip-browser-warning': 'true',
+                                                              'User-Agent': 'ChupatuApp'
+                                                            }
+                                                        ),
+                                                        fit: BoxFit.cover
+                                                    ),
+                                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]
+                                                )
                                             ),
-                                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]
-                                        )
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                      Text(_getGreeting(), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade600)),
-                                      Row(children: [
-                                        Text(displayName, style: GoogleFonts.plusJakartaSans(fontSize: 18, color: theme.textMain, fontWeight: FontWeight.w800)),
-                                        if (isPro) ...[const SizedBox(width: 6), const Icon(Icons.verified, color: Colors.blue, size: 16)]
-                                      ])
-                                    ])
-                                  ])
-                              ),
-                              Row(children: [
-                                GestureDetector(onTap: () => _showThemePicker(context), child: Container(width: 42, height: 42, decoration: BoxDecoration(color: theme.surface.withOpacity(0.8), shape: BoxShape.circle, border: Border.all(color: theme.surface), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Icon(Icons.palette_rounded, color: theme.primary, size: 20))),
-                                const SizedBox(width: 12),
-                                AnimatedNotificationIcon(
-                                  hasNewNotif: unreadNotif,
-                                  theme: theme,
-                                  onTap: () {
-                                    FirebaseFirestore.instance.collection('users').doc(user!.uid).set({'hasUnreadNotif': false}, SetOptions(merge: true));
-                                    Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage()));
-                                  },
-                                ),
-                              ]),
-                            ]),
+                                            const SizedBox(width: 12),
+                                            Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(_getGreeting(), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade600)),
+                                                  Row(
+                                                      children: [
+                                                        Text(displayName, style: GoogleFonts.plusJakartaSans(fontSize: 18, color: theme.textMain, fontWeight: FontWeight.w800)),
+                                                        if (isPro) ...[const SizedBox(width: 6), const Icon(Icons.verified, color: Colors.blue, size: 16)]
+                                                      ]
+                                                  )
+                                                ]
+                                            )
+                                          ]
+                                      )
+                                  ),
+                                  Row(
+                                      children: [
+                                        GestureDetector(
+                                            onTap: () => _showThemePicker(context),
+                                            child: Container(
+                                                width: 42, height: 42,
+                                                decoration: BoxDecoration(
+                                                    color: theme.surface.withOpacity(0.8),
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(color: theme.surface),
+                                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
+                                                ),
+                                                child: Icon(Icons.palette_rounded, color: theme.primary, size: 20)
+                                            )
+                                        ),
+                                        const SizedBox(width: 12),
+                                        AnimatedNotificationIcon(
+                                          hasNewNotif: unreadNotif,
+                                          theme: theme,
+                                          onTap: () {
+                                            FirebaseFirestore.instance.collection('users').doc(user!.uid).set({'hasUnreadNotif': false}, SetOptions(merge: true));
+                                            Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage()));
+                                          },
+                                        ),
+                                      ]
+                                  ),
+                                ]
+                            ),
                           ),
                           const SizedBox(height: 12),
 
@@ -325,8 +382,29 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
                               return Column(
                                 children: [
-                                  SizedBox(height: 180, child: PageView(controller: _bannerController, onPageChanged: (index) => setState(() => _currentBannerIndex = index), children: finalBanners)),
-                                  Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(finalBanners.length, (index) => AnimatedContainer(duration: const Duration(milliseconds: 300), margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8), width: _currentBannerIndex == index ? 24 : 6, height: 6, decoration: BoxDecoration(color: _currentBannerIndex == index ? theme.primary : Colors.grey.withOpacity(0.5), borderRadius: BorderRadius.circular(3))))),
+                                  SizedBox(
+                                      height: 180,
+                                      child: PageView(
+                                          controller: _bannerController,
+                                          onPageChanged: (index) => setState(() => _currentBannerIndex = index),
+                                          children: finalBanners
+                                      )
+                                  ),
+                                  Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: List.generate(
+                                          finalBanners.length,
+                                              (index) => AnimatedContainer(
+                                              duration: const Duration(milliseconds: 300),
+                                              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                              width: _currentBannerIndex == index ? 24 : 6, height: 6,
+                                              decoration: BoxDecoration(
+                                                  color: _currentBannerIndex == index ? theme.primary : Colors.grey.withOpacity(0.5),
+                                                  borderRadius: BorderRadius.circular(3)
+                                              )
+                                          )
+                                      )
+                                  ),
                                 ],
                               );
                             },
@@ -380,15 +458,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           // MAGIC RESULTS
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('Magic Results ✨', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
-                              const SizedBox(height: 12),
-                              SizedBox(height: 240, child: ListView(scrollDirection: Axis.horizontal, clipBehavior: Clip.none, children: [
-                                AutoMagicCard(beforeUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600', afterUrl: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600', title: 'Nike Air Force 1', theme: theme, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Nike Air Force 1', beforeImg: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600')))),
-                                const SizedBox(width: 16),
-                                AutoMagicCard(beforeUrl: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600', afterUrl: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600', title: 'Jordan Repaint', theme: theme, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Jordan Repaint', beforeImg: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600')))),
-                              ])),
-                            ]),
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Magic Results ✨', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                      height: 240,
+                                      child: ListView(
+                                          scrollDirection: Axis.horizontal,
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            AutoMagicCard(
+                                                beforeUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600',
+                                                afterUrl: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600',
+                                                title: 'Nike Air Force 1',
+                                                theme: theme,
+                                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Nike Air Force 1', beforeImg: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600')))
+                                            ),
+                                            const SizedBox(width: 16),
+                                            AutoMagicCard(
+                                                beforeUrl: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600',
+                                                afterUrl: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600',
+                                                title: 'Jordan Repaint',
+                                                theme: theme,
+                                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Jordan Repaint', beforeImg: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600')))
+                                            ),
+                                          ]
+                                      )
+                                  ),
+                                ]
+                            ),
                           ),
 
                           const SizedBox(height: 30),
@@ -425,7 +525,47 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ),
                   ),
 
-                  if (_showFloatingPromo) Positioned(bottom: 100, left: 20, right: 20, child: Dismissible(key: const Key('promo'), onDismissed: (_) => setState(() => _showFloatingPromo = false), child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: const Color(0xFF1E1E2C).withOpacity(0.95), borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))]), child: Row(children: [const Icon(Icons.local_offer_rounded, color: Color(0xFFFFD700), size: 24), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [Text('Promo Gajian!', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)), Text('Diskon 30% semua layanan hari ini.', style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 12))])), IconButton(icon: const Icon(Icons.close, color: Colors.white54, size: 18), onPressed: () => setState(() => _showFloatingPromo = false))])))),
+                  // --- FLOATING PROMO (DIBUAT RAPIH) ---
+                  if (_showFloatingPromo)
+                    Positioned(
+                        bottom: 100,
+                        left: 20,
+                        right: 20,
+                        child: Dismissible(
+                            key: const Key('promo'),
+                            onDismissed: (_) => setState(() => _showFloatingPromo = false),
+                            child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                    color: const Color(0xFF1E1E2C).withOpacity(0.95),
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))
+                                    ]
+                                ),
+                                child: Row(
+                                    children: [
+                                      const Icon(Icons.local_offer_rounded, color: Color(0xFFFFD700), size: 24),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                          child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text('Promo Gajian!', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                                                Text('Diskon 30% semua layanan hari ini.', style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 12))
+                                              ]
+                                          )
+                                      ),
+                                      IconButton(
+                                          icon: const Icon(Icons.close, color: Colors.white54, size: 18),
+                                          onPressed: () => setState(() => _showFloatingPromo = false)
+                                      )
+                                    ]
+                                )
+                            )
+                        )
+                    ),
                 ],
               ),
             );
@@ -437,7 +577,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
 // --- HELPER METHODS ---
   Future<void> _navigateToService(BuildContext context, String serviceName) async {
-    // 1. Munculin loading muter-muter sebentar buat nunggu data dari Firebase
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -447,12 +586,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
 
     try {
-      // 2. Set nilai bawaan (buat jaga-jaga kalau Firebase lagi error)
       int price = 30000;
       String description = "Layanan perawatan sepatu profesional.";
       String imageUrl = "https://images.unsplash.com/photo-1542291026-7eec264c27ff";
 
-      // Set gambar estetik sesuai nama layanan
       if (serviceName == 'Deep Clean') {
         imageUrl = "https://images.unsplash.com/photo-1595341888016-a392ef81b7de?q=80&w=800";
       } else if (serviceName == 'Fast Clean') {
@@ -461,17 +598,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         imageUrl = "https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=800";
       }
 
-      // 3. Tarik data ASLI dari Firebase (cari yang namanya sama persis)
       var querySnapshot = await FirebaseFirestore.instance
           .collection('services')
           .where('name', isEqualTo: serviceName)
           .limit(1)
           .get();
 
-      // 4. Tutup loading dialog
       if (context.mounted) Navigator.pop(context);
 
-      // 5. Timpa nilai default pakai data dari Admin Firebase (kalau ketemu)
       if (querySnapshot.docs.isNotEmpty) {
         var data = querySnapshot.docs.first.data();
 
@@ -485,7 +619,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         debugPrint("Layanan $serviceName belum disetting di Firebase. Pakai harga default.");
       }
 
-      // 6. Lempar semua datanya dan pindah ke halaman Detail Service
       if (context.mounted) {
         Navigator.push(
             context,
@@ -500,7 +633,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         );
       }
     } catch (e) {
-      if (context.mounted) Navigator.pop(context); // Pastiin loading ketutup kalau error
+      if (context.mounted) Navigator.pop(context);
       debugPrint("Error Fetching Service Price: $e");
     }
   }
@@ -621,7 +754,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         margin: const EdgeInsets.symmetric(horizontal: 24),
         decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            boxShadow: [BoxShadow(color: accentColor.withOpacity(0.25), blurRadius: 15, offset: const Offset(0, 8))]
+            boxShadow: [
+              BoxShadow(color: accentColor.withOpacity(0.25), blurRadius: 15, offset: const Offset(0, 8))
+            ]
         ),
         child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
@@ -669,11 +804,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 // WIDGET KHUSUS: POP-UP NOTIFIKASI DARI ATAS
 // ============================================================
 class _TopNotificationPopup extends StatefulWidget {
+  final String docId;
+  final Map<String, dynamic> data;
   final String serviceName;
   final String newStatus;
   final AppThemeData theme;
 
   const _TopNotificationPopup({
+    required this.docId,
+    required this.data,
     required this.serviceName,
     required this.newStatus,
     required this.theme,
@@ -700,6 +839,21 @@ class _TopNotificationPopupState extends State<_TopNotificationPopup> {
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  // --- Fungsi ngambil warna & ikon status pesanan ---
+  Map<String, dynamic> _getStatusConfig(String status) {
+    switch (status) {
+      case 'Pending': return {'color': const Color(0xFFF59E0B), 'icon': Icons.pending_actions_rounded, 'label': 'Menunggu Konfirmasi'};
+      case 'Confirmed': return {'color': const Color(0xFF3B82F6), 'icon': Icons.check_circle_outline_rounded, 'label': 'Dikonfirmasi'};
+      case 'Picked Up': return {'color': const Color(0xFF8B5CF6), 'icon': Icons.local_shipping_outlined, 'label': 'Sepatu Dijemput'};
+      case 'Processing': return {'color': const Color(0xFF10B981), 'icon': Icons.cleaning_services_rounded, 'label': 'Sedang Dicuci'};
+      case 'Ready': return {'color': const Color(0xFF14B8A6), 'icon': Icons.inventory_2_outlined, 'label': 'Selesai Dicuci'};
+      case 'Delivery': return {'color': const Color(0xFF6366F1), 'icon': Icons.delivery_dining_rounded, 'label': 'Sedang Diantar'};
+      case 'Done': return {'color': const Color(0xFF22C55E), 'icon': Icons.task_alt_rounded, 'label': 'Pesanan Selesai'};
+      case 'Cancelled': return {'color': const Color(0xFFEF4444), 'icon': Icons.cancel_outlined, 'label': 'Dibatalkan'};
+      default: return {'color': Colors.grey, 'icon': Icons.help_outline, 'label': 'Tidak Dikenal'};
+    }
   }
 
   @override
@@ -764,7 +918,15 @@ class _TopNotificationPopupState extends State<_TopNotificationPopup> {
                         _timer?.cancel();
                         Navigator.pop(context);
 
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage()));
+                        // --- FIX: Arahkan ke Order Detail, bukan Notification Page ---
+                        var config = _getStatusConfig(widget.newStatus);
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => OrderDetailPage(
+                          docId: widget.docId,
+                          data: widget.data,
+                          statusColor: config['color'],
+                          statusIcon: config['icon'],
+                          statusLabel: config['label'],
+                        )));
                       },
                       child: const Text("Lihat Detail", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     )
