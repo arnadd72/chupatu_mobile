@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; // Import wajib untuk bahasa
 import 'package:firebase_messaging/firebase_messaging.dart'; // <-- TAMBAHAN: Import FCM
 
+import 'package:chupatu_mobile/pages/welcome_page.dart';
 import 'package:chupatu_mobile/config/firebase_options.dart';
 import 'package:chupatu_mobile/pages/auth/landing_page.dart';
 import 'package:chupatu_mobile/pages/main_page.dart';
@@ -65,12 +66,12 @@ class ThemeConfig {
     // 3. Gold Luxury
     AppThemeData(
       name: 'Gold Luxury',
-      primary: const Color(0xFFD4AF37),
-      secondary: const Color(0xFFF4E08F),
-      background: const Color(0xFF121212),
-      surface: const Color(0xFF2C2C2C),
-      textMain: const Color(0xFFFFD700),
-      isDark: true,
+      primary: const Color(0xFFD4AF37), // Emas Premium
+      secondary: const Color(0xFFE5C05C), // Emas Terang (Biar nyala)
+      background: const Color(0xFFFDFBF7), // Putih Tulang / Krem sangat halus
+      surface: const Color(0xFFFFFFFF), // Putih Bersih (Snow)
+      textMain: const Color(0xFF1A1A24),
+      isDark: false,
     ),
     // 4. Nature Green
     AppThemeData(
@@ -235,7 +236,7 @@ class ChupatuApp extends StatelessWidget {
               ),
 
               // --- LOGIC AUTH WRAPPER ---
-              home: const AuthWrapper(),
+              home: const WelcomePage(),
             );
           },
         );

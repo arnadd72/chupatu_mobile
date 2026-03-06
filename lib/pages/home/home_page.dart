@@ -273,14 +273,43 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             }
 
             return Scaffold(
-              backgroundColor: theme.background,
-              body: Stack(
-                children: [
-                  Positioned(top: -80, left: -60, child: Container(width: 350, height: 350, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [theme.primary.withOpacity(0.3), Colors.transparent], radius: 0.6)))),
-                  Positioned(top: 150, right: -120, child: Container(width: 400, height: 400, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [theme.secondary.withOpacity(0.25), Colors.transparent], radius: 0.6)))),
-                  Positioned.fill(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30), child: Container(color: theme.background.withOpacity(0.4)))),
+              // --- UBAH DARI SINI ---
+                body: Container(
+                  // 1. Rahasia Gradasi Full Screen: Gabungan Putih & Emas Tipis
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        theme.surface, // Putih di kiri atas
+                        theme.background, // Putih tulang di tengah
+                        theme.primary.withOpacity(0.08), // Bayangan emas halus di kanan bawah
+                      ],
+                      stops: const [0.0, 0.6, 1.0],
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      // 2. Bercak Cahaya Emas (Opacity dinaikin biar lebih nyala)
+                      Positioned(
+                          top: -80, left: -60,
+                          child: Container(width: 350, height: 350, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [theme.primary.withOpacity(0.4), Colors.transparent], radius: 0.6)))
+                      ),
+                      Positioned(
+                          top: 150, right: -120,
+                          child: Container(width: 400, height: 400, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [theme.secondary.withOpacity(0.35), Colors.transparent], radius: 0.6)))
+                      ),
 
-                  SafeArea(
+                      // 3. Efek Kaca (Warna putihnya ditipisin jadi 0.15 biar emasnya nembus memukau)
+                      Positioned.fill(
+                          child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                              child: Container(color: theme.surface.withOpacity(0.15))
+                          )
+                      ),
+
+                      SafeArea(
+                        // --- SAMPAI SINI ---
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.only(bottom: 120),
                       child: Column(
@@ -568,6 +597,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ),
                 ],
               ),
+                ),
             );
           },
         );

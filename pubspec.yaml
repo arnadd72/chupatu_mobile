@@ -57,6 +57,8 @@ dependencies:
     sdk: flutter
   mobile_scanner: ^7.2.0
   firebase_messaging: ^16.1.1
+  shimmer: ^3.0.0
+  glassmorphism: ^3.0.0
 
 dev_dependencies:
   flutter_test:
