@@ -258,7 +258,10 @@ class AuthWrapper extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            backgroundColor: Color(0xFFFAFAFA), // Atau sesuaikan warna background lo
+            body: SizedBox(),
+          );
         }
 
         if (!snapshot.hasData) {
