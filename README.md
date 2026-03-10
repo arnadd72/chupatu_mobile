@@ -80,9 +80,9 @@ Ikuti langkah-langkah di bawah ini untuk mengonfigurasi dan menjalankan *project
 
 ### 2. Kloning Repositori
 ```bash
-git clone [https://github.com/USERNAME_ANDA/chupatu_mobile.git](https://github.com/USERNAME_ANDA/chupatu_mobile.git)
+git clone https://github.com/arnadd72/chupatu_mobile.git
 cd chupatu_mobile
-```
+``` 
 
 3. Konfigurasi Backend API (Laravel)
 Jika Anda menggunakan local environment, jalankan backend Laravel Anda dan expose port tersebut menggunakan ngrok agar dapat diakses oleh aplikasi mobile.
