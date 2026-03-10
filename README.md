@@ -82,3 +82,50 @@ Ikuti langkah-langkah di bawah ini untuk mengonfigurasi dan menjalankan *project
 ```bash
 git clone [https://github.com/USERNAME_ANDA/chupatu_mobile.git](https://github.com/USERNAME_ANDA/chupatu_mobile.git)
 cd chupatu_mobile
+```
+
+3. Konfigurasi Backend API (Laravel)
+Jika Anda menggunakan local environment, jalankan backend Laravel Anda dan expose port tersebut menggunakan ngrok agar dapat diakses oleh aplikasi mobile.
+
+Bash
+# Di direktori proyek Laravel Anda
+```bash
+php artisan serve
+ngrok http 8000
+```
+Salin URL ngrok yang dihasilkan dan masukkan ke dalam ApiConfig pada proyek Flutter Anda.
+
+4. Konfigurasi Google Maps API Key
+Anda memerlukan API Key dari Google Cloud Console dengan layanan berikut yang diaktifkan:
+
+Maps SDK for Android / iOS
+
+Directions API
+
+Untuk Android: Buka file android/app/src/main/AndroidManifest.xml dan tambahkan:
+
+XML
+<meta-data
+    android:name="com.google.android.geo.API_KEY"
+    android:value="MASUKKAN_API_KEY_ANDA_DI_SINI"/>
+Untuk Kodingan Dart: Tambahkan API Key Anda pada variabel googleApiKey di dalam file konfigurasi terkait (contoh: order_detail_page.dart).
+
+5. Konfigurasi Firebase
+Buat proyek baru di Firebase Console.
+
+Tambahkan aplikasi Android dan unduh file google-services.json.
+
+Letakkan file google-services.json di dalam direktori android/app/.
+
+6. Install Dependencies & Run
+Unduh semua package Flutter yang dibutuhkan:
+
+```Bash
+flutter pub get
+flutter clean
+```
+Jalankan aplikasi pada emulator atau perangkat fisik (sangat disarankan menggunakan perangkat fisik untuk pengujian GPS yang akurat):
+
+```Bash
+flutter run
+```
