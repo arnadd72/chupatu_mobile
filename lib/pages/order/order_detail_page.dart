@@ -1,12 +1,17 @@
+import 'dart:ui' as ui; // Buat ngecilin gambar motor
+import 'dart:convert'; // WAJIB: Buat decode data rute dari Google
+import 'package:http/http.dart' as http; // WAJIB: Buat nembak API rute Google
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // WAJIB: Untuk ambil ID user saat ini
-import 'package:lottie/lottie.dart';
-import 'package:qr_flutter/qr_flutter.dart'; // WAJIB: Import ini
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lottie/lottie.dart' hide Marker;
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/utils/invoice_pdf_helper.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 // IMPORT HALAMAN CHAT
 import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
@@ -33,7 +38,118 @@ class OrderDetailPage extends StatefulWidget {
 
 class _OrderDetailPageState extends State<OrderDetailPage> {
   bool _isGeneratingPdf = false;
-  bool _isLoadingChat = false; // Loading saat buka chat
+  bool _isLoadingChat = false;
+
+  // --- VARIABEL PETA, IKON & RUTE ---
+  GoogleMapController? _mapController;
+  BitmapDescriptor customIcon = BitmapDescriptor.defaultMarker;
+
+  Set<Polyline> _polylines = {};
+
+  // 👇 MASUKIN API KEY GOOGLE MAPS LO DI SINI 👇
+  String googleApiKey = "AIzaSyDah6MCkpOs_HsJK7-Mm90bm5ip_96I7aU";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomMarker();
+  }
+
+  // FUNGSI MENGECILKAN GAMBAR MOTOR BIAR PAS DI PETA
+  Future<Uint8List> getBytesFromAsset(String path, int width) async {
+    ByteData data = await rootBundle.load(path);
+    ui.Codec codec = await ui.instantiateImageCodec(
+        data.buffer.asUint8List(),
+        targetWidth: width
+    );
+    ui.FrameInfo fi = await codec.getNextFrame();
+    return (await fi.image.toByteData(format: ui.ImageByteFormat.png))!
+        .buffer.asUint8List();
+  }
+
+  void _loadCustomMarker() async {
+    // Angka 120 ini ukuran pixel-nya. Boleh dikecilin jadi 80 atau 100 kalau kegedean.
+    final Uint8List markerIcon = await getBytesFromAsset(
+        'assets/images/motor_kurir.png', 50
+    );
+    if (mounted) {
+      setState(() {
+        customIcon = BitmapDescriptor.fromBytes(markerIcon);
+      });
+    }
+  }
+
+  // --- FUNGSI MENCARI RUTE (NATIVE API CALL - ANTI ERROR) ---
+  Future<void> _fetchRoute(LatLng driver, LatLng customer) async {
+    // Nembak langsung ke server Google Directions API
+    String url = "https://maps.googleapis.com/maps/api/directions/json"
+        "?origin=${driver.latitude},${driver.longitude}"
+        "&destination=${customer.latitude},${customer.longitude}"
+        "&mode=driving"
+        "&key=$googleApiKey"; // Pastikan API Key diisi!
+
+    try {
+      var response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        var data = jsonDecode(response.body);
+
+        if (data['routes'] != null && data['routes'].isNotEmpty) {
+          // 1. Ambil data garis rahasia dari Google
+          String encodedPolyline = data['routes'][0]['overview_polyline']['points'];
+
+          // 2. Terjemahkan jadi titik koordinat
+          List<LatLng> polylineCoordinates = _decodePolyline(encodedPolyline);
+
+          // 3. Gambar garis birunya di peta
+          if (mounted) {
+            setState(() {
+              _polylines.add(
+                Polyline(
+                  polylineId: const PolylineId("route_kurir"),
+                  color: const Color(0xFF0606F9), // Biru khas rute
+                  width: 5,
+                  points: polylineCoordinates,
+                ),
+              );
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal tarik rute langsung: $e");
+    }
+  }
+
+  // --- ALGORITMA PENERJEMAH GARIS GOOGLE MAPS (JANGAN DIUBAH) ---
+  List<LatLng> _decodePolyline(String encoded) {
+    List<LatLng> poly = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      poly.add(LatLng((lat / 1E5).toDouble(), (lng / 1E5).toDouble()));
+    }
+    return poly;
+  }
 
   // --- 1. FUNGSI BUKA CHAT KE ADMIN ---
   Future<void> _openChatWithAdmin() async {
@@ -42,11 +158,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Silakan login terlebih dahulu.")));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Silakan login terlebih dahulu."))
+        );
         return;
       }
 
-      // 1. Cari Room Chat milik user ini
       var chatQuery = await FirebaseFirestore.instance
           .collection('chats')
           .where('userId', isEqualTo: user.uid)
@@ -56,14 +173,13 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       String chatId;
 
       if (chatQuery.docs.isNotEmpty) {
-        // Room sudah ada, pakai ID-nya
         chatId = chatQuery.docs.first.id;
       } else {
-        // Room belum ada, buat baru
-        DocumentReference newChat = await FirebaseFirestore.instance.collection('chats').add({
+        DocumentReference newChat = await FirebaseFirestore.instance
+            .collection('chats').add({
           'userId': user.uid,
           'userName': user.displayName ?? 'Customer',
-          'lastMessage': 'Halo Admin, saya mau tanya pesanan #${widget.docId.substring(0, 6)}', // Pesan awal otomatis
+          'lastMessage': 'Halo Admin, saya mau tanya pesanan #${widget.docId.substring(0, 6)}',
           'lastTime': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
         });
@@ -72,21 +188,22 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 
       if (!mounted) return;
 
-      // 2. Masuk ke Chat Room (Sesuai parameter AdminChatPage)
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => ChatRoomPage(
-            name: "Admin Chupatu", // Nama yang muncul di header chat customer
-            isOnline: true,        // Status Admin (Dummy)
-            chatId: chatId,        // Kunci Masuk Room
-            isAdmin: false,        // Customer bukan Admin
+            name: "Admin Chupatu",
+            isOnline: true,
+            chatId: chatId,
+            isAdmin: false,
           ),
         ),
       );
 
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal membuka chat: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gagal membuka chat: $e"))
+      );
     } finally {
       if (mounted) setState(() => _isLoadingChat = false);
     }
@@ -107,15 +224,21 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text("Barcode Pesanan", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text("Barcode Pesanan", style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18, fontWeight: FontWeight.bold
+              )),
               const SizedBox(height: 8),
-              Text("Tunjukkan ke kasir/kurir", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+              Text("Tunjukkan ke kasir/kurir", style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12, color: Colors.grey
+              )),
               const SizedBox(height: 20),
 
-              // QR CODE
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade200),
+                    borderRadius: BorderRadius.circular(12)
+                ),
                 child: QrImageView(
                   data: widget.docId,
                   version: QrVersions.auto,
@@ -124,15 +247,21 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               ),
 
               const SizedBox(height: 12),
-              // Gunakan robotoMono untuk font kode biar rapi
-              Text("#${widget.docId.toUpperCase().substring(0, 8)}", style: GoogleFonts.robotoMono(fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+              Text("#${widget.docId.toUpperCase().substring(0, 8)}",
+                  style: GoogleFonts.robotoMono(
+                      fontWeight: FontWeight.bold, letterSpacing: 1.5
+                  )
+              ),
 
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black87, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black87,
+                      foregroundColor: Colors.white
+                  ),
                   child: const Text("Tutup"),
                 ),
               )
@@ -149,16 +278,26 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text("Batalkan Pesanan?", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-        content: Text("Tindakan ini tidak dapat diurungkan.", style: GoogleFonts.plusJakartaSans()),
+        title: Text("Batalkan Pesanan?", style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.bold
+        )),
+        content: Text("Tindakan ini tidak dapat diurungkan.",
+            style: GoogleFonts.plusJakartaSans()
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Kembali")),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              await FirebaseFirestore.instance.collection('bookings').doc(widget.docId).update({'status': 'Cancelled'});
+              await FirebaseFirestore.instance.collection('bookings')
+                  .doc(widget.docId).update({'status': 'Cancelled'});
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pesanan dibatalkan", style: TextStyle(color: Colors.white)), backgroundColor: Colors.red));
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text("Pesanan dibatalkan", style: TextStyle(color: Colors.white)),
+                        backgroundColor: Colors.red
+                    )
+                );
                 Navigator.pop(context);
               }
             },
@@ -177,7 +316,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       await InvoicePdfHelper.generateInvoice(widget.docId, widget.data);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: ${e.toString()}"), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Gagal: ${e.toString()}"), backgroundColor: Colors.red)
+        );
       }
     } finally {
       if (mounted) setState(() => _isGeneratingPdf = false);
@@ -213,7 +354,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     String serviceName = widget.data['serviceName'] ?? 'Layanan';
     final serviceConfig = _getServiceIcon(serviceName);
     String dateStr = _formatSafeDate(widget.data['createdAt']);
-    String pickupDateOnly = _formatSafeDate(widget.data['pickupDate'], format: 'dd MMMM yyyy', fallback: 'Belum dijadwalkan');
+    String pickupDateOnly = _formatSafeDate(
+        widget.data['pickupDate'], format: 'dd MMMM yyyy', fallback: 'Belum dijadwalkan'
+    );
     String pickupTimeStr = widget.data['pickupTime'] ?? '';
     String finalPickup = pickupTimeStr.isNotEmpty ? "$pickupDateOnly\nJam: $pickupTimeStr" : pickupDateOnly;
     bool isDelivery = widget.data['isDelivery'] ?? false;
@@ -221,7 +364,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 
     String mainAddress = widget.data['mainAddress'] ?? '';
     String detailAddress = widget.data['detailAddress'] ?? '';
-    String fullAddress = (mainAddress.isNotEmpty || detailAddress.isNotEmpty) ? "$mainAddress\n\nCatatan: $detailAddress" : (widget.data['address'] ?? 'Alamat tidak tersedia');
+    String fullAddress = (mainAddress.isNotEmpty || detailAddress.isNotEmpty)
+        ? "$mainAddress\n\nCatatan: $detailAddress"
+        : (widget.data['address'] ?? 'Alamat tidak tersedia');
 
     String currentStatus = widget.data['status'] ?? 'Pending';
     bool canCancel = (currentStatus == 'Pending' || currentStatus == 'Confirmed');
@@ -236,10 +381,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               backgroundColor: widget.statusColor,
               elevation: 0,
               iconTheme: const IconThemeData(color: Colors.white),
-              title: Text("Detail Pesanan", style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold)),
+              title: Text("Detail Pesanan", style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white, fontWeight: FontWeight.bold
+              )),
               centerTitle: true,
               actions: [
-                // TOMBOL BARCODE (BARU)
                 IconButton(
                   onPressed: _showBarcodeDialog,
                   icon: const Icon(Icons.qr_code_2_rounded),
@@ -255,11 +401,20 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                   // HEADER
                   Container(
                     width: double.infinity, padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(color: widget.statusColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30))),
+                    decoration: BoxDecoration(
+                        color: widget.statusColor,
+                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30))
+                    ),
                     child: Column(children: [
-                      Icon(widget.statusIcon, color: Colors.white, size: 60), const SizedBox(height: 12),
-                      Text(widget.statusLabel, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)), const SizedBox(height: 4),
-                      Text("ID: #${widget.docId.substring(0, 8).toUpperCase()}", style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 14)),
+                      Icon(widget.statusIcon, color: Colors.white, size: 60),
+                      const SizedBox(height: 12),
+                      Text(widget.statusLabel, style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold
+                      )),
+                      const SizedBox(height: 4),
+                      Text("ID: #${widget.docId.substring(0, 8).toUpperCase()}",
+                          style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 14)
+                      ),
                     ]),
                   ),
 
@@ -269,15 +424,18 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
 
-                        // --- TOMBOL HUBUNGI ADMIN (BARU) ---
+                        // --- TOMBOL HUBUNGI ADMIN ---
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
                             onPressed: _isLoadingChat ? null : _openChatWithAdmin,
                             icon: _isLoadingChat
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                ? const SizedBox(width: 20, height: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                                 : const Icon(Icons.support_agent_rounded),
-                            label: Text(_isLoadingChat ? "Menghubungkan..." : "Hubungi Admin", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                            label: Text(_isLoadingChat ? "Menghubungkan..." : "Hubungi Admin",
+                                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
                               foregroundColor: theme.primary,
@@ -290,6 +448,100 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                         ),
                         const SizedBox(height: 24),
 
+                        // --- WIDGET LIVE TRACKING MAPS DENGAN RUTE ---
+                        if (currentStatus == 'Picked Up' || currentStatus == 'Delivery') ...[
+                          _buildSectionTitle("Live Tracking Kurir", theme),
+
+                          StreamBuilder<DocumentSnapshot>(
+                              stream: FirebaseFirestore.instance.collection('bookings')
+                                  .doc(widget.docId).snapshots(),
+                              builder: (context, snapshot) {
+
+                                LatLng currentLatLng = const LatLng(-6.974001, 107.630348);
+                                LatLng? customerLatLng;
+                                Set<Marker> markers = {};
+
+                                if (snapshot.hasData && snapshot.data != null) {
+                                  var docData = snapshot.data!.data() as Map<String, dynamic>?;
+
+                                  // Tarik GPS Kurir
+                                  GeoPoint? driverGeo = docData?['driverLocation'];
+                                  if (driverGeo != null) {
+                                    currentLatLng = LatLng(driverGeo.latitude, driverGeo.longitude);
+                                    _mapController?.animateCamera(
+                                        CameraUpdate.newLatLng(currentLatLng)
+                                    );
+
+                                    // Pasang pin motor kurir
+                                    markers.add(Marker(
+                                      markerId: const MarkerId('kurir_chupatu'),
+                                      position: currentLatLng,
+                                      icon: customIcon,
+                                      infoWindow: const InfoWindow(
+                                          title: 'Kurir Chupatu', snippet: 'Sedang di jalan...'
+                                      ),
+                                    ));
+                                  }
+
+                                  // Tarik GPS Customer
+                                  GeoPoint? custGeo = docData?['customerLocation'];
+                                  if (custGeo != null) {
+                                    customerLatLng = LatLng(custGeo.latitude, custGeo.longitude);
+
+                                    // Pasang pin Rumah Customer warna biru
+                                    markers.add(Marker(
+                                      markerId: const MarkerId('lokasi_customer'),
+                                      position: customerLatLng,
+                                      icon: BitmapDescriptor.defaultMarkerWithHue(
+                                          BitmapDescriptor.hueAzure
+                                      ),
+                                      infoWindow: const InfoWindow(title: 'Lokasi Tujuan'),
+                                    ));
+                                  }
+
+                                  // Bikin Garis kalau 2 titik ada & garis belum digambar
+                                  if (driverGeo != null && custGeo != null && _polylines.isEmpty) {
+                                    _fetchRoute(currentLatLng, customerLatLng!);
+                                  }
+                                }
+
+                                return Container(
+                                  height: 250,
+                                  margin: const EdgeInsets.only(bottom: 24),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: const Color(0xFFD4AF37), width: 2),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.03),
+                                        blurRadius: 10, offset: const Offset(0, 4),
+                                      )
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: GoogleMap(
+                                      mapType: MapType.normal,
+                                      initialCameraPosition: CameraPosition(
+                                        target: currentLatLng,
+                                        zoom: 16.0,
+                                      ),
+                                      onMapCreated: (GoogleMapController controller) {
+                                        _mapController = controller;
+                                      },
+                                      zoomControlsEnabled: false,
+                                      myLocationButtonEnabled: false,
+                                      scrollGesturesEnabled: false,
+                                      markers: markers,
+                                      polylines: _polylines,
+                                    ),
+                                  ),
+                                );
+                              }
+                          ),
+                        ],
+                        // --- AKHIR WIDGET MAPS ---
+
                         // INFO LAYANAN
                         _buildSectionTitle("Informasi Layanan", theme),
                         Container(
@@ -298,15 +550,35 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                             children: [
                               Row(children: [
                                 Container(
-                                  width: 50, height: 50, padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: serviceConfig['color'].withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                                  child: serviceConfig.containsKey('lottie') ? Lottie.asset(serviceConfig['lottie'], fit: BoxFit.contain) : Icon(serviceConfig['icon'], color: serviceConfig['color'], size: 26),
+                                  width: 50, height: 50, padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                      color: serviceConfig['color'].withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12)
+                                  ),
+                                  child: serviceConfig.containsKey('lottie')
+                                      ? Lottie.asset(serviceConfig['lottie'], fit: BoxFit.contain)
+                                      : Icon(serviceConfig['icon'], color: serviceConfig['color'], size: 26),
                                 ),
                                 const SizedBox(width: 16),
-                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(serviceName, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain)), Text(widget.data['shoeDetail'] ?? 'Detail sepatu', style: GoogleFonts.plusJakartaSans(color: Colors.grey))])),
+                                Expanded(
+                                    child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(serviceName, style: GoogleFonts.plusJakartaSans(
+                                              fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain
+                                          )),
+                                          Text(widget.data['shoeDetail'] ?? 'Detail sepatu',
+                                              style: GoogleFonts.plusJakartaSans(color: Colors.grey)
+                                          )
+                                        ]
+                                    )
+                                ),
                               ]),
                               const Divider(height: 24),
-                              _buildInfoRow("Kategori", widget.data['category'] ?? '-', theme), const SizedBox(height: 8),
-                              _buildInfoRow("Tanggal Order", dateStr, theme), const SizedBox(height: 8),
+                              _buildInfoRow("Kategori", widget.data['category'] ?? '-', theme),
+                              const SizedBox(height: 8),
+                              _buildInfoRow("Tanggal Order", dateStr, theme),
+                              const SizedBox(height: 8),
                               _buildInfoRow("Catatan", widget.data['notes'] ?? '-', theme),
                             ],
                           ),
@@ -320,11 +592,26 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                           child: Column(
                             children: [
                               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Icon(Icons.location_on, color: Colors.red.shade400, size: 24), const SizedBox(width: 12),
-                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Alamat Penjemputan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain)), const SizedBox(height: 4), Text(fullAddress, style: GoogleFonts.plusJakartaSans(color: Colors.grey, height: 1.5))])),
+                                Icon(Icons.location_on, color: Colors.red.shade400, size: 24),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                    child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text("Alamat Penjemputan", style: GoogleFonts.plusJakartaSans(
+                                              fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain
+                                          )),
+                                          const SizedBox(height: 4),
+                                          Text(fullAddress, style: GoogleFonts.plusJakartaSans(
+                                              color: Colors.grey, height: 1.5
+                                          ))
+                                        ]
+                                    )
+                                ),
                               ]),
                               const Divider(height: 24),
-                              _buildInfoRow("Jadwal Jemput", finalPickup, theme), const SizedBox(height: 8),
+                              _buildInfoRow("Jadwal Jemput", finalPickup, theme),
+                              const SizedBox(height: 8),
                               _buildInfoRow("Pengantaran", finalDelivery, theme),
                             ],
                           ),
@@ -337,16 +624,48 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                           padding: const EdgeInsets.all(16), decoration: _cardDecoration(theme),
                           child: Column(
                             children: [
-                              _buildPriceRow("Harga Layanan", widget.data['basePrice'] ?? 0, currency, theme), const SizedBox(height: 8),
+                              _buildPriceRow("Harga Layanan", widget.data['basePrice'] ?? 0, currency, theme),
+                              const SizedBox(height: 8),
                               _buildPriceRow("Biaya Antar Jemput", widget.data['deliveryFee'] ?? 0, currency, theme),
-                              if ((widget.data['discount'] ?? 0) > 0) ...[const SizedBox(height: 8), _buildPriceRow("Diskon", -(widget.data['discount'] as int), currency, theme, isDiscount: true)],
+                              if ((widget.data['discount'] ?? 0) > 0) ...[
+                                const SizedBox(height: 8),
+                                _buildPriceRow("Diskon", -(widget.data['discount'] as int), currency, theme, isDiscount: true)
+                              ],
                               const Divider(height: 24),
-                              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                Text("Metode Bayar", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)),
-                                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: theme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text(widget.data['paymentMethod'] ?? 'COD', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 12, color: theme.primary))),
-                              ]),
+                              Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text("Metode Bayar", style: GoogleFonts.plusJakartaSans(
+                                        color: Colors.grey, fontSize: 12
+                                    )),
+                                    Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                            color: theme.primary.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(8)
+                                        ),
+                                        child: Text(widget.data['paymentMethod'] ?? 'COD',
+                                            style: GoogleFonts.plusJakartaSans(
+                                                fontWeight: FontWeight.bold, fontSize: 12, color: theme.primary
+                                            )
+                                        )
+                                    ),
+                                  ]
+                              ),
                               const SizedBox(height: 16),
-                              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("Total Tagihan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain)), Text(currency.format(widget.data['totalPrice'] ?? 0), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.green))]),
+                              Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text("Total Tagihan", style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain
+                                    )),
+                                    Text(currency.format(widget.data['totalPrice'] ?? 0),
+                                        style: GoogleFonts.plusJakartaSans(
+                                            fontWeight: FontWeight.w900, fontSize: 18, color: Colors.green
+                                        )
+                                    )
+                                  ]
+                              ),
                             ],
                           ),
                         ),
@@ -361,16 +680,32 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                                 ? OutlinedButton.icon(
                               onPressed: _cancelOrder,
                               icon: const Icon(Icons.cancel_outlined, size: 18),
-                              label: Text("Batalkan Pesanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-                              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: Colors.redAccent), foregroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                              label: Text("Batalkan Pesanan", style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.bold
+                              )),
+                              style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  side: const BorderSide(color: Colors.redAccent),
+                                  foregroundColor: Colors.redAccent,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                              ),
                             )
                                 : ElevatedButton.icon(
                               onPressed: _isGeneratingPdf ? null : _generateAndDownloadInvoice,
                               icon: _isGeneratingPdf
-                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                  ? const SizedBox(width: 20, height: 20,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                                   : const Icon(Icons.picture_as_pdf_rounded, size: 18),
-                              label: Text(_isGeneratingPdf ? "Menyiapkan PDF..." : "Unduh Invoice", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-                              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: Colors.green.shade600, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0),
+                              label: Text(_isGeneratingPdf ? "Menyiapkan PDF..." : "Unduh Invoice",
+                                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  backgroundColor: Colors.green.shade600,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  elevation: 0
+                              ),
                             ),
                           ),
 
@@ -386,8 +721,51 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     );
   }
 
-  Widget _buildSectionTitle(String title, AppThemeData theme) { return Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800, color: theme.textMain))); }
-  BoxDecoration _cardDecoration(AppThemeData theme) { return BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.withOpacity(0.1)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))]); }
-  Widget _buildInfoRow(String label, String value, AppThemeData theme) { return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 120, child: Text(label, style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 13))), Expanded(child: Text(value, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: theme.textMain, fontSize: 13), textAlign: TextAlign.right))]); }
-  Widget _buildPriceRow(String label, int price, NumberFormat currency, AppThemeData theme, {bool isDiscount = false}) { return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: GoogleFonts.plusJakartaSans(color: isDiscount ? Colors.green : Colors.grey, fontSize: 14)), Text(currency.format(price), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: isDiscount ? Colors.green : theme.textMain, fontSize: 14))]); }
+  Widget _buildSectionTitle(String title, AppThemeData theme) {
+    return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Text(title, style: GoogleFonts.plusJakartaSans(
+            fontSize: 16, fontWeight: FontWeight.w800, color: theme.textMain
+        ))
+    );
+  }
+
+  BoxDecoration _cardDecoration(AppThemeData theme) {
+    return BoxDecoration(
+        color: theme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))
+        ]
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, AppThemeData theme) {
+    return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 120, child: Text(label, style: GoogleFonts.plusJakartaSans(
+              color: Colors.grey, fontSize: 13
+          ))),
+          Expanded(child: Text(value, style: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w600, color: theme.textMain, fontSize: 13
+          ), textAlign: TextAlign.right))
+        ]
+    );
+  }
+
+  Widget _buildPriceRow(String label, int price, NumberFormat currency, AppThemeData theme, {bool isDiscount = false}) {
+    return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: GoogleFonts.plusJakartaSans(
+              color: isDiscount ? Colors.green : Colors.grey, fontSize: 14
+          )),
+          Text(currency.format(price), style: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w600, color: isDiscount ? Colors.green : theme.textMain, fontSize: 14
+          ))
+        ]
+    );
+  }
 }

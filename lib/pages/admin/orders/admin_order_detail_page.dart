@@ -1,7 +1,8 @@
+import 'dart:async'; // <-- TAMBAHAN: Untuk Stream GPS
 import 'dart:ui' as ui;
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:convert'; // <-- TAMBAHAN: Untuk Encode JSON Notifikasi
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,7 +11,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:http/http.dart' as http; // <-- TAMBAHAN: Untuk nembak API Laravel
+import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart'; // <-- TAMBAHAN: Senjata GPS
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
 
@@ -30,6 +32,9 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   bool _isLoadingChat = false;
   final GlobalKey _barcodeKey = GlobalKey();
 
+  // --- VARIABEL PENYIMPAN STREAM GPS ---
+  StreamSubscription<Position>? _locationSubscription;
+
   final List<String> _statuses = [
     'Pending', 'Confirmed', 'Picked Up', 'Processing', 'Ready', 'Delivery', 'Done', 'Cancelled'
   ];
@@ -38,6 +43,13 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   void initState() {
     super.initState();
     _currentStatus = widget.data['status'] ?? 'Pending';
+  }
+
+  // --- WAJIB: MATIKAN GPS SAAT KELUAR HALAMAN BIAR GAK BOCOR BATERAI ---
+  @override
+  void dispose() {
+    _locationSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _openChatWithCustomer() async {
@@ -209,7 +221,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     );
   }
 
-  // --- TAMBAHAN: FUNGSI PEMICU NOTIFIKASI KE LARAVEL ---
   Future<void> _sendNotificationToCustomer(String customerUid, String newStatus) async {
     try {
       var userDoc = await FirebaseFirestore.instance.collection('users').doc(customerUid).get();
@@ -243,6 +254,55 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     }
   }
 
+  // --- TAMBAHAN: FUNGSI LIVE TRACKING ADMIN ---
+  Future<void> _handleLiveTracking(String status) async {
+    // Kalau statusnya jalan, mulai rekam GPS
+    if (status == 'Picked Up' || status == 'Delivery') {
+
+      // 1. Cek apakah GPS HP nyala
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Aktifkan GPS HP kamu dulu, Min!")));
+        return;
+      }
+
+      // 2. Minta Izin Akses Lokasi ke Admin
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Izin akses lokasi ditolak.")));
+          return;
+        }
+      }
+
+      // 3. Mulai Broadcast Lokasi (Tiap pindah 10 meter)
+      _locationSubscription?.cancel(); // Bersihin yang lama
+      _locationSubscription = Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 10, // Update Firebase cuma kalau admin pindah 10 meter (Hemat Baterai)
+          )
+      ).listen((Position position) {
+        // Tembak koordinat baru ke Firebase
+        FirebaseFirestore.instance.collection('bookings').doc(widget.docId).update({
+          // GeoPoint itu tipe data khusus Firebase buat nyimpen peta
+          'driverLocation': GeoPoint(position.latitude, position.longitude),
+        });
+        debugPrint("Lokasi Admin diupdate: ${position.latitude}, ${position.longitude}");
+      });
+
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Live Tracking GPS Kurir Aktif! 📍"), backgroundColor: Colors.green)
+      );
+
+    } else {
+      // Kalau statusnya misal Processing / Done, MATIKAN pelacakannya!
+      _locationSubscription?.cancel();
+      _locationSubscription = null;
+    }
+  }
+
   Future<void> _attemptStatusChange(String newStatus) async {
     if (_currentStatus == 'Done') {
       bool? confirm = await showDialog<bool>(
@@ -268,11 +328,14 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
       // 1. Update status di Firestore
       await FirebaseFirestore.instance.collection('bookings').doc(widget.docId).update({'status': newStatus});
 
-      // 2. TAMBAHAN: Kirim Notifikasi Otomatis ke Customer
+      // 2. Kirim Notifikasi Otomatis ke Customer
       String customerId = widget.data['userId'] ?? '';
       if (customerId.isNotEmpty) {
         await _sendNotificationToCustomer(customerId, newStatus);
       }
+
+      // 3. TAMBAHAN: Nyalakan / Matikan GPS Tracking
+      await _handleLiveTracking(newStatus);
 
       setState(() { _currentStatus = newStatus; _isUpdating = false; });
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Status diubah ke $newStatus"), backgroundColor: _getStatusColor(newStatus)));
@@ -451,7 +514,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     );
   }
 
-  // WIDGET HELPER (PERUBAHAN WARNA TEKS SESUAI TEMA)
+  // WIDGET HELPER
   Widget _buildSectionContainer({required String title, required Widget child, required AppThemeData theme}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)), const SizedBox(height: 8), Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]), child: child)]);
   }

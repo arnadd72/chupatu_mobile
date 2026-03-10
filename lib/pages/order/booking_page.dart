@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'dart:convert'; // Untuk decode JSON
+import 'dart:convert';
+import 'dart:async'; // WAJIB untuk Google Maps Completer
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -8,9 +9,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http; // Library upload
+import 'package:http/http.dart' as http;
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/payment_page.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // WAJIB untuk Map Picker
 
 // --- VARIABEL GLOBAL DRAFT ---
 Map<String, dynamic> _bookingDraft = {};
@@ -24,15 +26,13 @@ class ApiConfig {
 class BookingPage extends StatefulWidget {
   final String serviceName;
   final int basePrice;
-
-  // --- 1. TAMBAHAN PARAMETER DARI MY GARAGE ---
   final Map<String, dynamic>? selectedShoe;
 
   const BookingPage({
     super.key,
     required this.serviceName,
     required this.basePrice,
-    this.selectedShoe, // Inisialisasi di sini
+    this.selectedShoe,
   });
 
   @override
@@ -40,14 +40,12 @@ class BookingPage extends StatefulWidget {
 }
 
 class _BookingPageState extends State<BookingPage> {
-  // --- CONTROLLERS ---
   final _shoeDetailController = TextEditingController();
   final _noteController = TextEditingController();
   final _mainAddressController = TextEditingController();
   final _detailAddressController = TextEditingController();
   final _phoneController = TextEditingController();
 
-  // --- STATE ---
   String _selectedCategory = 'Sneakers';
   final List<String> _shoeCategories = [
     'Sneakers', 'Boots', 'Flat Shoes', 'Heels/Wedges',
@@ -61,33 +59,29 @@ class _BookingPageState extends State<BookingPage> {
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
 
-  bool _isLocating = false;
   bool _isLoadingUserData = true;
   bool _isUploading = false;
+
+  // Koordinat Asli Customer
+  GeoPoint? _customerLocation;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
 
-    // --- 2. CEK DAN ISI OTOMATIS DATA DARI MY GARAGE ---
     if (widget.selectedShoe != null) {
-      // Gabungin nama brand dan nama sepatu ke dalam satu textfield
       String brand = widget.selectedShoe!['brand'] ?? '';
       String name = widget.selectedShoe!['name'] ?? '';
       _shoeDetailController.text = "$brand - $name";
 
-      // Notes kalau ada dari garasi, kita tambahin juga
       if (widget.selectedShoe!['note'] != null) {
         _noteController.text = widget.selectedShoe!['note'];
       }
     }
   }
 
-  // --- FUNGSI UPLOAD ---
   Future<String?> _uploadFotoKeLaravel() async {
-    // Kalau pesen dari garasi, foto dari HP (_selectedImage) pasti kosong.
-    // Kita langsung balikin link foto yang udah ada di garasi.
     if (widget.selectedShoe != null && widget.selectedShoe!['image'] != null) {
       return widget.selectedShoe!['image'];
     }
@@ -181,6 +175,7 @@ class _BookingPageState extends State<BookingPage> {
                             setState(() {
                               _mainAddressController.text = data['fullAddress'] ?? '';
                               _detailAddressController.text = data['detail'] ?? '';
+                              _customerLocation = null; // Reset biar bisa dilacak ulang
                             });
                             Navigator.pop(context);
                           },
@@ -218,13 +213,11 @@ class _BookingPageState extends State<BookingPage> {
 
   void _loadDraft() {
     setState(() {
-      // Jangan timpa text kalau udah diisi dari garasi
       if (widget.selectedShoe == null) {
         _shoeDetailController.text = _bookingDraft['shoeDetail'] ?? '';
         _noteController.text = _bookingDraft['note'] ?? '';
         _selectedCategory = _bookingDraft['category'] ?? 'Sneakers';
       }
-
       _mainAddressController.text = _bookingDraft['mainAddress'] ?? '';
       _detailAddressController.text = _bookingDraft['detailAddress'] ?? '';
       _phoneController.text = _bookingDraft['phoneNumber'] ?? '';
@@ -283,20 +276,36 @@ class _BookingPageState extends State<BookingPage> {
     if (image != null) setState(() => _selectedImage = File(image.path));
   }
 
-  Future<void> _getCurrentLocation() async {
-    setState(() => _isLocating = true);
+  // 👇 FUNGSI BARU: BUKA MAP PICKER 👇
+  Future<void> _openMapPicker() async {
+    // Tampilkan loading sebentar
+    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+
+    LatLng initialLoc = const LatLng(-6.974001, 107.630348); // Default Telkom
+
     try {
+      // Coba dapet GPS HP sekarang biar petanya langsung pas
       Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
-      if (placemarks.isNotEmpty) {
-        Placemark place = placemarks[0];
-        String mainAddress = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.subAdministrativeArea}, ${place.postalCode}";
-        setState(() => _mainAddressController.text = mainAddress);
-      }
+      initialLoc = LatLng(position.latitude, position.longitude);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal GPS: $e')));
-    } finally {
-      setState(() => _isLocating = false);
+      debugPrint("GPS gagal, pakai default.");
+    }
+
+    if (!mounted) return;
+    Navigator.pop(context); // Tutup loading
+
+    // Buka Halaman Peta Pemilih
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => MapSelectionScreen(initialLocation: initialLoc)),
+    );
+
+    // Kalau user mencet konfirmasi di peta
+    if (result != null && result is Map<String, dynamic>) {
+      setState(() {
+        _customerLocation = GeoPoint(result['latitude'], result['longitude']);
+        _mainAddressController.text = result['address'];
+      });
     }
   }
 
@@ -312,9 +321,25 @@ class _BookingPageState extends State<BookingPage> {
 
     setState(() => _isUploading = true);
 
+    // Kalau user ngetik manual tapi gak buka peta
+    if (_customerLocation == null) {
+      try {
+        List<Location> locations = await locationFromAddress(_mainAddressController.text);
+        if (locations.isNotEmpty) {
+          _customerLocation = GeoPoint(locations.first.latitude, locations.first.longitude);
+        }
+      } catch (e) {
+        try {
+          Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+          _customerLocation = GeoPoint(pos.latitude, pos.longitude);
+        } catch (e2) {
+          _customerLocation = const GeoPoint(-6.974001, 107.630348);
+        }
+      }
+    }
+
     String? urlFotoLaravel = await _uploadFotoKeLaravel();
 
-    // Kalau bukan dari garasi dan belum upload foto
     if (widget.selectedShoe == null && urlFotoLaravel == null && _selectedImage != null) {
       setState(() => _isUploading = false);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal upload foto ke server!")));
@@ -332,10 +357,7 @@ class _BookingPageState extends State<BookingPage> {
         builder: (context) => PaymentPage(
           serviceName: widget.serviceName,
           basePrice: widget.basePrice,
-
-          // --- 3. AMBIL KATEGORI SEPATU DARI GARASI (JIKA ADA) ---
           category: widget.selectedShoe != null ? "My Garage" : _selectedCategory,
-
           shoeDetail: _shoeDetailController.text,
           notes: _noteController.text,
           pickupDate: _selectedDate!,
@@ -346,6 +368,7 @@ class _BookingPageState extends State<BookingPage> {
           shoeImageFile: _selectedImage,
           phoneNumber: _phoneController.text,
           shoeImageUrl: urlFotoLaravel,
+          customerLocation: _customerLocation,
         ),
       ),
     );
@@ -370,8 +393,6 @@ class _BookingPageState extends State<BookingPage> {
   Widget build(BuildContext context) {
     final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     String formattedPrice = currencyFormatter.format(widget.basePrice);
-
-    // Status apakah user order lewat My Garage atau ngga
     bool isFromGarage = widget.selectedShoe != null;
 
     return WillPopScope(
@@ -410,7 +431,6 @@ class _BookingPageState extends State<BookingPage> {
 
                     _buildSectionTitle("Detail Sepatu", theme),
 
-                    // --- 4. SEMBUNYIKAN PILIHAN JIKA DARI GARAGE ---
                     if (!isFromGarage) ...[
                       _buildLabel("Kategori", theme),
                       Wrap(spacing: 10, runSpacing: 0, children: _shoeCategories.map((category) { bool isSelected = _selectedCategory == category; return ChoiceChip(label: Text(category), labelStyle: GoogleFonts.plusJakartaSans(color: isSelected ? Colors.white : theme.textMain, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal), selected: isSelected, onSelected: (selected) { if (selected) setState(() => _selectedCategory = category); }, selectedColor: theme.primary, backgroundColor: theme.background, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Colors.transparent : Colors.grey.shade300))); }).toList()),
@@ -418,7 +438,6 @@ class _BookingPageState extends State<BookingPage> {
                     ],
 
                     _buildLabel("Merk & Tipe Spesifik", theme),
-                    // Jika dari garasi, field ini di-lock (readOnly: true)
                     _buildTextField(controller: _shoeDetailController, hint: "Contoh: Nike Air Jordan 1 High Panda", icon: Icons.edit_note_rounded, theme: theme, readOnly: isFromGarage),
                     const SizedBox(height: 16),
 
@@ -449,12 +468,32 @@ class _BookingPageState extends State<BookingPage> {
                     ]),
                     const SizedBox(height: 24),
 
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [ _buildLabel("Alamat Penjemputan", theme), Row(children: [ GestureDetector(onTap: () => _showSavedAddressPicker(theme), child: Container(margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: Row(children: [const Icon(Icons.bookmarks_rounded, color: Colors.orange, size: 14), const SizedBox(width: 4), Text("Pilih Alamat", style: GoogleFonts.plusJakartaSans(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold))]))), GestureDetector(onTap: _isLocating ? null : _getCurrentLocation, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: theme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: Row(children: [ _isLocating ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: theme.primary)) : Icon(Icons.my_location_rounded, color: theme.primary, size: 14), const SizedBox(width: 4), Text(_isLocating ? "..." : "GPS", style: GoogleFonts.plusJakartaSans(color: theme.primary, fontSize: 11, fontWeight: FontWeight.bold))]))), ],) ],),
+                    // 👇 BAGIAN TOMBOL BUKA PETA 👇
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      _buildLabel("Alamat Penjemputan", theme),
+                      Row(children: [
+                        GestureDetector(onTap: () => _showSavedAddressPicker(theme), child: Container(margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: Row(children: [const Icon(Icons.bookmarks_rounded, color: Colors.orange, size: 14), const SizedBox(width: 4), Text("Tersimpan", style: GoogleFonts.plusJakartaSans(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold))]))),
+
+                        // TOMBOL PETA BARU
+                        GestureDetector(
+                            onTap: _openMapPicker,
+                            child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(color: theme.primary, borderRadius: BorderRadius.circular(20)),
+                                child: Row(children: [
+                                  const Icon(Icons.map_rounded, color: Colors.white, size: 14),
+                                  const SizedBox(width: 4),
+                                  Text("Pilih di Peta", style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))
+                                ])
+                            )
+                        ),
+                      ],)
+                    ],),
                     const SizedBox(height: 8),
                     _buildTextField(controller: _mainAddressController, hint: "Jalan, Kecamatan, Kota (Otomatis GPS / Pilih)", icon: Icons.map_rounded, theme: theme, maxLines: 4),
                     const SizedBox(height: 16),
                     _buildLabel("Detail Alamat (Wajib Diisi)", theme),
-                    _buildTextField(controller: _detailAddressController, hint: "Contoh: Rumah Pagar Hitam No. 5...", icon: Icons.home_work_outlined, theme: theme, maxLines: 2),
+                    _buildTextField(controller: _detailAddressController, hint: "Contoh: Pagar Hitam, Samping Warung...", icon: Icons.home_work_outlined, theme: theme, maxLines: 2),
                     const SizedBox(height: 40),
 
                     SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _goToPayment, style: ElevatedButton.styleFrom(backgroundColor: theme.primary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 8, shadowColor: theme.primary.withOpacity(0.4)), child: Text("Lanjut ke Pembayaran", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)))),
@@ -468,7 +507,6 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
-  // --- REPRODUKSI EXACT HELPER WIDGETS LO (Tambahan readOnly) ---
   Widget _buildSectionTitle(String title, AppThemeData theme) { return Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain))); }
   Widget _buildLabel(String text, AppThemeData theme) { return Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(text, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade600))); }
   Widget _buildTextField({required TextEditingController controller, required String hint, required IconData icon, required AppThemeData theme, int maxLines = 1, bool isNumber = false, bool readOnly = false}) {
@@ -476,7 +514,7 @@ class _BookingPageState extends State<BookingPage> {
         controller: controller,
         maxLines: maxLines,
         keyboardType: isNumber ? TextInputType.phone : TextInputType.text,
-        readOnly: readOnly, // Di-lock kalo dari My Garage
+        readOnly: readOnly,
         style: GoogleFonts.plusJakartaSans(color: readOnly ? Colors.grey : theme.textMain),
         decoration: InputDecoration(
             hintText: hint,
@@ -489,6 +527,134 @@ class _BookingPageState extends State<BookingPage> {
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: theme.primary))
         )
+    );
+  }
+}
+
+// ======================================================================
+// 👇 HALAMAN BARU: PEMILIH PETA (TARUH DI PALING BAWAH FILE INI AJA) 👇
+// ======================================================================
+
+class MapSelectionScreen extends StatefulWidget {
+  final LatLng initialLocation;
+  const MapSelectionScreen({super.key, required this.initialLocation});
+
+  @override
+  State<MapSelectionScreen> createState() => _MapSelectionScreenState();
+}
+
+class _MapSelectionScreenState extends State<MapSelectionScreen> {
+  final Completer<GoogleMapController> _controller = Completer();
+  late LatLng _currentLocation;
+  String _currentAddress = "Mencari alamat...";
+  bool _isDragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentLocation = widget.initialLocation;
+    _getAddressFromLatLng(_currentLocation);
+  }
+
+  Future<void> _getAddressFromLatLng(LatLng position) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        setState(() {
+          _currentAddress = "${place.street}, ${place.subLocality}, ${place.locality}";
+        });
+      }
+    } catch (e) {
+      setState(() => _currentAddress = "Gagal mengambil alamat detail.");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: Text("Pilih Lokasi Jemput", style: GoogleFonts.plusJakartaSans(color: Colors.black, fontWeight: FontWeight.bold)),
+        elevation: 1,
+      ),
+      body: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(target: _currentLocation, zoom: 17.0),
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            onMapCreated: (GoogleMapController controller) {
+              _controller.complete(controller);
+            },
+            onCameraMoveStarted: () => setState(() => _isDragging = true),
+            onCameraMove: (CameraPosition position) {
+              _currentLocation = position.target;
+            },
+            onCameraIdle: () {
+              setState(() => _isDragging = false);
+              _getAddressFromLatLng(_currentLocation);
+            },
+          ),
+
+          // PIN DI TENGAH LAYAR
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 40.0), // Diangkat dikit biar pas di jarum
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                transform: Matrix4.translationValues(0, _isDragging ? -15 : 0, 0),
+                child: const Icon(Icons.location_on, size: 50, color: Colors.red),
+              ),
+            ),
+          ),
+
+          // PANEL KONFIRMASI DI BAWAH
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))]
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Lokasi Penjemputan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  Text(_currentAddress, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD4AF37), // Warna Gold
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                      ),
+                      onPressed: () {
+                        // KEMBALIKAN DATA KE BOOKING PAGE
+                        Navigator.pop(context, {
+                          'latitude': _currentLocation.latitude,
+                          'longitude': _currentLocation.longitude,
+                          'address': _currentAddress,
+                        });
+                      },
+                      child: Text("Konfirmasi Lokasi Ini", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  )
+                ],
+              ),
+            ),
+          )
+        ],
+      ),
     );
   }
 }

@@ -22,6 +22,9 @@ class PaymentPage extends StatefulWidget {
   final File? shoeImageFile;
   final String? shoeImageUrl;
 
+  // 👇 TAMBAHAN: Pintu buat nerima koordinat dari Booking Page 👇
+  final GeoPoint? customerLocation;
+
   const PaymentPage({
     super.key,
     required this.serviceName,
@@ -37,6 +40,7 @@ class PaymentPage extends StatefulWidget {
     required this.phoneNumber,
     this.shoeImageFile,
     this.shoeImageUrl,
+    this.customerLocation, // <-- Wajib ditaruh di sini juga
   });
 
   @override
@@ -111,6 +115,10 @@ class _PaymentPageState extends State<PaymentPage> {
         'mainAddress': widget.mainAddress,
         'detailAddress': widget.detailAddress,
         'shoeImageUrl': widget.shoeImageUrl ?? '',
+
+        // 👇 TAMBAHAN: Simpan Koordinat GPS Customer ke Firebase 👇
+        'customerLocation': widget.customerLocation,
+
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -137,7 +145,7 @@ class _PaymentPageState extends State<PaymentPage> {
           children: [
             Icon(Icons.check_circle_rounded, color: Colors.green, size: 60),
             SizedBox(height: 10),
-            const Text("Pesanan Diterima!"),
+            Text("Pesanan Diterima!"),
           ],
         ),
         content: Text(
@@ -179,12 +187,10 @@ class _PaymentPageState extends State<PaymentPage> {
       String savedPin = data['securityPin'] ?? "";
 
       if (!isPinEnabled) {
-        // PERBAIKAN: Diarahkan ke fungsi process yang benar
         await _processPaymentAndOrder();
         return;
       }
 
-      // Jika PIN aktif, matikan loading sementara untuk memunculkan sheet PIN
       setState(() => _isProcessing = false);
       _showPinVerificationSheet(savedPin);
 
@@ -194,10 +200,10 @@ class _PaymentPageState extends State<PaymentPage> {
     }
   }
 
-  // --- MODAL INPUT PIN (FIXED: Notifikasi Salah PIN Langsung Muncul) ---
+  // --- MODAL INPUT PIN ---
   void _showPinVerificationSheet(String correctPin) {
     String inputPin = "";
-    String? localError; // <--- PINDAH KE SINI (Di luar builder supaya tidak reset)
+    String? localError;
 
     showModalBottomSheet(
       context: context,
@@ -217,7 +223,6 @@ class _PaymentPageState extends State<PaymentPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Indikator handle modal
                 Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
                 const SizedBox(height: 20),
                 Text("Konfirmasi PIN", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -225,7 +230,6 @@ class _PaymentPageState extends State<PaymentPage> {
                 const Text("Masukkan 6 digit PIN keamanan Anda.", style: TextStyle(fontSize: 13, color: Colors.grey)),
                 const SizedBox(height: 24),
 
-                // Input PIN
                 TextField(
                   autofocus: true,
                   keyboardType: TextInputType.number,
@@ -237,7 +241,6 @@ class _PaymentPageState extends State<PaymentPage> {
                     counterText: "",
                     filled: true,
                     fillColor: Colors.grey.shade100,
-                    // Efek Border Merah kalau salah
                     enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide(color: localError != null ? Colors.red : Colors.transparent)
@@ -249,14 +252,12 @@ class _PaymentPageState extends State<PaymentPage> {
                   ),
                   onChanged: (val) {
                     inputPin = val;
-                    // Hapus pesan error saat user mulai ngetik lagi
                     if (localError != null) {
                       setModalState(() => localError = null);
                     }
                   },
                 ),
 
-                // --- PESAN ERROR YANG PASTI MUNCUL ---
                 if (localError != null) ...[
                   const SizedBox(height: 12),
                   Row(
@@ -274,16 +275,14 @@ class _PaymentPageState extends State<PaymentPage> {
 
                 const SizedBox(height: 32),
 
-                // Tombol Bayar
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
                       if (inputPin == correctPin) {
                         Navigator.pop(ctx);
-                        _processPaymentAndOrder(); // PIN BENAR -> JALAN
+                        _processPaymentAndOrder();
                       } else {
-                        // PIN SALAH -> Update tampilan modal lewat setModalState
                         setModalState(() {
                           localError = "PIN Salah! Silakan coba lagi.";
                         });
@@ -392,7 +391,6 @@ class _PaymentPageState extends State<PaymentPage> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  // PERBAIKAN: Diarahkan ke handle PIN terlebih dahulu
                   onPressed: _isProcessing ? null : _handlePaymentAuth,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primary,
