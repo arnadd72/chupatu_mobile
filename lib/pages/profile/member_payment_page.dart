@@ -1,9 +1,12 @@
+import 'dart:convert'; // WAJIB: Untuk decode API
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Tambahkan ini
-import 'package:cloud_firestore/cloud_firestore.dart'; // Tambahkan ini
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/main.dart';
+import 'package:http/http.dart' as http; // WAJIB: Untuk nembak API Laravel
+import 'package:url_launcher/url_launcher.dart'; // WAJIB: Buka browser Mayar
 
 class MemberPaymentPage extends StatefulWidget {
   final VoidCallback onPaymentSuccess;
@@ -17,7 +20,10 @@ class MemberPaymentPage extends StatefulWidget {
 class _MemberPaymentPageState extends State<MemberPaymentPage> {
   bool _isProcessing = false;
   int _selectedMethod = 0;
-  final User? user = FirebaseAuth.instance.currentUser; // Ambil user saat ini
+  final User? user = FirebaseAuth.instance.currentUser;
+
+  // 👇 GANTI PAKE LINK NGROK LARAVEL LO 👇
+  final String apiUrl = "https://malik-pseudomonocyclic-misti.ngrok-free.dev/api/create-mayar-payment";
 
   @override
   Widget build(BuildContext context) {
@@ -72,11 +78,29 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
 
                   const SizedBox(height: 32),
 
-                  Text("Pilih Metode Pembayaran", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+                  // Tampilan UI Pembayaran lama sengaja disisakan biar UI gak rusak,
+                  // Tapi aslinya nanti customer akan milih metode pembayaran di web Mayar.
+                  Text("Informasi Pembayaran", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
                   const SizedBox(height: 16),
-                  _buildPaymentMethod(0, "Gopay", theme),
-                  _buildPaymentMethod(1, "OVO", theme),
-                  _buildPaymentMethod(2, "Dana", theme),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.security, color: theme.primary),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                              "Anda akan diarahkan ke halaman pembayaran aman Mayar.id (Support QRIS, VA, E-Wallet)",
+                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: theme.textMain)
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                   const SizedBox(height: 40),
 
@@ -92,7 +116,7 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
                       ),
                       child: _isProcessing
                           ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : Text("Bayar Rp 49.000", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                          : Text("Lanjutkan Pembayaran", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
                     ),
                   ),
                 ],
@@ -103,57 +127,73 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
     );
   }
 
-  Widget _buildPaymentMethod(int index, String name, AppThemeData theme) {
-    bool isSelected = _selectedMethod == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedMethod = index),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isSelected ? theme.primary : Colors.grey.withOpacity(0.2), width: isSelected ? 2 : 1),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.account_balance_wallet, color: isSelected ? theme.primary : Colors.grey),
-            const SizedBox(width: 16),
-            Expanded(child: Text(name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: theme.textMain))),
-            if (isSelected) Icon(Icons.check_circle, color: theme.primary, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- LOGIKA PROSES PEMBAYARAN OTOMATIS KE FIRESTORE ---
+  // --- LOGIKA PROSES PEMBAYARAN VIA MAYAR ---
   void _processPayment(BuildContext context) async {
-    if (user == null) return;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Harus login dulu!"), backgroundColor: Colors.red)
+      );
+      return;
+    }
 
     setState(() => _isProcessing = true);
 
     try {
-      // 1. Simulasi Delay Koneksi Bank
-      await Future.delayed(const Duration(seconds: 2));
+      // 1. Bikin ID Transaksi Unik
+      String orderId = "PRO-" + DateTime.now().millisecondsSinceEpoch.toString();
 
-      // 2. UPDATE DATABASE FIRESTORE
-      // Menambahkan field memberType: "Pro" secara otomatis tanpa hapus data lama
-      await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-        'memberType': 'Pro',
-      });
+      // 2. Tembak API Laravel buat minta Link Mayar
+      var response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'order_id': orderId,
+          'firebase_uid': user?.uid ?? '',
+          'amount': 49000,
+          'customer_name': user?.displayName ?? 'Member Chupatu',
+          'customer_email': user?.email ?? 'user@chupatu.com',
+          'customer_mobile': '081234567890',
+          'description': 'Langganan Chupatu Member Pro (1 Bulan)'
+        }),
+      );
 
-      if (!mounted) return;
+      // 3. Cek Balasan dari Laravel/Mayar
+      if (response.statusCode == 200) {
+        var data = jsonDecode(response.body);
 
-      // 3. Tampilkan Dialog Sukses
-      _showSuccessDialog(context);
+        if (data['success'] == true && data['payment_link'] != null) {
+          String paymentUrl = data['payment_link'];
 
+          // 4. Buka Web Browser HP menuju Link Pembayaran Mayar
+          if (await launchUrl(Uri.parse(paymentUrl), mode: LaunchMode.externalApplication)) {
+
+            // Tampilkan pesan suruh bayar, bukan langsung sukses
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Silakan selesaikan pembayaran di browser..."),
+                    backgroundColor: Colors.blue,
+                    duration: Duration(seconds: 5),
+                  )
+              );
+            }
+
+          } else {
+            throw Exception('Gagal membuka browser pembayaran');
+          }
+        } else {
+          throw Exception(data['message'] ?? 'Gagal mendapatkan link dari Mayar');
+        }
+      } else {
+        throw Exception("Error Mayar: ${response.body}");
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isProcessing = false);
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gagal memproses pembayaran: $e"), backgroundColor: Colors.red)
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red)
       );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
@@ -182,7 +222,7 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context); // Tutup Dialog
-                  Navigator.pop(context); // Kembali ke Home/Profile
+                  Navigator.pop(context); // Kembali
                   widget.onPaymentSuccess();
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
