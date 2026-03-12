@@ -1,6 +1,6 @@
-import 'dart:ui' as ui; // Buat ngecilin gambar motor
-import 'dart:convert'; // WAJIB: Buat decode data rute dari Google
-import 'package:http/http.dart' as http; // WAJIB: Buat nembak API rute Google
+import 'dart:ui' as ui;
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -43,7 +43,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   // --- VARIABEL PETA, IKON & RUTE ---
   GoogleMapController? _mapController;
   BitmapDescriptor customIcon = BitmapDescriptor.defaultMarker;
-
   Set<Polyline> _polylines = {};
 
   // 👇 MASUKIN API KEY GOOGLE MAPS LO DI SINI 👇
@@ -68,7 +67,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   }
 
   void _loadCustomMarker() async {
-    // Angka 120 ini ukuran pixel-nya. Boleh dikecilin jadi 80 atau 100 kalau kegedean.
     final Uint8List markerIcon = await getBytesFromAsset(
         'assets/images/motor_kurir.png', 50
     );
@@ -79,14 +77,13 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     }
   }
 
-  // --- FUNGSI MENCARI RUTE (NATIVE API CALL - ANTI ERROR) ---
+  // --- FUNGSI MENCARI RUTE (NATIVE API CALL) ---
   Future<void> _fetchRoute(LatLng driver, LatLng customer) async {
-    // Nembak langsung ke server Google Directions API
     String url = "https://maps.googleapis.com/maps/api/directions/json"
         "?origin=${driver.latitude},${driver.longitude}"
         "&destination=${customer.latitude},${customer.longitude}"
         "&mode=driving"
-        "&key=$googleApiKey"; // Pastikan API Key diisi!
+        "&key=$googleApiKey";
 
     try {
       var response = await http.get(Uri.parse(url));
@@ -94,19 +91,15 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         var data = jsonDecode(response.body);
 
         if (data['routes'] != null && data['routes'].isNotEmpty) {
-          // 1. Ambil data garis rahasia dari Google
           String encodedPolyline = data['routes'][0]['overview_polyline']['points'];
-
-          // 2. Terjemahkan jadi titik koordinat
           List<LatLng> polylineCoordinates = _decodePolyline(encodedPolyline);
 
-          // 3. Gambar garis birunya di peta
           if (mounted) {
             setState(() {
               _polylines.add(
                 Polyline(
                   polylineId: const PolylineId("route_kurir"),
-                  color: const Color(0xFF0606F9), // Biru khas rute
+                  color: const Color(0xFF0606F9),
                   width: 5,
                   points: polylineCoordinates,
                 ),
@@ -120,7 +113,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     }
   }
 
-  // --- ALGORITMA PENERJEMAH GARIS GOOGLE MAPS (JANGAN DIUBAH) ---
   List<LatLng> _decodePolyline(String encoded) {
     List<LatLng> poly = [];
     int index = 0, len = encoded.length;
@@ -151,7 +143,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     return poly;
   }
 
-  // --- 1. FUNGSI BUKA CHAT KE ADMIN ---
+  // --- FUNGSI BUKA CHAT KE ADMIN ---
   Future<void> _openChatWithAdmin() async {
     setState(() => _isLoadingChat = true);
 
@@ -209,7 +201,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     }
   }
 
-  // --- 2. FUNGSI TAMPILKAN BARCODE ---
+  // --- FUNGSI TAMPILKAN BARCODE ---
   void _showBarcodeDialog() {
     showDialog(
       context: context,
@@ -266,6 +258,47 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                 ),
               )
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- FUNGSI LIHAT GAMBAR FULL SCREEN ---
+  void _showFullScreenImage(String imageUrl) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            iconTheme: const IconThemeData(color: Colors.white),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              panEnabled: true, // Bisa digeser
+              boundaryMargin: const EdgeInsets.all(20),
+              minScale: 0.5,
+              maxScale: 4, // Bisa di zoom sampai 4x
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const CircularProgressIndicator(color: Colors.white);
+                },
+                errorBuilder: (context, error, stackTrace) => const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.broken_image, color: Colors.white54, size: 50),
+                    SizedBox(height: 10),
+                    Text("Gagal memuat gambar", style: TextStyle(color: Colors.white54)),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -371,6 +404,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     String currentStatus = widget.data['status'] ?? 'Pending';
     bool canCancel = (currentStatus == 'Pending' || currentStatus == 'Confirmed');
     bool isDone = (currentStatus == 'Done');
+
+    // 👉 AMBIL URL FOTO SEPATU DARI DATA FIRESTORE
+    String? shoeImageUrl = widget.data['shoeImageUrl'];
 
     return ValueListenableBuilder<AppThemeData>(
         valueListenable: ThemeConfig.currentTheme,
@@ -584,6 +620,73 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                           ),
                         ),
                         const SizedBox(height: 24),
+
+                        // 👉 WIDGET BARU: FOTO SEPATU PELANGGAN
+                        if (shoeImageUrl != null && shoeImageUrl.isNotEmpty) ...[
+                          _buildSectionTitle("Foto Sepatu", theme),
+                          GestureDetector(
+                            onTap: () => _showFullScreenImage(shoeImageUrl),
+                            child: Container(
+                              width: double.infinity,
+                              height: 180,
+                              margin: const EdgeInsets.only(bottom: 24),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.03),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  )
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(18),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.network(
+                                      shoeImageUrl,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return Container(
+                                          color: theme.surface,
+                                          child: const Center(child: CircularProgressIndicator()),
+                                        );
+                                      },
+                                      errorBuilder: (context, error, stackTrace) => Container(
+                                        color: theme.surface,
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.broken_image_rounded, size: 40, color: Colors.grey.shade400),
+                                            const SizedBox(height: 8),
+                                            Text("Gagal memuat foto", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    // Ikon Kaca Pembesar di pojok biar user tau bisa diklik
+                                    Positioned(
+                                      right: 12,
+                                      bottom: 12,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 20),
+                                      ),
+                                    )
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
 
                         // ALAMAT
                         _buildSectionTitle("Alamat & Jadwal", theme),

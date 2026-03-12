@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // Dibutuhkan untuk format tanggal di AllReviewsPage
+import 'package:intl/intl.dart';
 import 'package:chupatu_mobile/main.dart';
 
 // ==============================================================
@@ -34,7 +34,6 @@ class ReviewRatingSection extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () {
-                      // Langsung memanggil class AllReviewsPage yang ada di bawah file ini
                       Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const AllReviewsPage())
@@ -64,7 +63,7 @@ class ReviewRatingSection extends StatelessWidget {
                 stream: FirebaseFirestore.instance
                     .collection('reviews')
                     .orderBy('createdAt', descending: true)
-                    .limit(5) // <-- TAMPIL CUMA 5 TERATAS DI HOME
+                    .limit(5)
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -173,28 +172,49 @@ class ReviewRatingSection extends StatelessWidget {
 }
 
 // ==============================================================
-// 2. HALAMAN LIHAT SEMUA ULASAN (Tampil Vertikal, Tanpa Limit)
+// 2. HALAMAN LIHAT SEMUA ULASAN (Bisa Filter by Layanan)
 // ==============================================================
 class AllReviewsPage extends StatelessWidget {
-  const AllReviewsPage({super.key});
+  // 👉 TAMBAHAN: Parameter opsional buat filter layanan
+  final String? serviceName;
+
+  const AllReviewsPage({super.key, this.serviceName});
 
   @override
   Widget build(BuildContext context) {
+    // Tentukan judul berdasarkan apakah dia difilter atau enggak
+    String pageTitle = serviceName != null ? "Ulasan $serviceName" : "Semua Ulasan";
+
+    // Tentukan query Firestore-nya
+    Stream<QuerySnapshot> reviewStream;
+    if (serviceName != null) {
+      // Filter khusus 1 layanan
+      reviewStream = FirebaseFirestore.instance
+          .collection('reviews')
+          .where('serviceName', isEqualTo: serviceName)
+          .snapshots();
+    } else {
+      // Tampilkan semua layanan (Dari Home)
+      reviewStream = FirebaseFirestore.instance
+          .collection('reviews')
+          .orderBy('createdAt', descending: true)
+          .snapshots();
+    }
+
     return ValueListenableBuilder<AppThemeData>(
         valueListenable: ThemeConfig.currentTheme,
         builder: (context, theme, child) {
           return Scaffold(
             backgroundColor: theme.background,
             appBar: AppBar(
-              title: Text("Semua Ulasan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+              title: Text(pageTitle, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
               backgroundColor: theme.surface,
               elevation: 0,
               iconTheme: IconThemeData(color: theme.textMain),
               centerTitle: true,
             ),
             body: StreamBuilder<QuerySnapshot>(
-              // MENGAMBIL SEMUA DATA REVIEW TANPA LIMIT
-              stream: FirebaseFirestore.instance.collection('reviews').orderBy('createdAt', descending: true).snapshots(),
+              stream: reviewStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -207,13 +227,26 @@ class AllReviewsPage extends StatelessWidget {
                       children: [
                         Icon(Icons.star_outline_rounded, size: 60, color: Colors.grey.shade300),
                         const SizedBox(height: 16),
-                        Text("Belum ada ulasan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                        Text(
+                            serviceName != null ? "Belum ada ulasan untuk layanan ini." : "Belum ada ulasan.",
+                            style: GoogleFonts.plusJakartaSans(color: Colors.grey)
+                        ),
                       ],
                     ),
                   );
                 }
 
                 var reviews = snapshot.data!.docs;
+
+                // 👉 TAMBAHAN: Urutkan manual khusus yang difilter biar gak error Firebase Index
+                if (serviceName != null) {
+                  reviews.sort((a, b) {
+                    Timestamp? tA = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                    Timestamp? tB = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                    if (tA == null || tB == null) return 0;
+                    return tB.compareTo(tA);
+                  });
+                }
 
                 return ListView.separated(
                   padding: const EdgeInsets.all(20),
@@ -223,7 +256,6 @@ class AllReviewsPage extends StatelessWidget {
                     var data = reviews[index].data() as Map<String, dynamic>;
                     int rating = data['rating'] ?? 5;
 
-                    // Format Tanggal
                     String dateStr = '';
                     if (data['createdAt'] != null) {
                       dateStr = DateFormat('dd MMM yyyy').format((data['createdAt'] as Timestamp).toDate());

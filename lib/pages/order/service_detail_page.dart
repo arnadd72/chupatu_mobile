@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // 👉 TAMBAHAN: Buat baca Firestore
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/booking_page.dart';
 import 'package:chupatu_mobile/pages/order/custom_service_page.dart';
+import 'package:chupatu_mobile/pages/home/review_rating_section.dart';
 
 class ServiceDetailPage extends StatelessWidget {
   final String serviceName;
@@ -42,29 +44,19 @@ class ServiceDetailPage extends StatelessWidget {
   String _getSmartDescription(String service) {
     String lowerService = service.toLowerCase();
 
-    // UBAH DESKRIPSI KHUSUS CUSTOM DI SINI
     if (lowerService.contains('custom')) {
       return "Layanan perawatan sepatu profesional yang fleksibel dan dapat disesuaikan dengan kebutuhan spesifik sepatu Anda.\n\nDi sini Anda dapat merakit dan menggabungkan beberapa layanan sekaligus (misal: Deep Clean + Waterproof). Klik tombol 'Pesan Sekarang' di bawah untuk mulai merakit paket layanan Anda sendiri!";
     }
 
-    switch (lowerService) {
-      case 'deep clean':
-        return "Berikan perawatan terbaik untuk sepatu kesayanganmu! Layanan Deep Clean membersihkan debu, noda membandel, dan bakteri hingga ke pori-pori terdalam.\n\nCocok untuk semua bahan (Canvas, Suede, Leather, Nubuck). Hasilnya sepatu bersih total, wangi segar, dan higienis seperti baru kembali.";
-      case 'fast clean':
-        return "Butuh sepatu bersih dadakan buat hangout atau meeting? Fast Clean solusinya! \n\nFokus pembersihan pada bagian Upper dan Midsole yang cepat namun tetap detail. Proses kilat, sepatu langsung glowing dan siap diajak jalan lagi dalam waktu singkat.";
-      case 'unyellowing':
-        return "Midsole sepatu menguning bikin gak pede? Jangan dibuang dulu! \n\nTeknik Unyellowing kami ampuh menghilangkan noda oksidasi membandel yang bikin sepatu terlihat kusam. Kami kembalikan warna putih cerah pada sol sepatumu, bikin tampilannya fresh lagi seperti baru beli.";
-      case 'repair':
-        return "Sol sepatu mangap atau jebol saat dipakai? Tenang, serahkan pada ahlinya!\n\nKami melakukan Reglue (pengeleman ulang) dengan lem standar pabrik yang super kuat dan teknik press mesin. Sepatu tempur andalanmu bakal kokoh lagi, siap melangkah jauh tanpa khawatir rusak di jalan.";
-      case 'repaint':
-        return "Warna sepatu pudar termakan usia? Atau bosan dengan warna lama?\n\nLayanan Repaint kami menggunakan cat premium anti-luntur/crack. Bisa kembalikan warna asli agar tajam kembali, atau ganti warna total (Custom Color) sesuai kepribadianmu. Finishing presisi dan tahan lama.";
-      case 'waterproof':
-        return "Lindungi investasimu! Lapisan Nano-Coating transparan yang memberikan efek daun talas pada sepatu.\n\nAir, kopi, saus, atau lumpur gak bakal nempel! Melindungi bahan sepatu dari noda cair agar lebih awet, mudah dibersihkan, dan tetap bernapas. Wajib buat sneakers mahal!";
-      case 'pickup':
-        return "Males keluar rumah macet-macetan? Biar kurir kami yang jemput sepatumu!\n\nLayanan antar-jemput gratis untuk area tertentu dengan minimal transaksi. Kurir ramah, amanah, dan tepat waktu. Kamu cukup duduk manis, sepatu kotor dijemput, pulang-pulang sudah bersih kinclong.";
-      default:
-        return "Layanan perawatan sepatu profesional dengan teknik khusus, bahan pembersih premium, dan peralatan modern untuk memberikan hasil maksimal pada setiap pasang sepatu Anda. Kepuasan pelanggan adalah prioritas utama kami.";
-    }
+    if (lowerService.contains('deep clean')) return "Berikan perawatan terbaik untuk sepatu kesayanganmu! Layanan Deep Clean membersihkan debu, noda membandel, dan bakteri hingga ke pori-pori terdalam.\n\nCocok untuk semua bahan (Canvas, Suede, Leather, Nubuck). Hasilnya sepatu bersih total, wangi segar, dan higienis seperti baru kembali.";
+    if (lowerService.contains('fast clean')) return "Butuh sepatu bersih dadakan buat hangout atau meeting? Fast Clean solusinya! \n\nFokus pembersihan pada bagian Upper dan Midsole yang cepat namun tetap detail. Proses kilat, sepatu langsung glowing dan siap diajak jalan lagi dalam waktu singkat.";
+    if (lowerService.contains('unyellowing')) return "Midsole sepatu menguning bikin gak pede? Jangan dibuang dulu! \n\nTeknik Unyellowing kami ampuh menghilangkan noda oksidasi membandel yang bikin sepatu terlihat kusam. Kami kembalikan warna putih cerah pada sol sepatumu, bikin tampilannya fresh lagi seperti baru beli.";
+    if (lowerService.contains('repair')) return "Sol sepatu mangap atau jebol saat dipakai? Tenang, serahkan pada ahlinya!\n\nKami melakukan Reglue (pengeleman ulang) dengan lem standar pabrik yang super kuat dan teknik press mesin. Sepatu tempur andalanmu bakal kokoh lagi, siap melangkah jauh tanpa khawatir rusak di jalan.";
+    if (lowerService.contains('repaint')) return "Warna sepatu pudar termakan usia? Atau bosan dengan warna lama?\n\nLayanan Repaint kami menggunakan cat premium anti-luntur/crack. Bisa kembalikan warna asli agar tajam kembali, atau ganti warna total (Custom Color) sesuai kepribadianmu. Finishing presisi dan tahan lama.";
+    if (lowerService.contains('waterproof')) return "Lindungi investasimu! Lapisan Nano-Coating transparan yang memberikan efek daun talas pada sepatu.\n\nAir, kopi, saus, atau lumpur gak bakal nempel! Melindungi bahan sepatu dari noda cair agar lebih awet, mudah dibersihkan, dan tetap bernapas. Wajib buat sneakers mahal!";
+    if (lowerService.contains('pickup')) return "Males keluar rumah macet-macetan? Biar kurir kami yang jemput sepatumu!\n\nLayanan antar-jemput gratis untuk area tertentu dengan minimal transaksi. Kurir ramah, amanah, dan tepat waktu. Kamu cukup duduk manis, sepatu kotor dijemput, pulang-pulang sudah bersih kinclong.";
+
+    return "Layanan perawatan sepatu profesional dengan teknik khusus, bahan pembersih premium, dan peralatan modern untuk memberikan hasil maksimal pada setiap pasang sepatu Anda. Kepuasan pelanggan adalah prioritas utama kami.";
   }
 
   // --- 3. HELPER HARGA ---
@@ -87,11 +79,7 @@ class ServiceDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final String finalImage = _getSmartImage(serviceName);
     final String finalDescription = _getSmartDescription(serviceName);
-
-    // LOGIKA UBAH JUDUL JIKA CUSTOM
-    final String displayTitle = serviceName.toLowerCase().contains('custom')
-        ? 'Custom Perawatan'
-        : serviceName;
+    final String displayTitle = serviceName.toLowerCase().contains('custom') ? 'Custom Perawatan' : serviceName;
 
     return ValueListenableBuilder<AppThemeData>(
       valueListenable: ThemeConfig.currentTheme,
@@ -166,16 +154,85 @@ class ServiceDetailPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
 
-                      // RATING
-                      Row(children: [
-                        const Icon(Icons.star_rounded, color: Colors.amber, size: 20),
-                        const SizedBox(width: 4),
-                        Text("4.8 (120 Reviews)", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: Colors.grey, fontSize: 13)),
-                        const SizedBox(width: 16),
-                        const Icon(Icons.access_time_rounded, color: Colors.blueAccent, size: 18),
-                        const SizedBox(width: 4),
-                        Text("2-3 Hari", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: Colors.grey, fontSize: 13)),
-                      ]),
+                      // 👉 PERUBAHAN: RATING DINAMIS DARI FIRESTORE
+                      Row(
+                          children: [
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('reviews')
+                                  .where('serviceName', isEqualTo: serviceName)
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+
+                                // Kondisi 1: Loading
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return Row(
+                                    children: [
+                                      const Icon(Icons.star_rounded, color: Colors.amber, size: 20),
+                                      const SizedBox(width: 4),
+                                      Text("Menghitung...", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: Colors.grey, fontSize: 13)),
+                                    ],
+                                  );
+                                }
+
+                                // Kondisi 2: Kosong (Belum ada review)
+                                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                                  return Row(
+                                    children: [
+                                      Icon(Icons.star_outline_rounded, color: Colors.grey.shade400, size: 20),
+                                      const SizedBox(width: 4),
+                                      Text("Belum ada ulasan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: Colors.grey.shade400, fontSize: 13)),
+                                    ],
+                                  );
+                                }
+
+                                // Kondisi 3: Ada Review (Hitung rata-rata)
+                                int totalReviews = snapshot.data!.docs.length;
+                                double totalRating = 0;
+
+                                for (var doc in snapshot.data!.docs) {
+                                  var data = doc.data() as Map<String, dynamic>;
+                                  totalRating += (data['rating'] ?? 5);
+                                }
+
+                                double averageRating = totalRating / totalReviews;
+
+                                // Tombol Review yang bisa di-klik
+                                return GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => AllReviewsPage(serviceName: serviceName)), // PANGGIL CLASS LO DI SINI
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                        color: Colors.amber.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.amber.withOpacity(0.5))
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                            "${averageRating.toStringAsFixed(1)} ($totalReviews Ulasan) >",
+                                            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.amber.shade700, fontSize: 12)
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+
+                            const SizedBox(width: 16),
+                            const Icon(Icons.access_time_rounded, color: Colors.blueAccent, size: 18),
+                            const SizedBox(width: 4),
+                            Text("2-3 Hari", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: Colors.grey, fontSize: 13)),
+                          ]
+                      ),
 
                       const SizedBox(height: 24),
                       const Divider(),
@@ -184,7 +241,7 @@ class ServiceDetailPage extends StatelessWidget {
                       Text("Deskripsi Layanan", style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)),
                       const SizedBox(height: 8),
 
-                      // DESKRIPSI MARKETING DISINI
+                      // DESKRIPSI MARKETING
                       Expanded(
                         child: SingleChildScrollView(
                           child: Text(
@@ -213,7 +270,6 @@ class ServiceDetailPage extends StatelessWidget {
                                 MaterialPageRoute(
                                   builder: (context) => BookingPage(
                                     serviceName: serviceName,
-                                    // PENTING: Gunakan _getIntPrice agar tidak error Type Mismatch!
                                     basePrice: _getIntPrice(),
                                   ),
                                 ),
