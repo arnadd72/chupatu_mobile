@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:convert';
+import 'dart:async'; // Untuk StreamSubscription
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +8,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:chupatu_mobile/main.dart';
+import 'package:chupatu_mobile/pages/order/order_history_page.dart';
+
+// Untuk nembak API & Buka Webview
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 class PaymentPage extends StatefulWidget {
   final String serviceName;
@@ -21,8 +28,6 @@ class PaymentPage extends StatefulWidget {
   final String phoneNumber;
   final File? shoeImageFile;
   final String? shoeImageUrl;
-
-  // 👇 TAMBAHAN: Pintu buat nerima koordinat dari Booking Page 👇
   final GeoPoint? customerLocation;
 
   const PaymentPage({
@@ -40,7 +45,7 @@ class PaymentPage extends StatefulWidget {
     required this.phoneNumber,
     this.shoeImageFile,
     this.shoeImageUrl,
-    this.customerLocation, // <-- Wajib ditaruh di sini juga
+    this.customerLocation,
   });
 
   @override
@@ -55,12 +60,22 @@ class _PaymentPageState extends State<PaymentPage> {
   int _discountAmount = 0;
   bool _isProcessing = false;
 
+  // Variabel CCTV dan URL Laravel
+  StreamSubscription<DocumentSnapshot>? _orderSubscription;
+  final String apiUrl = "https://malik-pseudomonocyclic-misti.ngrok-free.dev/api/create-mayar-payment";
+
   @override
   void initState() {
     super.initState();
     if (widget.isDelivery) {
       _deliveryFee = 15000;
     }
+  }
+
+  @override
+  void dispose() {
+    _orderSubscription?.cancel();
+    super.dispose();
   }
 
   void _applyPromo() {
@@ -75,26 +90,15 @@ class _PaymentPageState extends State<PaymentPage> {
     }
   }
 
-  // --- LOGIKA FINAL: SIMPAN KE FIRESTORE ---
+  // --- LOGIKA UTAMA TRANSAKSI ---
   Future<void> _processPaymentAndOrder() async {
     setState(() => _isProcessing = true);
     final user = FirebaseAuth.instance.currentUser;
     int totalPrice = (widget.basePrice + _deliveryFee) - _discountAmount;
 
     try {
-      String? imageUrl;
-      /*
-      if (widget.shoeImageFile != null) {
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child('order_images')
-            .child('${user!.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
-        await ref.putFile(widget.shoeImageFile!);
-        imageUrl = await ref.getDownloadURL();
-      }
-       */
-
-      await FirebaseFirestore.instance.collection('bookings').add({
+      // 1. Simpan data awal ke Firestore dulu (Status: Pending Payment / Unpaid)
+      DocumentReference newOrderRef = await FirebaseFirestore.instance.collection('bookings').add({
         'userId': user?.uid,
         'customerName': user?.displayName ?? 'Guest',
         'phoneNumber': widget.phoneNumber,
@@ -107,7 +111,7 @@ class _PaymentPageState extends State<PaymentPage> {
         'discount': _discountAmount,
         'totalPrice': totalPrice,
         'paymentMethod': _selectedPaymentMethod,
-        'paymentStatus': _selectedPaymentMethod == 'Midtrans' ? 'Pending Payment' : 'Unpaid (COD)',
+        'paymentStatus': _selectedPaymentMethod == 'Mayar' ? 'Pending Payment' : 'Unpaid (COD)',
         'status': 'Pending',
         'isDelivery': widget.isDelivery,
         'pickupDate': widget.pickupDate,
@@ -115,16 +119,20 @@ class _PaymentPageState extends State<PaymentPage> {
         'mainAddress': widget.mainAddress,
         'detailAddress': widget.detailAddress,
         'shoeImageUrl': widget.shoeImageUrl ?? '',
-
-        // 👇 TAMBAHAN: Simpan Koordinat GPS Customer ke Firebase 👇
         'customerLocation': widget.customerLocation,
-
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) {
-        setState(() => _isProcessing = false);
-        _showSuccessDialog();
+      // 2. Cek apakah bayar pakai Mayar atau COD
+      if (_selectedPaymentMethod == 'Mayar') {
+        // Panggil fungsi proses Mayar
+        await _processMayarPayment(newOrderRef.id, totalPrice, user);
+      } else {
+        // Kalau COD, langsung sukses
+        if (mounted) {
+          setState(() => _isProcessing = false);
+          _showSuccessDialog();
+        }
       }
 
     } catch (e) {
@@ -135,6 +143,124 @@ class _PaymentPageState extends State<PaymentPage> {
     }
   }
 
+  // --- LOGIKA PEMBAYARAN MAYAR (DIPERBARUI) ---
+  Future<void> _processMayarPayment(String orderId, int totalAmount, User? user) async {
+    try {
+      var response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'order_id': orderId,
+          'firebase_uid': user?.uid ?? '',
+          'amount': totalAmount,
+          'customer_name': user?.displayName ?? 'Customer Chupatu',
+          'customer_email': user?.email ?? 'user@chupatu.com',
+          'customer_mobile': widget.phoneNumber,
+          'description': 'Pembayaran Layanan: ${widget.serviceName}',
+          'payment_type': 'service'
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        var data = jsonDecode(response.body);
+
+        if (data['success'] == true && data['payment_link'] != null) {
+          String paymentUrl = data['payment_link'];
+
+          // 1. Simpan Link ke Firestore
+          await FirebaseFirestore.instance.collection('bookings').doc(orderId).update({
+            'paymentUrl': paymentUrl,
+          });
+
+          if (mounted) {
+            setState(() => _isProcessing = false);
+
+            // 👉 PERBAIKAN: Arahkan langsung ke History Page, jangan di-pop ke Home!
+            // Ini bakal ngehapus tumpukan halaman Checkout, dan naruh History Page di atas.
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const OrderHistoryPage()),
+                  (route) => route.isFirst, // Sisakan halaman paling dasar (MainPage) aja
+            );
+
+            // 3. Buka Mayar
+            launchUrl(
+              Uri.parse(paymentUrl),
+              mode: LaunchMode.inAppBrowserView,
+            );
+          }
+
+        } else {
+          throw Exception(data['message'] ?? 'Gagal mendapatkan link dari Mayar');
+        }
+      } else {
+        throw Exception("Error Mayar: ${response.body}");
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal proses Mayar: $e"), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  // --- DIALOG BARU: JIKA USER NUTUP BROWSER TAPI BELUM LUNAS ---
+  void _showPendingPaymentDialog(String paymentUrl) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Ga bisa ditutup sembarangan klik luar
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Column(
+          children: [
+            Icon(Icons.access_time_filled, color: Colors.orange, size: 60),
+            SizedBox(height: 10),
+            Text("Menunggu Pembayaran", textAlign: TextAlign.center, style: TextStyle(fontSize: 20)),
+          ],
+        ),
+        content: const Text(
+          "Pesanan kamu sudah tersimpan, tapi belum dibayar.\n\nJika kamu tidak sengaja menutup halaman pembayaran Mayar, kamu bisa melanjutkannya lewat tombol di bawah ini.",
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Coba buka lagi link Mayar-nya
+                    launchUrl(Uri.parse(paymentUrl), mode: LaunchMode.externalApplication);
+                  },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0606F9),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                  ),
+                  child: const Text("Buka Lagi Pembayaran", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop(); // Tutup dialog
+                  Navigator.of(context).pop(); // Keluar Payment Page
+                  Navigator.of(context).pop(); // Balik ke Home
+
+                  // Nanti kalau lo udah bikin halaman "Daftar Pesanan",
+                  // lo bisa arahin usernya ke situ pakai Navigator.push()
+                },
+                child: const Text("Bayar Nanti (Kembali ke Beranda)", style: TextStyle(color: Colors.grey)),
+              )
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  // --- DIALOG SUKSES (TIDAK BERUBAH BANYAK) ---
   void _showSuccessDialog() {
     showDialog(
       context: context,
@@ -145,13 +271,13 @@ class _PaymentPageState extends State<PaymentPage> {
           children: [
             Icon(Icons.check_circle_rounded, color: Colors.green, size: 60),
             SizedBox(height: 10),
-            Text("Pesanan Diterima!"),
+            Text("Pembayaran Berhasil!"),
           ],
         ),
         content: Text(
           _selectedPaymentMethod == 'COD'
               ? "Kurir kami akan segera menjemput sepatu kamu. Siapkan uang tunai saat penjemputan ya!"
-              : "Silakan selesaikan pembayaran via Midtrans (Simulasi). Orderan sudah masuk ke sistem.",
+              : "Lunas! Orderan kamu sudah masuk ke sistem dan akan segera kami proses secepatnya.",
           textAlign: TextAlign.center,
         ),
         actions: [
@@ -159,12 +285,12 @@ class _PaymentPageState extends State<PaymentPage> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.of(ctx).pop();
-                Navigator.of(context).pop();
-                Navigator.of(context).pop();
+                Navigator.of(ctx).pop(); // Tutup dialog sukses
+                Navigator.of(context).pop(); // Tutup PaymentPage
+                Navigator.of(context).pop(); // Tutup BookingPage kembali ke Home
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-              child: const Text("Kembali ke Home"),
+              child: const Text("Selesai & Mantap"),
             ),
           )
         ],
@@ -281,7 +407,7 @@ class _PaymentPageState extends State<PaymentPage> {
                     onPressed: () {
                       if (inputPin == correctPin) {
                         Navigator.pop(ctx);
-                        _processPaymentAndOrder();
+                        _processPaymentAndOrder(); // Lanjut ke proses pembayaran
                       } else {
                         setModalState(() {
                           localError = "PIN Salah! Silakan coba lagi.";
@@ -380,7 +506,8 @@ class _PaymentPageState extends State<PaymentPage> {
                   _buildSectionTitle("Metode Pembayaran", theme),
                   _buildPaymentOption("COD", "Bayar Tunai saat Dijemput", Icons.money, theme),
                   const SizedBox(height: 12),
-                  _buildPaymentOption("Midtrans", "E-Wallet / Transfer Bank (Otomatis)", Icons.credit_card, theme),
+                  // Ubah Midtrans jadi Mayar
+                  _buildPaymentOption("Mayar", "E-Wallet / Transfer Bank (Otomatis)", Icons.credit_card, theme),
                 ],
               ),
             ),
@@ -443,7 +570,7 @@ class _PaymentPageState extends State<PaymentPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(id == 'COD' ? 'Cash on Delivery (COD)' : 'Online Payment', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+                  Text(id == 'COD' ? 'Cash on Delivery (COD)' : 'Online Payment (Mayar)', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
                   Text(subtitle, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
                 ],
               ),

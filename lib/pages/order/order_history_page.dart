@@ -9,6 +9,9 @@ import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/order_detail_page.dart';
 import 'package:chupatu_mobile/pages/home/home_page.dart';
 
+// 👉 TAMBAHAN: Untuk buka link pembayaran Mayar dari History
+import 'package:url_launcher/url_launcher.dart';
+
 class OrderHistoryPage extends StatefulWidget {
   const OrderHistoryPage({super.key});
 
@@ -56,7 +59,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     );
   }
 
-  // --- LOGIC KIRIM ULASAN & RATING (SUDAH DIPERBAIKI) ---
+  // --- LOGIC KIRIM ULASAN & RATING ---
   Future<void> _showReviewDialog(String docId, String serviceName, AppThemeData theme) async {
     int rating = 5;
     TextEditingController reviewController = TextEditingController();
@@ -121,7 +124,6 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
               ),
               ElevatedButton(
                 onPressed: isSubmitting ? null : () async {
-                  // 2. Tutup keyboard otomatis biar gak nyangkut waktu loading
                   FocusManager.instance.primaryFocus?.unfocus();
 
                   setDialogState(() => isSubmitting = true);
@@ -139,7 +141,6 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                         userPhoto = uData['photoURL'] ?? userPhoto;
                       }
 
-                      // Simpan ulasan ke Collection 'reviews'
                       await FirebaseFirestore.instance.collection('reviews').add({
                         'userId': user.uid,
                         'userName': userName,
@@ -151,13 +152,11 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                         'createdAt': FieldValue.serverTimestamp(),
                       });
 
-                      // Tandai pesanan sudah di-review
                       await FirebaseFirestore.instance.collection('bookings').doc(docId).update({
                         'isReviewed': true,
                       });
                     }
 
-                    // 3. Gunakan navigator & messenger dari luar dialog secara aman
                     if (mounted) {
                       navigator.pop();
                       scaffoldMessenger.showSnackBar(const SnackBar(content: Text("Terima kasih atas ulasannya! ⭐")));
@@ -270,7 +269,6 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
 
         if (filteredDocs.isEmpty) return const Center(child: Text("Belum ada pesanan."));
 
-        // PERBAIKAN: Center + ConstrainedBox agar cantik di web/laptop 14 inch (Tidak kepanjangan ke samping)
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 800),
@@ -303,6 +301,11 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     bool canCancel = (status == 'Pending' || status == 'Confirmed');
     bool isDone = (status == 'Done');
     bool isReviewed = data['isReviewed'] == true;
+
+    // 👉 TAMBAHAN: Cek status pembayaran dan link bayar
+    String paymentStatus = data['paymentStatus'] ?? '';
+    bool isPendingPayment = (paymentStatus == 'Pending Payment');
+    String paymentUrl = data['paymentUrl'] ?? '';
 
     String dateStr = "-";
     if (data['createdAt'] != null) {
@@ -382,6 +385,28 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
 
                   const SizedBox(height: 16),
 
+                  // 👉 TAMBAHAN: Warning Pembayaran Menggantung
+                  if (isActive && isPendingPayment && paymentUrl.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.access_time_rounded, color: Colors.orange, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text("Menunggu Pembayaran", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.orange.shade800, fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // Progress Bar
                   if (isActive && status != 'Cancelled') ...[
                     _buildAnimatedProgressBar(config['step'], statusColor, theme),
@@ -392,71 +417,98 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                   const SizedBox(height: 16),
 
                   // Footer (Harga & Tombol)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  // Footer (Harga & Tombol)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      // 1. BARIS HARGA (Kiri - Kanan)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text("Total Pembayaran", style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey)),
+                          Text("Total Pembayaran", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
                           Text(currency.format(data['totalPrice'] ?? 0), style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w900, color: theme.textMain)),
                         ],
                       ),
-                      Row(
-                        children: [
-                          // TOMBOL BATALKAN
-                          if (canCancel) ...[
-                            OutlinedButton(
-                              onPressed: () => _cancelOrder(docId),
-                              style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Colors.redAccent),
-                                  foregroundColor: Colors.redAccent,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
-                              ),
-                              child: Text("Batalkan", style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
 
-                          // TOMBOL ULASAN
-                          if (isDone && !isReviewed) ...[
+                      const SizedBox(height: 16),
+
+                      // 2. BARIS TOMBOL (Otomatis turun ke bawah kalau gak muat)
+                      SizedBox(
+                        width: double.infinity,
+                        child: Wrap(
+                          alignment: WrapAlignment.end, // Rata kanan
+                          spacing: 8, // Jarak antar tombol ke samping
+                          runSpacing: 8, // Jarak antar tombol ke bawah (kalau numpuk)
+                          children: [
+                            // 👉 TOMBOL BAYAR SEKARANG (Warna paling mencolok)
+                            if (canCancel && isPendingPayment && paymentUrl.isNotEmpty)
+                              ElevatedButton(
+                                onPressed: () {
+                                  launchUrl(
+                                    Uri.parse(paymentUrl),
+                                    mode: LaunchMode.inAppBrowserView,
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF0606F9), // Biru Chupatu
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                                ),
+                                child: Text("Bayar Sekarang", style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold)),
+                              ),
+
+                            // TOMBOL BATALKAN
+                            if (canCancel)
+                              OutlinedButton(
+                                onPressed: () => _cancelOrder(docId),
+                                style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Colors.redAccent),
+                                    foregroundColor: Colors.redAccent,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                                ),
+                                child: Text("Batalkan", style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold)),
+                              ),
+
+                            // TOMBOL ULASAN
+                            if (isDone && !isReviewed)
+                              ElevatedButton(
+                                onPressed: () => _showReviewDialog(docId, serviceName, theme),
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.amber,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                                ),
+                                child: Text("Beri Ulasan", style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold)),
+                              ),
+
+                            // TOMBOL DETAIL
                             ElevatedButton(
-                              onPressed: () => _showReviewDialog(docId, serviceName, theme),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => OrderDetailPage(
+                                      docId: docId, data: data, statusColor: statusColor, statusIcon: config['icon'], statusLabel: config['label'],
+                                    ),
+                                  ),
+                                );
+                              },
                               style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.amber,
+                                  backgroundColor: theme.primary,
                                   foregroundColor: Colors.white,
                                   elevation: 0,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
                               ),
-                              child: Text("Beri Ulasan", style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 8),
+                              child: Text("Detail", style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold)),
+                            )
                           ],
-
-                          // TOMBOL DETAIL
-                          ElevatedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => OrderDetailPage(
-                                    docId: docId, data: data, statusColor: statusColor, statusIcon: config['icon'], statusLabel: config['label'],
-                                  ),
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.primary,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
-                            ),
-                            child: Text("Detail", style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold)),
-                          )
-                        ],
+                        ),
                       )
                     ],
                   ),
