@@ -1,4 +1,5 @@
 import 'dart:convert'; // WAJIB: Untuk decode API
+import 'dart:async'; // Untuk StreamSubscription (CCTV)
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
@@ -22,8 +23,18 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
   int _selectedMethod = 0;
   final User? user = FirebaseAuth.instance.currentUser;
 
+  // Variabel untuk nyimpen "CCTV" Firestore
+  StreamSubscription<DocumentSnapshot>? _paymentSubscription;
+
   // 👇 GANTI PAKE LINK NGROK LARAVEL LO 👇
   final String apiUrl = "https://malik-pseudomonocyclic-misti.ngrok-free.dev/api/create-mayar-payment";
+
+  // Jangan lupa matiin CCTV kalau halaman ditutup
+  @override
+  void dispose() {
+    _paymentSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,8 +89,6 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
 
                   const SizedBox(height: 32),
 
-                  // Tampilan UI Pembayaran lama sengaja disisakan biar UI gak rusak,
-                  // Tapi aslinya nanti customer akan milih metode pembayaran di web Mayar.
                   Text("Informasi Pembayaran", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
                   const SizedBox(height: 16),
                   Container(
@@ -139,10 +148,8 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
     setState(() => _isProcessing = true);
 
     try {
-      // 1. Bikin ID Transaksi Unik
       String orderId = "PRO-" + DateTime.now().millisecondsSinceEpoch.toString();
 
-      // 2. Tembak API Laravel buat minta Link Mayar
       var response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
@@ -157,26 +164,53 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
         }),
       );
 
-      // 3. Cek Balasan dari Laravel/Mayar
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
 
         if (data['success'] == true && data['payment_link'] != null) {
           String paymentUrl = data['payment_link'];
 
-          // 4. Buka Web Browser HP menuju Link Pembayaran Mayar
-          if (await launchUrl(Uri.parse(paymentUrl), mode: LaunchMode.externalApplication)) {
+          // 👉 PERBAIKAN 1: Pakai inAppBrowserView biar tombol 'X' muncul
+          if (await launchUrl(
+            Uri.parse(paymentUrl),
+            mode: LaunchMode.inAppBrowserView,
+          )) {
 
-            // Tampilkan pesan suruh bayar, bukan langsung sukses
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text("Silakan selesaikan pembayaran di browser..."),
+                    content: Text("Menunggu pembayaran diselesaikan..."),
                     backgroundColor: Colors.blue,
                     duration: Duration(seconds: 5),
                   )
               );
             }
+
+            // Pasang "CCTV" ke Firestore untuk mantau perubahan memberType
+            _paymentSubscription = FirebaseFirestore.instance
+                .collection('users')
+                .doc(user!.uid)
+                .snapshots()
+                .listen((snapshot) {
+
+              if (snapshot.exists) {
+                var userData = snapshot.data() as Map<String, dynamic>;
+
+                // Kalau webhook udah sukses ngubah jadi 'Pro'
+                if (userData['memberType'] == 'Pro') {
+                  // 1. Matiin CCTV biar ga dobel-dobel
+                  _paymentSubscription?.cancel();
+
+                  // 👉 PERBAIKAN 2: Tutup otomatis WebView Mayar-nya!
+                  closeInAppWebView();
+
+                  // 3. Munculin Pop-Up Sukses!
+                  if (mounted) {
+                    _showSuccessDialog(context);
+                  }
+                }
+              }
+            });
 
           } else {
             throw Exception('Gagal membuka browser pembayaran');
@@ -222,8 +256,8 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context); // Tutup Dialog
-                  Navigator.pop(context); // Kembali
-                  widget.onPaymentSuccess();
+                  Navigator.pop(context); // Kembali ke halaman sebelumnya
+                  widget.onPaymentSuccess(); // Panggil callback buat refresh data
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                 child: const Text("OK, Mantap"),
