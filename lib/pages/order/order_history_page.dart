@@ -302,9 +302,10 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     bool isDone = (status == 'Done');
     bool isReviewed = data['isReviewed'] == true;
 
-    // 👉 TAMBAHAN: Cek status pembayaran dan link bayar
+    // 👉 TAMBAHAN LOGIKA: Cek status pembayaran dari Webhook
     String paymentStatus = data['paymentStatus'] ?? '';
     bool isPendingPayment = (paymentStatus == 'Pending Payment');
+    bool isPaid = (paymentStatus == 'PAID' || paymentStatus == 'SUCCESS'); // Cek jika lunas
     String paymentUrl = data['paymentUrl'] ?? '';
 
     String dateStr = "-";
@@ -385,7 +386,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
 
                   const SizedBox(height: 16),
 
-                  // 👉 TAMBAHAN: Warning Pembayaran Menggantung
+                  // 👉 UI BARU: Indikator Dinamis (Pending Oranye ATAU Lunas Hijau)
                   if (isActive && isPendingPayment && paymentUrl.isNotEmpty) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -405,6 +406,26 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                       ),
                     ),
                     const SizedBox(height: 16),
+                  ] else if (isActive && isPaid) ...[
+                    // 👉 Indikator Lunas (Muncul otomatis saat Webhook berhasil tembak PAID)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.verified_user_rounded, color: Colors.green, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text("Pembayaran Lunas (Verified)", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                   ],
 
                   // Progress Bar
@@ -416,7 +437,6 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                   const Divider(height: 1),
                   const SizedBox(height: 16),
 
-                  // Footer (Harga & Tombol)
                   // Footer (Harga & Tombol)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -440,7 +460,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                           spacing: 8, // Jarak antar tombol ke samping
                           runSpacing: 8, // Jarak antar tombol ke bawah (kalau numpuk)
                           children: [
-                            // 👉 TOMBOL BAYAR SEKARANG (Warna paling mencolok)
+                            // 👉 TOMBOL BAYAR SEKARANG (Otomatis hilang kalau isPendingPayment false)
                             if (canCancel && isPendingPayment && paymentUrl.isNotEmpty)
                               ElevatedButton(
                                 onPressed: () {
