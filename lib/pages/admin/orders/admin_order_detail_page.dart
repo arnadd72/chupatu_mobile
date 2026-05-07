@@ -1,4 +1,4 @@
-import 'dart:async'; // <-- TAMBAHAN: Untuk Stream GPS
+import 'dart:async';
 import 'dart:ui' as ui;
 import 'dart:io';
 import 'dart:typed_data';
@@ -12,7 +12,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:http/http.dart' as http;
-import 'package:geolocator/geolocator.dart'; // <-- TAMBAHAN: Senjata GPS
+import 'package:geolocator/geolocator.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
 
@@ -32,7 +32,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   bool _isLoadingChat = false;
   final GlobalKey _barcodeKey = GlobalKey();
 
-  // --- VARIABEL PENYIMPAN STREAM GPS ---
   StreamSubscription<Position>? _locationSubscription;
 
   final List<String> _statuses = [
@@ -45,11 +44,107 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     _currentStatus = widget.data['status'] ?? 'Pending';
   }
 
-  // --- WAJIB: MATIKAN GPS SAAT KELUAR HALAMAN BIAR GAK BOCOR BATERAI ---
   @override
   void dispose() {
     _locationSubscription?.cancel();
     super.dispose();
+  }
+
+  // ==========================================================
+  // FITUR BARU: Penampil Foto Sepatu Pelanggan (Dengan Zoom)
+  // ==========================================================
+  Widget _buildCustomerShoeImage(String? imageUrl, AppThemeData theme) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.image_not_supported, color: Colors.grey),
+            SizedBox(width: 8),
+            Text("Pelanggan tidak melampirkan foto", style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+            "Foto Sepatu Sebelum Dicuci",
+            style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.bold, color: theme.textMain
+            )
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () {
+            // Tampilkan gambar full screen saat di-klik
+            showDialog(
+              context: context,
+              builder: (context) => Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: const EdgeInsets.all(10),
+                child: Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    InteractiveViewer(
+                      panEnabled: true,
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(imageUrl, fit: BoxFit.contain),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  ],
+                ),
+              ),
+            );
+          },
+          child: Container(
+            width: double.infinity,
+            height: 200,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.withOpacity(0.3)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(child: CircularProgressIndicator());
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(
+                      child: Icon(Icons.broken_image, color: Colors.grey, size: 50)
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+            "*Ketuk gambar untuk memperbesar (Zoom)",
+            style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic)
+        ),
+      ],
+    );
   }
 
   Future<void> _openChatWithCustomer() async {
@@ -57,7 +152,9 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     String customerName = widget.data['customerName'] ?? 'Customer';
 
     if (customerId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal: ID Customer tidak ditemukan.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Gagal: ID Customer tidak ditemukan."))
+      );
       return;
     }
 
@@ -227,46 +324,29 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
       if (!userDoc.exists) return;
 
       String? fcmToken = userDoc.data()?['fcmToken'];
-      if (fcmToken == null || fcmToken.isEmpty) {
-        debugPrint("Customer belum ngasih izin notif / belum punya token.");
-        return;
-      }
+      if (fcmToken == null || fcmToken.isEmpty) return;
 
       String title = "Pesanan Chupatu Diupdate! 👟";
       String body = "Status sepatu kamu sekarang: $newStatus";
 
-      var response = await http.post(
+      await http.post(
           Uri.parse('https://malik-pseudomonocyclic-misti.ngrok-free.dev/api/kirim-notif'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: jsonEncode({
-            'token': fcmToken,
-            'title': title,
-            'body': body,
-          })
+          headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+          body: jsonEncode({'token': fcmToken, 'title': title, 'body': body})
       );
-
-      debugPrint("Hasil tembak notif Laravel: ${response.body}");
     } catch(e) {
       debugPrint("Gagal nge-trigger notif: $e");
     }
   }
 
-  // --- TAMBAHAN: FUNGSI LIVE TRACKING ADMIN ---
   Future<void> _handleLiveTracking(String status) async {
-    // Kalau statusnya jalan, mulai rekam GPS
     if (status == 'Picked Up' || status == 'Delivery') {
-
-      // 1. Cek apakah GPS HP nyala
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Aktifkan GPS HP kamu dulu, Min!")));
         return;
       }
 
-      // 2. Minta Izin Akses Lokasi ke Admin
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -276,20 +356,13 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
         }
       }
 
-      // 3. Mulai Broadcast Lokasi (Tiap pindah 10 meter)
-      _locationSubscription?.cancel(); // Bersihin yang lama
+      _locationSubscription?.cancel();
       _locationSubscription = Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 10, // Update Firebase cuma kalau admin pindah 10 meter (Hemat Baterai)
-          )
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10)
       ).listen((Position position) {
-        // Tembak koordinat baru ke Firebase
         FirebaseFirestore.instance.collection('bookings').doc(widget.docId).update({
-          // GeoPoint itu tipe data khusus Firebase buat nyimpen peta
           'driverLocation': GeoPoint(position.latitude, position.longitude),
         });
-        debugPrint("Lokasi Admin diupdate: ${position.latitude}, ${position.longitude}");
       });
 
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -297,7 +370,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
       );
 
     } else {
-      // Kalau statusnya misal Processing / Done, MATIKAN pelacakannya!
       _locationSubscription?.cancel();
       _locationSubscription = null;
     }
@@ -325,16 +397,9 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   Future<void> _updateStatus(String newStatus) async {
     setState(() => _isUpdating = true);
     try {
-      // 1. Update status di Firestore
       await FirebaseFirestore.instance.collection('bookings').doc(widget.docId).update({'status': newStatus});
-
-      // 2. Kirim Notifikasi Otomatis ke Customer
       String customerId = widget.data['userId'] ?? '';
-      if (customerId.isNotEmpty) {
-        await _sendNotificationToCustomer(customerId, newStatus);
-      }
-
-      // 3. TAMBAHAN: Nyalakan / Matikan GPS Tracking
+      if (customerId.isNotEmpty) await _sendNotificationToCustomer(customerId, newStatus);
       await _handleLiveTracking(newStatus);
 
       setState(() { _currentStatus = newStatus; _isUpdating = false; });
@@ -441,6 +506,12 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
 
                   const SizedBox(height: 20),
 
+                  // ==========================================================
+                  // MUNCULKAN WIDGET FOTO SEPATU PELANGGAN DI SINI
+                  // ==========================================================
+                  _buildCustomerShoeImage(widget.data['shoeImageUrl'], theme),
+                  const SizedBox(height: 20),
+
                   // TOMBOL CHAT CUSTOMER
                   SizedBox(
                     width: double.infinity,
@@ -475,7 +546,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
 
                   const SizedBox(height: 40),
 
-                  // FITUR MAGIC RESULT
                   if (_currentStatus == 'Done') ...[
                     Text("Magic Result (Hasil Cuci)", style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)),
                     const SizedBox(height: 12),
@@ -502,7 +572,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                     const SizedBox(height: 40),
                   ],
 
-                  // TOMBOL BATAL
                   if (_currentStatus != 'Done' && _currentStatus != 'Cancelled')
                     SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: () { showDialog(context: context, builder: (ctx) => AlertDialog(backgroundColor: theme.surface, title: Text("Batalkan Pesanan?", style: TextStyle(color: theme.textMain)), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Tidak", style: TextStyle(color: Colors.grey))), ElevatedButton(onPressed: () { Navigator.pop(ctx); _updateStatus('Cancelled'); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text("Ya, Batalkan"))])); }, icon: const Icon(Icons.cancel, color: Colors.white), label: const Text("Batalkan Pesanan", style: TextStyle(fontWeight: FontWeight.bold)), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
                   const SizedBox(height: 20),
@@ -514,7 +583,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
     );
   }
 
-  // WIDGET HELPER
   Widget _buildSectionContainer({required String title, required Widget child, required AppThemeData theme}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)), const SizedBox(height: 8), Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]), child: child)]);
   }
