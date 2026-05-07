@@ -7,7 +7,7 @@ import 'package:chupatu_mobile/pages/admin/management/manage_services_page.dart'
 import 'package:chupatu_mobile/pages/admin/management/manage_promo_page.dart';
 import 'package:chupatu_mobile/pages/admin/management/finance_report_page.dart';
 import 'package:chupatu_mobile/pages/admin/management/customer_list_page.dart';
-// TAMBAHAN: Import Halaman Review yang baru kita buat
+import 'package:chupatu_mobile/pages/admin/management/manage_system_payment_page.dart';
 import 'package:chupatu_mobile/pages/admin/management/admin_review_page.dart';
 
 class AdminManagementPage extends StatelessWidget {
@@ -125,6 +125,22 @@ class AdminManagementPage extends StatelessWidget {
                           Navigator.push(
                               context,
                               MaterialPageRoute(builder: (context) => const AdminReviewPage())
+                          );
+                        },
+                      ),
+
+                      // 6. PENGATURAN SISTEM (ONGKIR & MAYAR)
+                      _buildAdminMenuCard(
+                        context,
+                        theme: theme,
+                        title: "Sistem & Bayar",
+                        subtitle: "Ongkir & Payment Gateway",
+                        icon: Icons.settings_suggest_rounded,
+                        color: Colors.blueGrey,
+                        onTap: () {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const ManageSystemPaymentPage())
                           );
                         },
                       ),
