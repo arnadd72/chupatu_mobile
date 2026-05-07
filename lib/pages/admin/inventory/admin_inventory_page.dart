@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart'; // TAMBAHAN: Untuk Format Rupiah
 import 'package:chupatu_mobile/main.dart';
 // IMPORT HALAMAN HISTORY
 import 'package:chupatu_mobile/pages/admin/inventory/inventory_history_page.dart';
@@ -13,6 +14,10 @@ class AdminInventoryPage extends StatefulWidget {
 }
 
 class _AdminInventoryPageState extends State<AdminInventoryPage> {
+  // Bikin formatter rupiah ala korporat
+  final _formatter = NumberFormat.currency(
+      locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0
+  );
 
   // ==========================================================
   // 1. SMART FORM: BISA UNTUK TAMBAH (CREATE) & EDIT (UPDATE)
@@ -26,6 +31,11 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
         text: existingData != null ? existingData['stock'].toString() : ''
     );
     final unitCtrl = TextEditingController(text: existingData?['unit'] ?? '');
+
+    // TAMBAHAN: Controller buat nangkep Harga Beli
+    final priceCtrl = TextEditingController(
+        text: existingData != null ? (existingData['purchasePrice']?.toString() ?? '') : ''
+    );
 
     // Default color biru, kalau edit pakai warna yang ada
     String selectedColor = existingData?['color'] ?? 'blue';
@@ -73,6 +83,15 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
                       controller: nameCtrl,
                       style: TextStyle(color: theme.textMain),
                       decoration: _inputDecoration(theme, "Nama Barang (ex: Sabun)")
+                  ),
+                  const SizedBox(height: 12),
+
+                  // TAMBAHAN: INPUT HARGA BELI
+                  TextField(
+                      controller: priceCtrl,
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(color: theme.textMain),
+                      decoration: _inputDecoration(theme, "Harga Beli per Satuan (Rp)")
                   ),
                   const SizedBox(height: 12),
 
@@ -138,6 +157,8 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
                         final payload = {
                           'name': nameCtrl.text.trim(),
                           'unit': unitCtrl.text.trim(),
+                          // SIMPAN HARGA BELI JUGA
+                          'purchasePrice': int.tryParse(priceCtrl.text) ?? 0,
                           'color': selectedColor,
                           'updatedAt': FieldValue.serverTimestamp(),
                         };
@@ -218,18 +239,27 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
     );
   }
 
-  // --- FUNGSI UPDATE STOK (+/-) LOGIKA BAWAAN LO YANG UDAH BENER ---
-  Future<void> _updateStock(String docId, String name, int currentStock, int change) async {
+  // --- FUNGSI UPDATE STOK (MODIFIKASI BAWA HARGA UNTUK LOG) ---
+  // Kita ganti parameternya dari nerima nama & stock aja, jadi nerima FULL map "item"
+  Future<void> _updateStock(String docId, Map<String, dynamic> item, int change) async {
+    int currentStock = item['stock'] ?? 0;
+    int purchasePrice = item['purchasePrice'] ?? 0;
+    String name = item['name'] ?? 'Item';
+
     int newStock = currentStock + change;
     if (newStock < 0) return;
 
+    // 1. Update stok terbaru di tabel master
     await FirebaseFirestore.instance.collection('inventory').doc(docId).update({
       'stock': newStock
     });
 
+    // 2. Catat Log ke database lengkap dengan harga
     await FirebaseFirestore.instance.collection('inventory_logs').add({
       'itemName': name,
       'amount': change.abs(),
+      'priceAtTime': purchasePrice, // Tracking Harga per satuan
+      'totalCost': change.abs() * purchasePrice, // Total HPP / Pengeluaran
       'type': change > 0 ? 'in' : 'out',
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -390,6 +420,8 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
     String name = item['name'] ?? 'Item';
     int stock = item['stock'] ?? 0;
     String unit = item['unit'] ?? '';
+    int purchasePrice = item['purchasePrice'] ?? 0; // Tarik Data Harga
+
     bool isLowStock = stock <= 3;
 
     Color itemColor = _getColorFromString(item['color'] ?? 'blue');
@@ -412,7 +444,7 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
               ),
               const SizedBox(width: 16),
 
-              // Nama & Status
+              // Nama, Harga Beli, & Status
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,7 +455,16 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
                             fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain
                         )
                     ),
+                    const SizedBox(height: 2),
+                    // Tampilkan Harga Beli Disini
+                    Text(
+                        "Harga Beli: ${_formatter.format(purchasePrice)}",
+                        style: GoogleFonts.plusJakartaSans(
+                            color: theme.primary, fontSize: 12, fontWeight: FontWeight.w600
+                        )
+                    ),
                     const SizedBox(height: 6),
+
                     if (isLowStock)
                       Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -517,14 +558,16 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.remove, size: 18, color: Colors.redAccent),
-                      onPressed: () => _updateStock(docId, name, stock, -1),
+                      // NOTE: Parameter yang dilempar sekarang full object 'item'
+                      onPressed: () => _updateStock(docId, item, -1),
                       constraints: const BoxConstraints(),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     Container(width: 1, height: 20, color: Colors.grey.withOpacity(0.3)),
                     IconButton(
                       icon: const Icon(Icons.add, size: 18, color: Colors.green),
-                      onPressed: () => _updateStock(docId, name, stock, 1),
+                      // NOTeE: Parameter yang dilempar sekarang full object 'item'
+                      onPressed: () => _updateStock(docId, item, 1),
                       constraints: const BoxConstraints(),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
