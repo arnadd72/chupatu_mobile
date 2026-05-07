@@ -2,18 +2,19 @@ import 'dart:async';
 import 'dart:ui';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // <-- TAMBAHAN: Import Clipboard buat salin kode promo
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // <-- TAMBAHAN: Import FCM
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:chupatu_mobile/main.dart';
 
 // PAGE IMPORTS
 import 'package:chupatu_mobile/pages/profile/profile_page.dart';
 import 'package:chupatu_mobile/pages/profile/member_payment_page.dart';
 import 'package:chupatu_mobile/pages/order/service_detail_page.dart';
-import 'package:chupatu_mobile/pages/order/order_detail_page.dart'; // <-- FIX: Import Order Detail Page
+import 'package:chupatu_mobile/pages/order/order_detail_page.dart';
 import 'package:chupatu_mobile/pages/home/widgets/auto_magic_card.dart';
 import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
 import 'package:chupatu_mobile/pages/notification/notification_page.dart';
@@ -47,7 +48,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    // --- TAMBAHAN: Setup Notifikasi pas masuk Home ---
     _setupPushNotifications();
 
     Timer.periodic(const Duration(seconds: 5), (Timer timer) {
@@ -82,9 +82,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             var data = change.doc.data() as Map<String, dynamic>;
             String serviceName = data['serviceName'] ?? 'Pesanan Anda';
             String newStatus = data['status'] ?? 'Diperbarui';
-            String docId = change.doc.id; // <-- FIX: Ambil ID Pesanan
+            String docId = change.doc.id;
 
-            // <-- FIX: Lempar docId dan data lengkap ke Pop-up
             _showStatusUpdatePopup(docId, data, serviceName, newStatus);
 
             FirebaseFirestore.instance.collection('users').doc(user!.uid).set({
@@ -96,11 +95,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
-  // --- FUNGSI BARU BUAT SETUP NOTIF ---
   Future<void> _setupPushNotifications() async {
     final fcm = FirebaseMessaging.instance;
 
-    // 1. Minta izin nampilin notif (wajib buat Android 13+)
     NotificationSettings settings = await fcm.requestPermission(
       alert: true, badge: true, sound: true,
     );
@@ -108,11 +105,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       debugPrint('User ngasih izin notif!');
 
-      // 2. Ambil FCM Token
       String? token = await fcm.getToken();
       debugPrint('FCM Token HP ini: $token');
 
-      // 3. Simpan Token ke Firestore
       if (token != null && user != null) {
         await FirebaseFirestore.instance
             .collection('users')
@@ -122,7 +117,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
-  // <-- FIX: Tambahkan parameter docId dan data
   void _showStatusUpdatePopup(String docId, Map<String, dynamic> data, String serviceName, String newStatus) {
     if (!mounted) return;
     final theme = ThemeConfig.currentTheme.value;
@@ -135,8 +129,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       transitionDuration: const Duration(milliseconds: 400),
       pageBuilder: (context, animation, secondaryAnimation) {
         return _TopNotificationPopup(
-          docId: docId, // <-- FIX: Kirim ID
-          data: data,   // <-- FIX: Kirim Data
+          docId: docId,
+          data: data,
           serviceName: serviceName,
           newStatus: newStatus,
           theme: theme,
@@ -257,7 +251,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 displayName = dbDisplayName;
               }
 
-              // --- FIX SINKRONISASI FOTO ---
               if (userData['photoUrl'] != null && userData['photoUrl'].toString().isNotEmpty) {
                 photoURL = userData['photoUrl'];
               } else if (userData['photoURL'] != null && userData['photoURL'].toString().isNotEmpty) {
@@ -265,7 +258,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               }
 
               photoURL = photoURL.replaceAll("http://", "https://");
-              // -----------------------------
 
               if (userData.containsKey('hasUnreadNotif')) {
                 unreadNotif = userData['hasUnreadNotif'] == true;
@@ -273,331 +265,334 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             }
 
             return Scaffold(
-              // --- UBAH DARI SINI ---
-                body: Container(
-                  // 1. Rahasia Gradasi Full Screen: Gabungan Putih & Emas Tipis
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        theme.surface, // Putih di kiri atas
-                        theme.background, // Putih tulang di tengah
-                        theme.primary.withOpacity(0.08), // Bayangan emas halus di kanan bawah
-                      ],
-                      stops: const [0.0, 0.6, 1.0],
-                    ),
+              body: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      theme.surface,
+                      theme.background,
+                      theme.primary.withOpacity(0.08),
+                    ],
+                    stops: const [0.0, 0.6, 1.0],
                   ),
-                  child: Stack(
-                    children: [
-                      // 2. Bercak Cahaya Emas (Opacity dinaikin biar lebih nyala)
-                      Positioned(
-                          top: -80, left: -60,
-                          child: Container(width: 350, height: 350, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [theme.primary.withOpacity(0.4), Colors.transparent], radius: 0.6)))
-                      ),
-                      Positioned(
-                          top: 150, right: -120,
-                          child: Container(width: 400, height: 400, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [theme.secondary.withOpacity(0.35), Colors.transparent], radius: 0.6)))
-                      ),
-
-                      // 3. Efek Kaca (Warna putihnya ditipisin jadi 0.15 biar emasnya nembus memukau)
-                      Positioned.fill(
-                          child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-                              child: Container(color: theme.surface.withOpacity(0.15))
-                          )
-                      ),
-
-                      SafeArea(
-                        // --- SAMPAI SINI ---
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.only(bottom: 120),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // HEADER PROFILE
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
-                            child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  GestureDetector(
-                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())),
-                                      child: Row(
-                                          children: [
-                                            Container(
-                                                width: 50, height: 50,
-                                                decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    border: Border.all(color: theme.surface, width: 2),
-                                                    image: DecorationImage(
-                                                        image: NetworkImage(
-                                                            photoURL,
-                                                            headers: const {
-                                                              'ngrok-skip-browser-warning': 'true',
-                                                              'User-Agent': 'ChupatuApp'
-                                                            }
-                                                        ),
-                                                        fit: BoxFit.cover
-                                                    ),
-                                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]
-                                                )
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(_getGreeting(), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade600)),
-                                                  Row(
-                                                      children: [
-                                                        Text(displayName, style: GoogleFonts.plusJakartaSans(fontSize: 18, color: theme.textMain, fontWeight: FontWeight.w800)),
-                                                        if (isPro) ...[const SizedBox(width: 6), const Icon(Icons.verified, color: Colors.blue, size: 16)]
-                                                      ]
-                                                  )
-                                                ]
-                                            )
-                                          ]
-                                      )
-                                  ),
-                                  Row(
-                                      children: [
-                                        GestureDetector(
-                                            onTap: () => _showThemePicker(context),
-                                            child: Container(
-                                                width: 42, height: 42,
-                                                decoration: BoxDecoration(
-                                                    color: theme.surface.withOpacity(0.8),
-                                                    shape: BoxShape.circle,
-                                                    border: Border.all(color: theme.surface),
-                                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
-                                                ),
-                                                child: Icon(Icons.palette_rounded, color: theme.primary, size: 20)
-                                            )
-                                        ),
-                                        const SizedBox(width: 12),
-                                        AnimatedNotificationIcon(
-                                          hasNewNotif: unreadNotif,
-                                          theme: theme,
-                                          onTap: () {
-                                            FirebaseFirestore.instance.collection('users').doc(user!.uid).set({'hasUnreadNotif': false}, SetOptions(merge: true));
-                                            Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage()));
-                                          },
-                                        ),
-                                      ]
-                                  ),
-                                ]
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // HERO SLIDER
-                          StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance.collection('promos').where('isActive', isEqualTo: true).orderBy('createdAt', descending: true).limit(5).snapshots(),
-                            builder: (context, snapshot) {
-                              List<Widget> hardcodedBanners = [
-                                _buildImageBanner('https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800', 'New Member Deal', '50% OFF Deep Clean', theme.primary),
-                                _buildImageBanner('https://images.unsplash.com/photo-1616401784845-180882ba9ba8?q=80&w=800', 'Free Pickup & Delivery', 'Min. order \$30', theme.secondary),
-                                _buildImageBanner('https://images.unsplash.com/photo-1512314889357-e157c22f938d?q=80&w=800', 'Express 24H', 'Get it back tomorrow.', Colors.indigo),
-                              ];
-                              List<Widget> firebaseBanners = [];
-                              if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-                                for (var doc in snapshot.data!.docs) {
-                                  var data = doc.data() as Map<String, dynamic>;
-                                  firebaseBanners.add(_buildImageBanner(data['imageUrl'] ?? 'https://via.placeholder.com/800x400', data['title'] ?? 'Promo Spesial', data['description'] ?? 'Cek sekarang!', theme.primary));
-                                }
-                              }
-                              List<Widget> finalBanners = [...firebaseBanners, ...hardcodedBanners];
-                              WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _totalBanners = finalBanners.length; });
-
-                              return Column(
-                                children: [
-                                  SizedBox(
-                                      height: 180,
-                                      child: PageView(
-                                          controller: _bannerController,
-                                          onPageChanged: (index) => setState(() => _currentBannerIndex = index),
-                                          children: finalBanners
-                                      )
-                                  ),
-                                  Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: List.generate(
-                                          finalBanners.length,
-                                              (index) => AnimatedContainer(
-                                              duration: const Duration(milliseconds: 300),
-                                              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                                              width: _currentBannerIndex == index ? 24 : 6, height: 6,
-                                              decoration: BoxDecoration(
-                                                  color: _currentBannerIndex == index ? theme.primary : Colors.grey.withOpacity(0.5),
-                                                  borderRadius: BorderRadius.circular(3)
-                                              )
-                                          )
-                                      )
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // MENU LAYANAN
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Our Services', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
-                                const SizedBox(height: 16),
-                                GridView.count(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  crossAxisCount: 4,
-                                  mainAxisSpacing: 20,
-                                  crossAxisSpacing: 12,
-                                  childAspectRatio: 0.7,
-                                  children: [
-                                    _buildLottieServiceItem('water_drop.json', 'Deep Clean', theme, Colors.blue, Icons.water_drop_rounded, () => _navigateToService(context, 'Deep Clean')),
-                                    _buildLottieServiceItem('Stopwatch.json', 'Fast Clean', theme, Colors.orange, Icons.timer_rounded, () => _navigateToService(context, 'Fast Clean')),
-                                    _buildLottieServiceItem('sparkle.json', 'Unyellow', theme, Colors.amber, Icons.wb_sunny_rounded, () => _navigateToService(context, 'Unyellowing')),
-                                    _buildLottieServiceItem('wrench.json', 'Repair', theme, Colors.grey, Icons.build_rounded, () => _navigateToService(context, 'Repair')),
-                                    _buildLottieServiceItem('paint.json', 'Repaint', theme, Colors.purple, Icons.format_paint_rounded, () => _navigateToService(context, 'Repaint')),
-                                    _buildLottieServiceItem('umbrella.json', 'Waterproof', theme, Colors.teal, Icons.umbrella_rounded, () => _navigateToService(context, 'Waterproof')),
-                                    _buildLottieServiceItem('pencil.json', 'Custom', theme, Colors.pink, Icons.design_services_rounded, () => _navigateToService(context, 'Custom Painting')),
-                                    _buildLottieServiceItem('delivery.json', 'Pickup', theme, Colors.green, Icons.local_shipping_rounded, () => _navigateToService(context, 'Pickup Service')),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // --- KONDISI TAMPILAN BANNER PRO ---
-                          if (!isPro) ...[
-                            _buildChupatuPro(theme),
-                            const SizedBox(height: 24),
-                          ],
-
-                          // LIVE TRACKING
-                          LiveTrackingWidget(userId: user!.uid, theme: theme),
-                          const SizedBox(height: 24),
-
-                          // mini garage
-                          MiniGarageWidget(theme: theme),
-
-                          // MAGIC RESULTS
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Magic Results ✨', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                      height: 240,
-                                      child: ListView(
-                                          scrollDirection: Axis.horizontal,
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            AutoMagicCard(
-                                                beforeUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600',
-                                                afterUrl: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600',
-                                                title: 'Nike Air Force 1',
-                                                theme: theme,
-                                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Nike Air Force 1', beforeImg: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600')))
-                                            ),
-                                            const SizedBox(width: 16),
-                                            AutoMagicCard(
-                                                beforeUrl: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600',
-                                                afterUrl: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600',
-                                                title: 'Jordan Repaint',
-                                                theme: theme,
-                                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Jordan Repaint', beforeImg: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600')))
-                                            ),
-                                          ]
-                                      )
-                                  ),
-                                ]
-                            ),
-                          ),
-
-                          const SizedBox(height: 30),
-
-                          // SHOE TIPS
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Tips Merawat Sepatu 💡', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
-                                const SizedBox(height: 12),
-                                ShoeTipsWidget(theme: theme),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 30),
-
-                          // REVIEW & RATING
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const ReviewRatingSection(),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 120),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // --- FLOATING PROMO (DIBUAT RAPIH) ---
-                  if (_showFloatingPromo)
+                ),
+                child: Stack(
+                  children: [
                     Positioned(
-                        bottom: 100,
-                        left: 20,
-                        right: 20,
-                        child: Dismissible(
-                            key: const Key('promo'),
-                            onDismissed: (_) => setState(() => _showFloatingPromo = false),
-                            child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                decoration: BoxDecoration(
-                                    color: const Color(0xFF1E1E2C).withOpacity(0.95),
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))
-                                    ]
-                                ),
-                                child: Row(
-                                    children: [
-                                      const Icon(Icons.local_offer_rounded, color: Color(0xFFFFD700), size: 24),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                          child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text('Promo Gajian!', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                                                Text('Diskon 30% semua layanan hari ini.', style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 12))
-                                              ]
-                                          )
-                                      ),
-                                      IconButton(
-                                          icon: const Icon(Icons.close, color: Colors.white54, size: 18),
-                                          onPressed: () => setState(() => _showFloatingPromo = false)
-                                      )
-                                    ]
-                                )
-                            )
+                        top: -80, left: -60,
+                        child: Container(width: 350, height: 350, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [theme.primary.withOpacity(0.4), Colors.transparent], radius: 0.6)))
+                    ),
+                    Positioned(
+                        top: 150, right: -120,
+                        child: Container(width: 400, height: 400, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [theme.secondary.withOpacity(0.35), Colors.transparent], radius: 0.6)))
+                    ),
+                    Positioned.fill(
+                        child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                            child: Container(color: theme.surface.withOpacity(0.15))
                         )
                     ),
-                ],
-              ),
+
+                    SafeArea(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.only(bottom: 120),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // HEADER PROFILE
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
+                              child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    GestureDetector(
+                                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())),
+                                        child: Row(
+                                            children: [
+                                              Container(
+                                                  width: 50, height: 50,
+                                                  decoration: BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      border: Border.all(color: theme.surface, width: 2),
+                                                      image: DecorationImage(
+                                                          image: NetworkImage(
+                                                              photoURL,
+                                                              headers: const {
+                                                                'ngrok-skip-browser-warning': 'true',
+                                                                'User-Agent': 'ChupatuApp'
+                                                              }
+                                                          ),
+                                                          fit: BoxFit.cover
+                                                      ),
+                                                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]
+                                                  )
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(_getGreeting(), style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey.shade600)),
+                                                    Row(
+                                                        children: [
+                                                          Text(displayName, style: GoogleFonts.plusJakartaSans(fontSize: 18, color: theme.textMain, fontWeight: FontWeight.w800)),
+                                                          if (isPro) ...[const SizedBox(width: 6), const Icon(Icons.verified, color: Colors.blue, size: 16)]
+                                                        ]
+                                                    )
+                                                  ]
+                                              )
+                                            ]
+                                        )
+                                    ),
+                                    Row(
+                                        children: [
+                                          GestureDetector(
+                                              onTap: () => _showThemePicker(context),
+                                              child: Container(
+                                                  width: 42, height: 42,
+                                                  decoration: BoxDecoration(
+                                                      color: theme.surface.withOpacity(0.8),
+                                                      shape: BoxShape.circle,
+                                                      border: Border.all(color: theme.surface),
+                                                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
+                                                  ),
+                                                  child: Icon(Icons.palette_rounded, color: theme.primary, size: 20)
+                                              )
+                                          ),
+                                          const SizedBox(width: 12),
+                                          AnimatedNotificationIcon(
+                                            hasNewNotif: unreadNotif,
+                                            theme: theme,
+                                            onTap: () {
+                                              FirebaseFirestore.instance.collection('users').doc(user!.uid).set({'hasUnreadNotif': false}, SetOptions(merge: true));
+                                              Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage()));
+                                            },
+                                          ),
+                                        ]
+                                    ),
+                                  ]
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // =======================================================
+                            // HERO SLIDER: PERUBAHAN LEMPAR PROMO CODE ID
+                            // =======================================================
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance.collection('promos').where('isActive', isEqualTo: true).orderBy('createdAt', descending: true).limit(5).snapshots(),
+                              builder: (context, snapshot) {
+                                List<Widget> hardcodedBanners = [
+                                  _buildImageBanner('https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800', 'New Member Deal', '50% OFF Deep Clean', theme.primary),
+                                  _buildImageBanner('https://images.unsplash.com/photo-1616401784845-180882ba9ba8?q=80&w=800', 'Free Pickup & Delivery', 'Min. order Rp 30.000', theme.secondary),
+                                  _buildImageBanner('https://images.unsplash.com/photo-1512314889357-e157c22f938d?q=80&w=800', 'Express 24H', 'Get it back tomorrow.', Colors.indigo),
+                                ];
+
+                                List<Widget> firebaseBanners = [];
+                                if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                                  for (var doc in snapshot.data!.docs) {
+                                    var data = doc.data() as Map<String, dynamic>;
+
+                                    // Lempar promoCodeId ke fungsi build banner
+                                    firebaseBanners.add(_buildImageBanner(
+                                      data['imageUrl'] ?? 'https://via.placeholder.com/800x400',
+                                      data['title'] ?? 'Promo Spesial',
+                                      data['description'] ?? 'Cek sekarang!',
+                                      theme.primary,
+                                      promoCodeId: data['promoCodeId'], // <-- DATA DARI FIREBASE
+                                    ));
+                                  }
+                                }
+                                List<Widget> finalBanners = [...firebaseBanners, ...hardcodedBanners];
+                                WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _totalBanners = finalBanners.length; });
+
+                                return Column(
+                                  children: [
+                                    SizedBox(
+                                        height: 200, // <-- Diperlebar sedikit buat nampilin kode voucher
+                                        child: PageView(
+                                            controller: _bannerController,
+                                            onPageChanged: (index) => setState(() => _currentBannerIndex = index),
+                                            children: finalBanners
+                                        )
+                                    ),
+                                    Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: List.generate(
+                                            finalBanners.length,
+                                                (index) => AnimatedContainer(
+                                                duration: const Duration(milliseconds: 300),
+                                                margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                                width: _currentBannerIndex == index ? 24 : 6, height: 6,
+                                                decoration: BoxDecoration(
+                                                    color: _currentBannerIndex == index ? theme.primary : Colors.grey.withOpacity(0.5),
+                                                    borderRadius: BorderRadius.circular(3)
+                                                )
+                                            )
+                                        )
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 16),
+
+                            // MENU LAYANAN
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Our Services', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+                                  const SizedBox(height: 16),
+                                  GridView.count(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    crossAxisCount: 4,
+                                    mainAxisSpacing: 20,
+                                    crossAxisSpacing: 12,
+                                    childAspectRatio: 0.7,
+                                    children: [
+                                      _buildLottieServiceItem('water_drop.json', 'Deep Clean', theme, Colors.blue, Icons.water_drop_rounded, () => _navigateToService(context, 'Deep Clean')),
+                                      _buildLottieServiceItem('Stopwatch.json', 'Fast Clean', theme, Colors.orange, Icons.timer_rounded, () => _navigateToService(context, 'Fast Clean')),
+                                      _buildLottieServiceItem('sparkle.json', 'Unyellow', theme, Colors.amber, Icons.wb_sunny_rounded, () => _navigateToService(context, 'Unyellowing')),
+                                      _buildLottieServiceItem('wrench.json', 'Repair', theme, Colors.grey, Icons.build_rounded, () => _navigateToService(context, 'Repair')),
+                                      _buildLottieServiceItem('paint.json', 'Repaint', theme, Colors.purple, Icons.format_paint_rounded, () => _navigateToService(context, 'Repaint')),
+                                      _buildLottieServiceItem('umbrella.json', 'Waterproof', theme, Colors.teal, Icons.umbrella_rounded, () => _navigateToService(context, 'Waterproof')),
+                                      _buildLottieServiceItem('pencil.json', 'Custom', theme, Colors.pink, Icons.design_services_rounded, () => _navigateToService(context, 'Custom Painting')),
+                                      _buildLottieServiceItem('delivery.json', 'Pickup', theme, Colors.green, Icons.local_shipping_rounded, () => _navigateToService(context, 'Pickup Service')),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+
+                            if (!isPro) ...[
+                              _buildChupatuPro(theme),
+                              const SizedBox(height: 24),
+                            ],
+
+                            // LIVE TRACKING
+                            LiveTrackingWidget(userId: user!.uid, theme: theme),
+                            const SizedBox(height: 24),
+
+                            // mini garage
+                            MiniGarageWidget(theme: theme),
+
+                            // MAGIC RESULTS
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Magic Results ✨', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+                                    const SizedBox(height: 12),
+                                    SizedBox(
+                                        height: 240,
+                                        child: ListView(
+                                            scrollDirection: Axis.horizontal,
+                                            clipBehavior: Clip.none,
+                                            children: [
+                                              AutoMagicCard(
+                                                  beforeUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600',
+                                                  afterUrl: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600',
+                                                  title: 'Nike Air Force 1',
+                                                  theme: theme,
+                                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Nike Air Force 1', beforeImg: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=600')))
+                                              ),
+                                              const SizedBox(width: 16),
+                                              AutoMagicCard(
+                                                  beforeUrl: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600',
+                                                  afterUrl: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600',
+                                                  title: 'Jordan Repaint',
+                                                  theme: theme,
+                                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicResultDetailPage(title: 'Jordan Repaint', beforeImg: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=600', afterImg: 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?q=80&w=600')))
+                                              ),
+                                            ]
+                                        )
+                                    ),
+                                  ]
+                              ),
+                            ),
+
+                            const SizedBox(height: 30),
+
+                            // SHOE TIPS
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Tips Merawat Sepatu 💡', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+                                  const SizedBox(height: 12),
+                                  ShoeTipsWidget(theme: theme),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 30),
+
+                            // REVIEW & RATING
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const ReviewRatingSection(),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 120),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    if (_showFloatingPromo)
+                      Positioned(
+                          bottom: 100,
+                          left: 20,
+                          right: 20,
+                          child: Dismissible(
+                              key: const Key('promo'),
+                              onDismissed: (_) => setState(() => _showFloatingPromo = false),
+                              child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                      color: const Color(0xFF1E1E2C).withOpacity(0.95),
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))
+                                      ]
+                                  ),
+                                  child: Row(
+                                      children: [
+                                        const Icon(Icons.local_offer_rounded, color: Color(0xFFFFD700), size: 24),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                            child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text('Promo Gajian!', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                                                  Text('Diskon 30% semua layanan hari ini.', style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 12))
+                                                ]
+                                            )
+                                        ),
+                                        IconButton(
+                                            icon: const Icon(Icons.close, color: Colors.white54, size: 18),
+                                            onPressed: () => setState(() => _showFloatingPromo = false)
+                                        )
+                                      ]
+                                  )
+                              )
+                          )
+                      ),
+                  ],
                 ),
+              ),
             );
           },
         );
@@ -779,7 +774,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildImageBanner(String imgUrl, String title, String subtitle, Color accentColor) {
+  // =======================================================
+  // UI BANNER: DITAMBAH FITUR KODE PROMO & TAP TO COPY
+  // =======================================================
+  Widget _buildImageBanner(String imgUrl, String title, String subtitle, Color accentColor, {String? promoCodeId}) {
     return Container(
         margin: const EdgeInsets.symmetric(horizontal: 24),
         decoration: BoxDecoration(
@@ -798,7 +796,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           gradient: LinearGradient(
                               begin: Alignment.centerLeft,
                               end: Alignment.centerRight,
-                              colors: [accentColor.withOpacity(0.9), accentColor.withOpacity(0.2)]
+                              colors: [accentColor.withOpacity(0.95), accentColor.withOpacity(0.1)]
                           )
                       )
                   ),
@@ -819,7 +817,55 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             const SizedBox(height: 8),
                             Text(title, style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 4),
-                            Text(subtitle, style: GoogleFonts.plusJakartaSans(color: Colors.white.withOpacity(0.95), fontSize: 12))
+                            Text(subtitle, style: GoogleFonts.plusJakartaSans(color: Colors.white.withOpacity(0.95), fontSize: 12)),
+
+                            // JIKA ADA PROMO CODE, TAMPILKAN DI SINI
+                            if (promoCodeId != null && promoCodeId.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              FutureBuilder<DocumentSnapshot>(
+                                  future: FirebaseFirestore.instance.collection('promo_codes').doc(promoCodeId).get(),
+                                  builder: (context, snapshot) {
+                                    if (!snapshot.hasData || !snapshot.data!.exists) return const SizedBox.shrink();
+
+                                    var promoData = snapshot.data!.data() as Map<String, dynamic>;
+                                    String code = promoData['code'] ?? '';
+                                    if (code.isEmpty) return const SizedBox.shrink();
+
+                                    return GestureDetector(
+                                      onTap: () {
+                                        // FITUR COPAS OTOMATIS
+                                        Clipboard.setData(ClipboardData(text: code));
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text("Kode '$code' disalin ke clipboard!"),
+                                              backgroundColor: Colors.teal,
+                                              behavior: SnackBarBehavior.floating,
+                                            )
+                                        );
+                                      },
+                                      child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: Colors.white.withOpacity(0.5), style: BorderStyle.solid),
+                                          ),
+                                          child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.copy, color: Colors.white, size: 14),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                    "KODE: $code",
+                                                    style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1)
+                                                ),
+                                              ]
+                                          )
+                                      ),
+                                    );
+                                  }
+                              )
+                            ]
                           ]
                       )
                   )
@@ -871,7 +917,6 @@ class _TopNotificationPopupState extends State<_TopNotificationPopup> {
     super.dispose();
   }
 
-  // --- Fungsi ngambil warna & ikon status pesanan ---
   Map<String, dynamic> _getStatusConfig(String status) {
     switch (status) {
       case 'Pending': return {'color': const Color(0xFFF59E0B), 'icon': Icons.pending_actions_rounded, 'label': 'Menunggu Konfirmasi'};
@@ -948,7 +993,6 @@ class _TopNotificationPopupState extends State<_TopNotificationPopup> {
                         _timer?.cancel();
                         Navigator.pop(context);
 
-                        // --- FIX: Arahkan ke Order Detail, bukan Notification Page ---
                         var config = _getStatusConfig(widget.newStatus);
                         Navigator.push(context, MaterialPageRoute(builder: (context) => OrderDetailPage(
                           docId: widget.docId,
