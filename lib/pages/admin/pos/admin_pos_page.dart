@@ -1,7 +1,12 @@
+import 'dart:io';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart'; // TAMBAHAN: Untuk Kamera/Galeri
 import 'package:chupatu_mobile/main.dart';
 
 class AdminPOSPage extends StatefulWidget {
@@ -20,13 +25,17 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
   int _baseDistanceKm = 0;
   int _baseDeliveryFee = 0;
   int _extraFeePerKm = 0;
-  bool _isMayarActive = false;
 
-  // CONTROLLERS
+  bool _isMayarActive = false;
+  bool _isMayarSandbox = true;
+  String _mayarApiKey = '';
+
+  // CONTROLLERS & FILES
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _distanceController = TextEditingController(); // Untuk input KM
+  final TextEditingController _distanceController = TextEditingController();
+  File? _imageFile; // State untuk simpan foto sepatu
 
   bool _isLoadingData = true;
   bool _isLoadingSubmit = false;
@@ -39,12 +48,8 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
     _loadInitialData();
   }
 
-  // ==========================================================
-  // FITUR 1: FETCH DATA LAYANAN & KONFIGURASI SISTEM REALTIME
-  // ==========================================================
   Future<void> _loadInitialData() async {
     try {
-      // 1. Tarik Konfigurasi Sistem (Ongkir & Mayar)
       var configDoc = await FirebaseFirestore.instance
           .collection('system_settings')
           .doc('config')
@@ -55,10 +60,12 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
         _baseDistanceKm = conf['baseDistanceKm'] ?? 0;
         _baseDeliveryFee = conf['baseDeliveryFee'] ?? 0;
         _extraFeePerKm = conf['extraFeePerKm'] ?? 0;
+
         _isMayarActive = conf['isMayarActive'] ?? false;
+        _isMayarSandbox = conf['isMayarSandbox'] ?? true;
+        _mayarApiKey = conf['mayarApiKey'] ?? '';
       }
 
-      // 2. Tarik Data Layanan Asli dari Firestore
       var serviceDocs = await FirebaseFirestore.instance
           .collection('services')
           .orderBy('createdAt', descending: true)
@@ -86,11 +93,88 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
   }
 
   // ==========================================================
-  // FITUR 2: KALKULATOR ONGKIR DINAMIS BERDASARKAN JARAK (KM)
+  // FITUR: AMBIL FOTO SEPATU DARI KAMERA / GALERI
   // ==========================================================
+  Future<void> _pickImage(ImageSource source) async {
+    final pickedFile = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 70, // Kompresi 70% biar upload cepet & kuota irit
+    );
+    if (pickedFile != null) {
+      setState(() => _imageFile = File(pickedFile.path));
+    }
+  }
+
+  void _showImagePickerOptions(AppThemeData theme) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+                "Ambil Bukti Foto",
+                style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.bold, fontSize: 18, color: theme.textMain
+                )
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildPickerOption(
+                    icon: Icons.camera_alt_rounded,
+                    label: "Kamera",
+                    color: Colors.blue,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.camera);
+                    }
+                ),
+                _buildPickerOption(
+                    icon: Icons.photo_library_rounded,
+                    label: "Galeri",
+                    color: Colors.purple,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.gallery);
+                    }
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPickerOption({
+    required IconData icon, required String label, required Color color, required VoidCallback onTap
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 30),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+        ],
+      ),
+    );
+  }
+
   int _calculateDeliveryFee() {
     if (!_isDelivery) return 0;
-
     int inputKm = int.tryParse(_distanceController.text) ?? 0;
     if (inputKm == 0) return 0;
 
@@ -102,26 +186,17 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
     }
   }
 
-  // ==========================================================
-  // FITUR 3: PROSES CHECKOUT DENGAN INTEGRASI PAYMENT
-  // ==========================================================
   Future<void> _processOrder() async {
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Nama pelanggan wajib diisi!"))
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Nama pelanggan wajib diisi!")));
       return;
     }
     if (_selectedService == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Pilih layanan terlebih dahulu!"))
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pilih layanan terlebih dahulu!")));
       return;
     }
     if (_isDelivery && _distanceController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Masukkan jarak pengantaran (KM)!"))
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Masukkan jarak pengantaran (KM)!")));
       return;
     }
 
@@ -132,16 +207,74 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
       int basePrice = _selectedService!['price'];
       int totalPrice = basePrice + deliveryFee;
 
-      // Proteksi Status Pembayaran Mayar
-      // Jika pilih Mayar, status diubah jadi Pending Payment
       String orderStatus = (_paymentMethod == 'Mayar (QRIS/VA)')
-          ? 'Pending Payment'
-          : 'Confirmed';
+          ? 'Pending Payment' : 'Confirmed';
 
+      String paymentLink = '';
+      String invoiceId = '';
+      String shoeImageUrl = '';
+
+      // --- 1. UPLOAD FOTO KE CLOUDINARY (JIKA ADA) ---
+      if (_imageFile != null) {
+        final cloudinaryUrl = Uri.parse(
+            'https://api.cloudinary.com/v1_1/dyiicub10/image/upload'
+        );
+        final request = http.MultipartRequest('POST', cloudinaryUrl)
+          ..fields['upload_preset'] = 'chupatu_promo'
+          ..files.add(await http.MultipartFile.fromPath('file', _imageFile!.path));
+
+        var response = await request.send();
+        if (response.statusCode == 200) {
+          var resData = await response.stream.bytesToString();
+          shoeImageUrl = jsonDecode(resData)['secure_url'];
+        }
+      }
+
+      // --- 2. INTEGRASI MAYAR API ---
+      if (_paymentMethod == 'Mayar (QRIS/VA)') {
+        if (_mayarApiKey.isEmpty) {
+          throw Exception("API Key Mayar belum disetting di Sistem!");
+        }
+
+        String apiUrl = _isMayarSandbox
+            ? 'https://api.mayar.club/hl/v1/invoice/create'
+            : 'https://api.mayar.id/hl/v1/invoice/create';
+
+        var response = await http.post(
+            Uri.parse(apiUrl),
+            headers: {
+              'Authorization': 'Bearer $_mayarApiKey',
+              'Content-Type': 'application/json'
+            },
+            body: jsonEncode({
+              "name": _nameController.text.trim(),
+              "email": "customer@chupatu.com",
+              "mobile": _phoneController.text.trim().isEmpty ? "080000000000" : _phoneController.text.trim(),
+              "description": "Order Kasir Chupatu",
+              "expiredAt": DateTime.now().add(const Duration(days: 1)).toUtc().toIso8601String(),
+              "items": [
+                {
+                  "quantity": 1,
+                  "rate": totalPrice,
+                  "description": "${_selectedService!['name']} ${(_isDelivery ? '+ Ongkir' : '')}"
+                }
+              ]
+            })
+        );
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          var resData = jsonDecode(response.body);
+          paymentLink = resData['data']['link'];
+          invoiceId = resData['data']['id'] ?? '';
+        } else {
+          throw Exception("Mayar Error: ${response.body}");
+        }
+      }
+
+      // --- 3. SIMPAN KE FIRESTORE ---
       Map<String, dynamic> orderData = {
         'customerName': _nameController.text.trim(),
-        'customerPhone': _phoneController.text.trim().isEmpty
-            ? '-' : _phoneController.text.trim(),
+        'customerPhone': _phoneController.text.trim().isEmpty ? '-' : _phoneController.text.trim(),
         'serviceName': _selectedService!['name'],
         'category': 'Walk-in',
         'shoeDetail': 'Walk-in Order',
@@ -162,7 +295,10 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
         'pickupDate': FieldValue.serverTimestamp(),
         'pickupTime': DateFormat('HH:mm').format(DateTime.now()),
         'paymentMethod': _paymentMethod,
-        'userId': '', // Kosong karena bukan order dari HP Pelanggan
+        'paymentLink': paymentLink,
+        'invoiceId': invoiceId,
+        'shoeImageUrl': shoeImageUrl, // Simpan Bukti Foto ke Database
+        'userId': '',
       };
 
       await FirebaseFirestore.instance.collection('bookings').add(orderData);
@@ -171,10 +307,20 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text("Order ${_nameController.text} Berhasil Disimpan!"),
+              content: Text("Order ${_nameController.text} Tersimpan!"),
               backgroundColor: Colors.green
           )
       );
+
+      // BUKA LINK PEMBAYARAN MAYAR
+      if (paymentLink.isNotEmpty) {
+        final Uri url = Uri.parse(paymentLink);
+        if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Gagal membuka link pembayaran Mayar."))
+          );
+        }
+      }
 
       // Reset Form
       setState(() {
@@ -185,11 +331,12 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
         _distanceController.clear();
         _isDelivery = false;
         _paymentMethod = 'Cash / Tunai';
+        _imageFile = null; // Kosongkan foto
       });
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gagal menyimpan: $e"), backgroundColor: Colors.red)
+          SnackBar(content: Text("Gagal memproses: $e"), backgroundColor: Colors.red)
       );
     } finally {
       if (mounted) setState(() => _isLoadingSubmit = false);
@@ -206,9 +353,7 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey.withOpacity(0.2)),
         boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.02), blurRadius: 8
-          )
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8)
         ],
       ),
       child: child,
@@ -249,7 +394,7 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                      "Input data pelanggan & layanan aktual.",
+                      "Input data pelanggan & buat Invoice otomatis.",
                       style: GoogleFonts.plusJakartaSans(color: Colors.grey)
                   ),
                   const SizedBox(height: 20),
@@ -299,7 +444,63 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
                           ),
                           const SizedBox(height: 24),
 
-                          // 2. DELIVERY & ONGKIR DINAMIS
+                          // ===================================================
+                          // FITUR BARU: FOTO SEPATU (BUKTI PENERIMAAN)
+                          // ===================================================
+                          Text(
+                              "Bukti Sepatu (Opsional)",
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.bold, color: theme.textMain
+                              )
+                          ),
+                          const SizedBox(height: 12),
+                          GestureDetector(
+                            onTap: () => _showImagePickerOptions(theme),
+                            child: _buildSolidCard(
+                              theme: theme,
+                              padding: EdgeInsets.zero,
+                              child: Container(
+                                height: _imageFile != null ? 180 : 80,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  image: _imageFile != null
+                                      ? DecorationImage(
+                                      image: FileImage(_imageFile!), fit: BoxFit.cover
+                                  )
+                                      : null,
+                                ),
+                                child: _imageFile == null
+                                    ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.add_a_photo, color: Colors.grey.shade400, size: 28),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                        "Ambil Foto Sepatu Pelanggan",
+                                        style: TextStyle(color: Colors.grey.shade500)
+                                    )
+                                  ],
+                                )
+                                    : Align(
+                                  alignment: Alignment.topRight,
+                                  child: IconButton(
+                                    icon: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: const BoxDecoration(
+                                            color: Colors.black54, shape: BoxShape.circle
+                                        ),
+                                        child: const Icon(Icons.close, color: Colors.white, size: 18)
+                                    ),
+                                    onPressed: () => setState(() => _imageFile = null),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // 2. OPSI PENGIRIMAN
                           Text(
                               "Opsi Pengiriman",
                               style: GoogleFonts.plusJakartaSans(
@@ -318,12 +519,8 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
                                   )
                               ),
                               subtitle: Text(
-                                  _isDelivery
-                                      ? "Ongkir dihitung otomatis"
-                                      : "Customer ambil sendiri",
-                                  style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12, color: Colors.grey
-                                  )
+                                  _isDelivery ? "Ongkir dihitung otomatis" : "Customer ambil sendiri",
+                                  style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)
                               ),
                               value: _isDelivery,
                               activeColor: theme.primary,
@@ -348,7 +545,7 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
                                       controller: _distanceController,
                                       keyboardType: TextInputType.number,
                                       style: TextStyle(color: theme.textMain),
-                                      onChanged: (val) => setState(() {}), // Trigger hitung ulang
+                                      onChanged: (val) => setState(() {}),
                                       decoration: InputDecoration(
                                         hintText: "Jarak (KM)",
                                         hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey),
@@ -437,7 +634,7 @@ class _AdminPOSPageState extends State<AdminPOSPage> {
                               itemCount: _dbServices.length,
                               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 2,
-                                childAspectRatio: 1.4, // Disesuaikan biar foto muat
+                                childAspectRatio: 1.4,
                                 crossAxisSpacing: 12,
                                 mainAxisSpacing: 12,
                               ),
