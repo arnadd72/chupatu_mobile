@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart'; // TAMBAHAN: Buat upload foto
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
 
@@ -30,6 +31,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   late String _currentStatus;
   bool _isUpdating = false;
   bool _isLoadingChat = false;
+  bool _isUploadingMagicResult = false; // State buat loading upload foto
   final GlobalKey _barcodeKey = GlobalKey();
 
   StreamSubscription<Position>? _locationSubscription;
@@ -51,7 +53,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   }
 
   // ==========================================================
-  // FITUR BARU: Penampil Foto Sepatu Pelanggan (Dengan Zoom)
+  // FITUR: Penampil Foto Sepatu Pelanggan (Dengan Zoom)
   // ==========================================================
   Widget _buildCustomerShoeImage(String? imageUrl, AppThemeData theme) {
     if (imageUrl == null || imageUrl.isEmpty) {
@@ -78,7 +80,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-            "Foto Sepatu Sebelum Dicuci",
+            "Foto Sepatu Sebelum Dicuci (Before)",
             style: GoogleFonts.plusJakartaSans(
                 fontWeight: FontWeight.bold, color: theme.textMain
             )
@@ -86,7 +88,6 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
         const SizedBox(height: 8),
         GestureDetector(
           onTap: () {
-            // Tampilkan gambar full screen saat di-klik
             showDialog(
               context: context,
               builder: (context) => Dialog(
@@ -145,6 +146,70 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
         ),
       ],
     );
+  }
+
+  // ==========================================================
+  // FITUR BARU: UPLOAD FOTO HASIL CUCI (MAGIC RESULT)
+  // ==========================================================
+  Future<void> _uploadMagicResult() async {
+    final picker = ImagePicker();
+    // Buka galeri/kamera, kompres dikit biar enteng
+    final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70
+    );
+
+    if (pickedFile == null) return;
+
+    setState(() => _isUploadingMagicResult = true);
+
+    try {
+      final cloudinaryUrl = Uri.parse(
+          'https://api.cloudinary.com/v1_1/dyiicub10/image/upload'
+      );
+
+      final request = http.MultipartRequest('POST', cloudinaryUrl)
+        ..fields['upload_preset'] = 'chupatu_promo'
+        ..files.add(await http.MultipartFile.fromPath('file', pickedFile.path));
+
+      var response = await request.send();
+
+      if (response.statusCode == 200) {
+        var resData = await response.stream.bytesToString();
+        var jsonMap = jsonDecode(resData);
+        String afterImageUrl = jsonMap['secure_url'];
+
+        // Update database booking dengan URL gambar 'After'
+        await FirebaseFirestore.instance
+            .collection('bookings')
+            .doc(widget.docId)
+            .update({'afterImageUrl': afterImageUrl});
+
+        // Update state lokal biar UI langsung nampilin fotonya
+        setState(() {
+          widget.data['afterImageUrl'] = afterImageUrl;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text("Magic Result berhasil diupload! 🪄"),
+                  backgroundColor: Colors.green
+              )
+          );
+        }
+      } else {
+        throw Exception("Gagal upload ke server gambar.");
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red)
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingMagicResult = false);
+    }
   }
 
   Future<void> _openChatWithCustomer() async {
@@ -507,7 +572,7 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
                   const SizedBox(height: 20),
 
                   // ==========================================================
-                  // MUNCULKAN WIDGET FOTO SEPATU PELANGGAN DI SINI
+                  // TAMPILAN FOTO SEPATU "BEFORE" DARI PELANGGAN
                   // ==========================================================
                   _buildCustomerShoeImage(widget.data['shoeImageUrl'], theme),
                   const SizedBox(height: 20),
@@ -546,24 +611,83 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
 
                   const SizedBox(height: 40),
 
+                  // ==========================================================
+                  // BLOK UPLOAD FOTO "AFTER" (JIKA STATUS DONE)
+                  // ==========================================================
                   if (_currentStatus == 'Done') ...[
-                    Text("Magic Result (Hasil Cuci)", style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)),
+                    Text(
+                        "Magic Result (Hasil Cuci)",
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain
+                        )
+                    ),
                     const SizedBox(height: 12),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.withOpacity(0.5)), boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.1), blurRadius: 10)]),
-                      child: Column(
+                      decoration: BoxDecoration(
+                          color: theme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.green.withOpacity(0.5)),
+                          boxShadow: [
+                            BoxShadow(color: Colors.green.withOpacity(0.1), blurRadius: 10)
+                          ]
+                      ),
+                      child: widget.data['afterImageUrl'] != null && widget.data['afterImageUrl'].toString().isNotEmpty
+                      // JIKA SUDAH ADA FOTO AFTER
+                          ? Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                  widget.data['afterImageUrl'],
+                                  height: 150,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                                onPressed: _isUploadingMagicResult ? null : _uploadMagicResult,
+                                icon: _isUploadingMagicResult
+                                    ? const SizedBox(
+                                    width: 16, height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green)
+                                )
+                                    : const Icon(Icons.edit),
+                                label: Text(_isUploadingMagicResult ? "Mengupload..." : "Ubah Foto Hasil"),
+                                style: OutlinedButton.styleFrom(foregroundColor: Colors.green)
+                            )
+                          ]
+                      )
+                      // JIKA BELUM ADA FOTO AFTER
+                          : Column(
                         children: [
                           const Icon(Icons.auto_awesome, size: 40, color: Colors.green),
                           const SizedBox(height: 8),
-                          Text("Upload Foto Hasil Cuci", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
-                          Text("Foto ini akan muncul di aplikasi customer.", style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                          Text(
+                              "Upload Foto Hasil Cuci",
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.bold, color: theme.textMain
+                              )
+                          ),
+                          Text(
+                              "Foto ini akan muncul di aplikasi customer.",
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12, color: Colors.grey
+                              ),
+                              textAlign: TextAlign.center
+                          ),
                           const SizedBox(height: 16),
                           OutlinedButton.icon(
-                              onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fitur Upload Foto akan segera hadir!"))); },
-                              icon: const Icon(Icons.camera_alt),
-                              label: const Text("Ambil Foto / Upload"),
+                              onPressed: _isUploadingMagicResult ? null : _uploadMagicResult,
+                              icon: _isUploadingMagicResult
+                                  ? const SizedBox(
+                                  width: 16, height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green)
+                              )
+                                  : const Icon(Icons.camera_alt),
+                              label: Text(_isUploadingMagicResult ? "Mengupload..." : "Ambil Foto / Upload"),
                               style: OutlinedButton.styleFrom(foregroundColor: Colors.green)
                           )
                         ],

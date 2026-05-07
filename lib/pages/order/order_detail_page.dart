@@ -12,6 +12,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/utils/invoice_pdf_helper.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
 
 // IMPORT HALAMAN CHAT
 import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
@@ -380,6 +381,166 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     }
   }
 
+  // ==========================================================
+  // WIDGET BARU: MAGIC RESULT (BEFORE - AFTER) UNTUK PELANGGAN
+  // ==========================================================
+
+  Widget _buildMagicResultSection(Map<String, dynamic> data, AppThemeData theme) {
+    String beforeImg = data['shoeImageUrl'] ?? '';
+    String afterImg = data['afterImageUrl'] ?? '';
+    String status = data['status'] ?? '';
+
+    // Cuma tampil kalau statusnya Done dan Admin udah upload foto After
+    if (status != 'Done' || afterImg.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        Text(
+            "Magic Result ✨",
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain
+            )
+        ),
+        const SizedBox(height: 8),
+        Text(
+            "Sepatu kamu sudah kembali kinclong seperti baru!",
+            style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 13)
+        ),
+        const SizedBox(height: 16),
+
+        // BANNER PREVIEW YANG BISA DI-KLIK
+        GestureDetector(
+          onTap: () {
+            // Pindah ke Halaman Full Screen Interaktif
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => MagicResultDetailPage(
+                      title: "Sepatu Kamu",
+                      beforeImg: beforeImg.isNotEmpty ? beforeImg : afterImg, // Fallback aman
+                      afterImg: afterImg,
+                    )
+                )
+            );
+          },
+          child: Container(
+            height: 120,
+            width: double.infinity,
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                image: DecorationImage(
+                  image: NetworkImage(afterImg), // Tampilkan hasil akhirnya sebagai background
+                  fit: BoxFit.cover,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.green.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4)
+                  )
+                ]
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [Colors.black87, Colors.transparent]
+                  )
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(8)
+                            ),
+                            child: const Text("SELESAI", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                              "Lihat Hasil\nCucianmu",
+                              style: GoogleFonts.plusJakartaSans(
+                                  color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, height: 1.2
+                              )
+                          ),
+                        ],
+                      )
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white)
+                    ),
+                    child: const Icon(Icons.compare_rounded, color: Colors.white),
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildImageComparisonCard(String label, String imageUrl, Color accentColor) {
+    return GestureDetector(
+      onTap: () => _showFullScreenImage(imageUrl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8)
+            ),
+            child: Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                    color: accentColor, fontWeight: FontWeight.bold, fontSize: 12
+                )
+            ),
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              imageUrl,
+              width: double.infinity,
+              height: 180,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return Container(
+                  height: 180, color: Colors.grey.shade200,
+                  child: const Center(child: CircularProgressIndicator()),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) => Container(
+                height: 180, color: Colors.grey.shade200,
+                child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
@@ -402,10 +563,10 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         : (widget.data['address'] ?? 'Alamat tidak tersedia');
 
     String currentStatus = widget.data['status'] ?? 'Pending';
-    bool canCancel = (currentStatus == 'Pending' || currentStatus == 'Confirmed');
+    bool canCancel = (currentStatus == 'Pending' || currentStatus == 'Confirmed' || currentStatus == 'Pending Payment');
     bool isDone = (currentStatus == 'Done');
 
-    // 👉 AMBIL URL FOTO SEPATU DARI DATA FIRESTORE
+    // 👉 URL Foto Sepatu Sebelum Dicuci
     String? shoeImageUrl = widget.data['shoeImageUrl'];
 
     return ValueListenableBuilder<AppThemeData>(
@@ -621,9 +782,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                         ),
                         const SizedBox(height: 24),
 
-                        // 👉 WIDGET BARU: FOTO SEPATU PELANGGAN
-                        if (shoeImageUrl != null && shoeImageUrl.isNotEmpty) ...[
-                          _buildSectionTitle("Foto Sepatu", theme),
+                        // 👉 WIDGET: FOTO SEPATU PELANGGAN (JIKA ADA)
+                        if (shoeImageUrl != null && shoeImageUrl.isNotEmpty && !isDone) ...[
+                          _buildSectionTitle("Foto Sepatu (Before)", theme),
                           GestureDetector(
                             onTap: () => _showFullScreenImage(shoeImageUrl),
                             child: Container(
@@ -772,6 +933,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                             ],
                           ),
                         ),
+
+                        // ==========================================================
+                        // PEMANGGILAN WIDGET MAGIC RESULT
+                        // ==========================================================
+                        _buildMagicResultSection(widget.data, theme),
 
                         const SizedBox(height: 32),
 
