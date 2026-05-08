@@ -20,12 +20,12 @@ import 'package:chupatu_mobile/pages/notification/notification_page.dart';
 import 'package:chupatu_mobile/pages/home/garage/garage_page.dart';
 import 'package:chupatu_mobile/pages/order/custom_service_page.dart';
 import 'package:chupatu_mobile/pages/home/review_rating_section.dart';
+import 'package:chupatu_mobile/pages/notification/customer_chat_page.dart';
 
 // WIDGET IMPORTS
 import 'package:chupatu_mobile/pages/home/widgets/shoe_tips_widget.dart';
 import 'package:chupatu_mobile/pages/home/widgets/live_tracking_widget.dart';
 import 'package:chupatu_mobile/pages/home/widgets/mini_garage_widget.dart';
-// IMPORT WIDGET BARU KITA
 import 'package:chupatu_mobile/pages/home/widgets/promo_banner_widget.dart';
 
 class HomePage extends StatefulWidget {
@@ -142,59 +142,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  void _showThemePicker(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        final currentTheme = ThemeConfig.currentTheme.value;
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: currentTheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20), decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-              Text("Pilih Tampilan Aplikasi", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: currentTheme.textMain)),
-              const SizedBox(height: 24),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Wrap(
-                    spacing: 20, runSpacing: 20, alignment: WrapAlignment.center,
-                    children: List.generate(ThemeConfig.themes.length, (index) {
-                      final themeItem = ThemeConfig.themes[index];
-                      final bool isSelected = currentTheme.name == themeItem.name;
-                      return GestureDetector(
-                        onTap: () { ThemeConfig.changeTheme(index); Navigator.pop(context); },
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 50, height: 50,
-                              decoration: BoxDecoration(color: themeItem.primary, shape: BoxShape.circle, border: Border.all(color: isSelected ? currentTheme.textMain : Colors.transparent, width: 2), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5, offset: const Offset(0, 2))]),
-                              child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 24) : null,
-                            ),
-                            const SizedBox(height: 8),
-                            SizedBox(width: 60, child: Text(themeItem.name.replaceAll(' ', '\n'), textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? currentTheme.textMain : Colors.grey, height: 1.2), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                          ],
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  // FUNGSI _showThemePicker TELAH DIHAPUS KARENA PINDAH KE SETTINGS
 
   @override
   Widget build(BuildContext context) {
@@ -327,8 +275,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     ),
                                     Row(
                                         children: [
+                                          // PERUBAHAN: TOMBOL CHAT
                                           GestureDetector(
-                                              onTap: () => _showThemePicker(context),
+                                              onTap: () {
+                                                Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(builder: (context) => const CustomerChatPage())
+                                                );
+                                              },
                                               child: Container(
                                                   width: 42, height: 42,
                                                   decoration: BoxDecoration(
@@ -337,7 +291,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                       border: Border.all(color: theme.surface),
                                                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
                                                   ),
-                                                  child: Icon(Icons.palette_rounded, color: theme.primary, size: 20)
+                                                  child: Icon(Icons.chat_bubble_outline_rounded, color: theme.primary, size: 20)
                                               )
                                           ),
                                           const SizedBox(width: 12),
@@ -356,9 +310,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                             const SizedBox(height: 12),
 
-                            // =======================================================
-                            // PEMANGGILAN WIDGET PROMO BANNER (SANGAT BERSIH!)
-                            // =======================================================
                             PromoBannerWidget(theme: theme),
                             const SizedBox(height: 16),
 
