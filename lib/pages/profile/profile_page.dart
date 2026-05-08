@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,8 +9,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:chupatu_mobile/main.dart';
-// IMPORT HALAMAN CHUPATU PRO BARU
 import 'package:chupatu_mobile/pages/profile/chupatu_pro_page.dart';
 
 class ApiConfig {
@@ -34,7 +37,57 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isUpdatingPhoto = false;
   File? _localImageFile;
 
-  // --- FUNGSI UPDATE FOTO PROFIL KE LARAVEL & FIREBASE ---
+  @override
+  void initState() {
+    super.initState();
+    _migrateLegacyAddresses();
+  }
+
+  // ==========================================================
+  // FITUR AUTO MIGRATION
+  // ==========================================================
+  Future<void> _migrateLegacyAddresses() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) return;
+
+      List<dynamic> currentAddrs = userDoc.data()?['addresses'] ?? [];
+
+      if (currentAddrs.isEmpty) {
+        final legacySnap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('addresses')
+            .orderBy('createdAt', descending: true)
+            .get();
+
+        if (legacySnap.docs.isNotEmpty) {
+          List<Map<String, dynamic>> migratedAddresses = [];
+          for (int i = 0; i < legacySnap.docs.length; i++) {
+            var data = legacySnap.docs[i].data();
+            migratedAddresses.add({
+              'id': legacySnap.docs[i].id,
+              'label': data['label'] ?? 'Alamat Migrasi ${i + 1}',
+              'detail': data['fullAddress'] ?? data['detail'] ?? '',
+              'isPrimary': i == 0,
+            });
+          }
+
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+            'addresses': migratedAddresses,
+            'address': migratedAddresses[0]['detail'],
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal melakukan migrasi data alamat: $e");
+    }
+  }
+
+  // --- FUNGSI UPDATE FOTO PROFIL ---
   Future<void> _updateProfilePicture() async {
     final freshUser = FirebaseAuth.instance.currentUser;
     if (freshUser == null) return;
@@ -102,7 +155,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // --- FUNGSI UPDATE DATA TEKS ---
   Future<void> _updateUserData(String field, String value) async {
     final freshUser = FirebaseAuth.instance.currentUser;
     if (freshUser == null) return;
@@ -124,9 +176,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // ==========================================================
-  // FITUR MANAJEMEN ALAMAT
+  // FITUR MANAJEMEN ALAMAT (DENGAN EDIT ALAMAT)
   // ==========================================================
-  void _showAddressManager(AppThemeData theme, List<dynamic> addresses) {
+  void _showAddressManager(AppThemeData theme) {
     showModalBottomSheet(
         context: context,
         isScrollControlled: true,
@@ -152,14 +204,20 @@ class _ProfilePageState extends State<ProfilePage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text("Daftar Alamat", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
-                        TextButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _showAddAddressDialog(theme, addresses);
-                          },
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text("Tambah"),
-                          style: TextButton.styleFrom(foregroundColor: theme.primary),
+                        StreamBuilder<DocumentSnapshot>(
+                            stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).snapshots(),
+                            builder: (ctx, snapshot) {
+                              List<dynamic> addrs = [];
+                              if (snapshot.hasData && snapshot.data!.exists) {
+                                addrs = (snapshot.data!.data() as Map<String, dynamic>)['addresses'] ?? [];
+                              }
+                              return TextButton.icon(
+                                onPressed: () => _showAddAddressDialog(theme, addrs),
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const Text("Tambah"),
+                                style: TextButton.styleFrom(foregroundColor: theme.primary),
+                              );
+                            }
                         )
                       ],
                     ),
@@ -225,13 +283,16 @@ class _ProfilePageState extends State<ProfilePage> {
                                       PopupMenuButton<String>(
                                         icon: const Icon(Icons.more_vert, color: Colors.grey),
                                         onSelected: (val) async {
-                                          if (val == 'primary') {
+                                          if (val == 'edit') {
+                                            _showEditAddressDialog(theme, currentAddrs, addr);
+                                          } else if (val == 'primary') {
                                             await _setPrimaryAddress(currentAddrs, addr['id'], addr['detail']);
                                           } else if (val == 'delete') {
                                             await _deleteAddress(currentAddrs, addr['id']);
                                           }
                                         },
                                         itemBuilder: (ctx) => [
+                                          const PopupMenuItem(value: 'edit', child: Text("Edit Alamat")),
                                           if (!isPrimary)
                                             const PopupMenuItem(value: 'primary', child: Text("Jadikan Utama")),
                                           const PopupMenuItem(value: 'delete', child: Text("Hapus Alamat", style: TextStyle(color: Colors.red))),
@@ -254,6 +315,103 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // --- DIALOG EDIT ALAMAT ---
+  Future<void> _showEditAddressDialog(AppThemeData theme, List<dynamic> currentAddresses, Map<String, dynamic> addressToEdit) async {
+    TextEditingController labelCtrl = TextEditingController(text: addressToEdit['label']);
+    TextEditingController detailCtrl = TextEditingController(text: addressToEdit['detail']);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Edit Alamat", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: labelCtrl,
+              style: TextStyle(color: theme.textMain),
+              decoration: InputDecoration(
+                labelText: "Label (ex: Rumah, Kantor)",
+                labelStyle: const TextStyle(color: Colors.grey),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: theme.primary), borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  String? resultAddress = await _openMapPickerForProfile();
+                  if (resultAddress != null) {
+                    detailCtrl.text = resultAddress; // Otomatis mengisi textfield
+                  }
+                },
+                icon: Icon(Icons.map_rounded, color: theme.primary),
+                label: Text("Pilih Ulang di Peta", style: TextStyle(color: theme.primary)),
+                style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: theme.primary),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: detailCtrl,
+              maxLines: 3,
+              style: TextStyle(color: theme.textMain),
+              decoration: InputDecoration(
+                labelText: "Alamat Lengkap",
+                labelStyle: const TextStyle(color: Colors.grey),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: theme.primary), borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
+          ElevatedButton(
+            onPressed: () async {
+              if (labelCtrl.text.isEmpty || detailCtrl.text.isEmpty) return;
+
+              List<dynamic> updatedList = currentAddresses.map((a) {
+                if (a['id'] == addressToEdit['id']) {
+                  return {
+                    'id': a['id'],
+                    'label': labelCtrl.text.trim(),
+                    'detail': detailCtrl.text.trim(),
+                    'isPrimary': a['isPrimary'],
+                  };
+                }
+                return a;
+              }).toList();
+
+              Map<String, dynamic> payload = {'addresses': updatedList};
+
+              if (addressToEdit['isPrimary'] == true) {
+                payload['address'] = detailCtrl.text.trim();
+              }
+
+              await FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).update(payload);
+
+              if (mounted) {
+                Navigator.pop(ctx);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: theme.primary),
+            child: const Text("Simpan", style: TextStyle(color: Colors.white)),
+          )
+        ],
+      ),
+    );
+  }
+
+  // --- DIALOG TAMBAH ALAMAT ---
   Future<void> _showAddAddressDialog(AppThemeData theme, List<dynamic> currentAddresses) async {
     TextEditingController labelCtrl = TextEditingController();
     TextEditingController detailCtrl = TextEditingController();
@@ -278,6 +436,26 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             const SizedBox(height: 12),
+
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  String? resultAddress = await _openMapPickerForProfile();
+                  if (resultAddress != null) {
+                    detailCtrl.text = resultAddress;
+                  }
+                },
+                icon: Icon(Icons.map_rounded, color: theme.primary),
+                label: Text("Pilih Otomatis di Peta", style: TextStyle(color: theme.primary)),
+                style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: theme.primary),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
             TextField(
               controller: detailCtrl,
               maxLines: 3,
@@ -315,7 +493,7 @@ class _ProfilePageState extends State<ProfilePage> {
               await FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).update(payload);
               if (mounted) {
                 Navigator.pop(ctx);
-                _showAddressManager(theme, updatedList);
+                // Tidak perlu memanggil ulang _showAddressManager() karena StreamBuilder akan update otomatis.
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: theme.primary),
@@ -324,6 +502,30 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
     );
+  }
+
+  // --- LOGIKA PEMANGGILAN PETA UNTUK PROFIL ---
+  Future<String?> _openMapPickerForProfile() async {
+    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+    LatLng initialLoc = const LatLng(-6.974001, 107.630348);
+    try {
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      initialLoc = LatLng(position.latitude, position.longitude);
+    } catch (e) {
+      debugPrint("GPS gagal, pakai default.");
+    }
+    if (!mounted) return null;
+    Navigator.pop(context);
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ProfileMapSelectionScreen(initialLocation: initialLoc)),
+    );
+
+    if (result != null && result is Map<String, dynamic>) {
+      return result['address'];
+    }
+    return null;
   }
 
   Future<void> _setPrimaryAddress(List<dynamic> addresses, String targetId, String fullAddress) async {
@@ -365,7 +567,6 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
-  // --- DIALOG EDIT PROFIL ---
   Future<void> _showEditDialog(String title, String fieldKey, String currentValue,
       {TextInputType keyboardType = TextInputType.text}) async {
     TextEditingController controller = TextEditingController(text: currentValue == "-" ? "" : currentValue);
@@ -498,7 +699,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // --- FOTO PROFIL ---
                         Center(
                           child: Column(
                             children: [
@@ -547,7 +747,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         const SizedBox(height: 32),
 
-                        // --- BANNER STATUS MEMBER (DIARAHKAN KE HALAMAN BARU) ---
                         GestureDetector(
                           onTap: () {
                             Navigator.push(
@@ -638,7 +837,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                               const Divider(height: 24),
                               _buildInfoRow("Alamat", displayAddress, theme,
-                                  onTap: () => _showAddressManager(theme, addressList)),
+                                  onTap: () => _showAddressManager(theme)), // Diubah parameternya
 
                               const Divider(height: 24),
                               _buildInfoRow("Jenis Kelamin", gender.isEmpty ? "Pilih" : gender,
@@ -694,6 +893,128 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ======================================================================
+// HALAMAN BARU: PEMILIH PETA KHUSUS PROFIL
+// ======================================================================
+class ProfileMapSelectionScreen extends StatefulWidget {
+  final LatLng initialLocation;
+  const ProfileMapSelectionScreen({super.key, required this.initialLocation});
+
+  @override
+  State<ProfileMapSelectionScreen> createState() => _ProfileMapSelectionScreenState();
+}
+
+class _ProfileMapSelectionScreenState extends State<ProfileMapSelectionScreen> {
+  final Completer<GoogleMapController> _controller = Completer();
+  late LatLng _currentLocation;
+  String _currentAddress = "Mencari alamat...";
+  bool _isDragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentLocation = widget.initialLocation;
+    _getAddressFromLatLng(_currentLocation);
+  }
+
+  Future<void> _getAddressFromLatLng(LatLng position) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        setState(() {
+          _currentAddress = "${place.street}, ${place.subLocality}, ${place.locality}";
+        });
+      }
+    } catch (e) {
+      setState(() => _currentAddress = "Gagal mengambil detail alamat.");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: Text("Pilih Alamat Anda", style: GoogleFonts.plusJakartaSans(color: Colors.black, fontWeight: FontWeight.bold)),
+        elevation: 1,
+      ),
+      body: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(target: _currentLocation, zoom: 17.0),
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            onMapCreated: (GoogleMapController controller) {
+              _controller.complete(controller);
+            },
+            onCameraMoveStarted: () => setState(() => _isDragging = true),
+            onCameraMove: (CameraPosition position) {
+              _currentLocation = position.target;
+            },
+            onCameraIdle: () {
+              setState(() => _isDragging = false);
+              _getAddressFromLatLng(_currentLocation);
+            },
+          ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 40.0),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                transform: Matrix4.translationValues(0, _isDragging ? -15 : 0, 0),
+                child: const Icon(Icons.location_on, size: 50, color: Colors.blue),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))]
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Lokasi Terpilih", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  Text(_currentAddress, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context, {
+                          'latitude': _currentLocation.latitude,
+                          'longitude': _currentLocation.longitude,
+                          'address': _currentAddress,
+                        });
+                      },
+                      child: Text("Konfirmasi Lokasi Ini", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  )
+                ],
+              ),
+            ),
+          )
+        ],
       ),
     );
   }

@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:async'; // WAJIB untuk Google Maps Completer
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -12,7 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/payment_page.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart'; // WAJIB untuk Map Picker
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 // --- VARIABEL GLOBAL DRAFT ---
 Map<String, dynamic> _bookingDraft = {};
@@ -105,6 +105,9 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
+  // ==========================================================
+  // PERBAIKAN 1: LOAD USER DATA (BACA ALAMAT UTAMA DARI ARRAY)
+  // ==========================================================
   Future<void> _loadUserData() async {
     setState(() => _isLoadingUserData = true);
     try {
@@ -124,7 +127,18 @@ class _BookingPageState extends State<BookingPage> {
         if (userData.isNotEmpty) {
           setState(() {
             _phoneController.text = userData['phoneNumber'] ?? userData['phone'] ?? '';
-            _mainAddressController.text = userData['address'] ?? '';
+
+            // Logika Tarik Alamat Utama
+            List<dynamic> addresses = userData['addresses'] ?? [];
+            if (addresses.isNotEmpty) {
+              var primaryAddress = addresses.firstWhere(
+                      (addr) => addr['isPrimary'] == true,
+                  orElse: () => addresses.first
+              );
+              _mainAddressController.text = primaryAddress['detail'] ?? primaryAddress['fullAddress'] ?? '';
+            } else {
+              _mainAddressController.text = userData['address'] ?? ''; // Legacy fallback
+            }
           });
         }
       }
@@ -135,6 +149,9 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
+  // ==========================================================
+  // PERBAIKAN 2: PICKER ALAMAT DARI ARRAY ADDRESSES
+  // ==========================================================
   void _showSavedAddressPicker(AppThemeData theme) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -153,29 +170,49 @@ class _BookingPageState extends State<BookingPage> {
               Text("Pilih Alamat Tersimpan", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
               const SizedBox(height: 16),
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('users').doc(user.uid).collection('addresses').orderBy('createdAt', descending: true).snapshots(),
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    if (!snapshot.hasData || !snapshot.data!.exists) {
+                      return Center(child: Text("Belum ada alamat tersimpan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
+                    }
+
+                    var userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+                    List<dynamic> savedAddresses = userData['addresses'] ?? [];
+
+                    if (savedAddresses.isEmpty) {
                       return Center(child: Text("Belum ada alamat tersimpan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
                     }
 
                     return ListView.separated(
-                      itemCount: snapshot.data!.docs.length,
+                      itemCount: savedAddresses.length,
                       separatorBuilder: (ctx, i) => const Divider(),
                       itemBuilder: (context, index) {
-                        var data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                        var data = savedAddresses[index] as Map<String, dynamic>;
+                        bool isPrimary = data['isPrimary'] == true;
+
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.location_on_outlined, color: theme.primary),
-                          title: Text(data['label'] ?? 'Alamat', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
-                          subtitle: Text("${data['fullAddress']}\n(${data['detail']})", maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(color: Colors.grey.shade600, fontSize: 12)),
+                          leading: Icon(isPrimary ? Icons.location_on : Icons.location_on_outlined, color: theme.primary),
+                          title: Row(
+                            children: [
+                              Text(data['label'] ?? 'Alamat', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+                              if (isPrimary) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: theme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                                  child: Text("Utama", style: TextStyle(color: theme.primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                                )
+                              ]
+                            ],
+                          ),
+                          subtitle: Text(data['detail'] ?? data['fullAddress'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(color: Colors.grey.shade600, fontSize: 12)),
                           onTap: () {
                             setState(() {
-                              _mainAddressController.text = data['fullAddress'] ?? '';
-                              _detailAddressController.text = data['detail'] ?? '';
-                              _customerLocation = null; // Reset biar bisa dilacak ulang
+                              _mainAddressController.text = data['detail'] ?? data['fullAddress'] ?? '';
+                              _customerLocation = null;
                             });
                             Navigator.pop(context);
                           },
@@ -192,22 +229,42 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
+  // ==========================================================
+  // PERBAIKAN 3: SIMPAN ALAMAT BARU KE ARRAY PROFIL
+  // ==========================================================
   Future<void> _checkAndSaveNewAddress() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+
     String currentAddress = _mainAddressController.text.trim();
-    String currentDetail = _detailAddressController.text.trim();
     if (currentAddress.isEmpty) return;
 
-    final query = await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('addresses').where('fullAddress', isEqualTo: currentAddress).get();
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    if (!doc.exists) return;
 
-    if (query.docs.isEmpty) {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('addresses').add({
+    List<dynamic> currentAddresses = doc.data()?['addresses'] ?? [];
+
+    // Cek apakah alamat ini sudah pernah disimpan sebelumnya
+    bool alreadyExists = currentAddresses.any((addr) =>
+    (addr['detail'] == currentAddress) || (addr['fullAddress'] == currentAddress));
+
+    if (!alreadyExists) {
+      String newId = DateTime.now().millisecondsSinceEpoch.toString();
+      bool isFirst = currentAddresses.isEmpty;
+
+      var newAddress = {
+        'id': newId,
         'label': 'Alamat Baru (${DateFormat('dd/MM').format(DateTime.now())})',
-        'fullAddress': currentAddress,
-        'detail': currentDetail,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+        'detail': currentAddress,
+        'isPrimary': isFirst,
+      };
+
+      currentAddresses.add(newAddress);
+
+      Map<String, dynamic> payload = {'addresses': currentAddresses};
+      if (isFirst) payload['address'] = currentAddress; // Sinkron ke field legacy untuk Admin
+
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(payload);
     }
   }
 
@@ -276,15 +333,12 @@ class _BookingPageState extends State<BookingPage> {
     if (image != null) setState(() => _selectedImage = File(image.path));
   }
 
-  // 👇 FUNGSI BARU: BUKA MAP PICKER 👇
   Future<void> _openMapPicker() async {
-    // Tampilkan loading sebentar
     showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
 
-    LatLng initialLoc = const LatLng(-6.974001, 107.630348); // Default Telkom
+    LatLng initialLoc = const LatLng(-6.974001, 107.630348);
 
     try {
-      // Coba dapet GPS HP sekarang biar petanya langsung pas
       Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       initialLoc = LatLng(position.latitude, position.longitude);
     } catch (e) {
@@ -292,15 +346,13 @@ class _BookingPageState extends State<BookingPage> {
     }
 
     if (!mounted) return;
-    Navigator.pop(context); // Tutup loading
+    Navigator.pop(context);
 
-    // Buka Halaman Peta Pemilih
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => MapSelectionScreen(initialLocation: initialLoc)),
     );
 
-    // Kalau user mencet konfirmasi di peta
     if (result != null && result is Map<String, dynamic>) {
       setState(() {
         _customerLocation = GeoPoint(result['latitude'], result['longitude']);
@@ -321,7 +373,6 @@ class _BookingPageState extends State<BookingPage> {
 
     setState(() => _isUploading = true);
 
-    // Kalau user ngetik manual tapi gak buka peta
     if (_customerLocation == null) {
       try {
         List<Location> locations = await locationFromAddress(_mainAddressController.text);
@@ -468,13 +519,11 @@ class _BookingPageState extends State<BookingPage> {
                     ]),
                     const SizedBox(height: 24),
 
-                    // 👇 BAGIAN TOMBOL BUKA PETA 👇
                     Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                       _buildLabel("Alamat Penjemputan", theme),
                       Row(children: [
                         GestureDetector(onTap: () => _showSavedAddressPicker(theme), child: Container(margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: Row(children: [const Icon(Icons.bookmarks_rounded, color: Colors.orange, size: 14), const SizedBox(width: 4), Text("Tersimpan", style: GoogleFonts.plusJakartaSans(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold))]))),
 
-                        // TOMBOL PETA BARU
                         GestureDetector(
                             onTap: _openMapPicker,
                             child: Container(
@@ -602,7 +651,7 @@ class _MapSelectionScreenState extends State<MapSelectionScreen> {
           // PIN DI TENGAH LAYAR
           Center(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 40.0), // Diangkat dikit biar pas di jarum
+              padding: const EdgeInsets.only(bottom: 40.0),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 transform: Matrix4.translationValues(0, _isDragging ? -15 : 0, 0),
@@ -633,13 +682,12 @@ class _MapSelectionScreenState extends State<MapSelectionScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFD4AF37), // Warna Gold
+                          backgroundColor: const Color(0xFFD4AF37),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
                       ),
                       onPressed: () {
-                        // KEMBALIKAN DATA KE BOOKING PAGE
                         Navigator.pop(context, {
                           'latitude': _currentLocation.latitude,
                           'longitude': _currentLocation.longitude,
