@@ -6,17 +6,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'package:chupatu_mobile/main.dart';
-import 'package:chupatu_mobile/pages/profile/member_payment_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:chupatu_mobile/main.dart';
+// IMPORT HALAMAN CHUPATU PRO BARU
+import 'package:chupatu_mobile/pages/profile/chupatu_pro_page.dart';
 
 class ApiConfig {
   static const String baseUrl =
       'https://malik-pseudomonocyclic-misti.ngrok-free.dev/api';
   static const String uploadUrl = '$baseUrl/upload';
 
-  // TAMBAHAN: Header global Ngrok untuk Profile
   static const Map<String, String> ngrokHeaders = {
     'ngrok-skip-browser-warning': 'true',
     'User-Agent': 'ChupatuApp'
@@ -54,7 +54,6 @@ class _ProfilePageState extends State<ProfilePage> {
       var request = http.MultipartRequest(
           'POST', Uri.parse(ApiConfig.uploadUrl));
 
-      // Kasih tau Laravel kalau kita nerima JSON
       request.headers.addAll({'Accept': 'application/json'});
       request.files.add(await http.MultipartFile.fromPath('foto', image.path));
       request.fields['kategori'] = 'profil';
@@ -65,18 +64,15 @@ class _ProfilePageState extends State<ProfilePage> {
         var resData = await response.stream.bytesToString();
         var jsonRes = json.decode(resData);
 
-        // Paksa HTTPS biar gak diblokir Flutter
         String baseUploadUrl = jsonRes['url'].toString().replaceAll("http://", "https://");
         String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
         String newUrl = "$baseUploadUrl?v=$timestamp";
 
-        // 1. Update ke Firestore
         await FirebaseFirestore.instance.collection('users')
             .doc(freshUser.uid).set({
           'photoUrl': newUrl,
         }, SetOptions(merge: true));
 
-        // 2. Update ke Firebase Auth & Paksa Reload
         await freshUser.updatePhotoURL(newUrl);
         await freshUser.reload();
 
@@ -84,7 +80,6 @@ class _ProfilePageState extends State<ProfilePage> {
           PaintingBinding.instance.imageCache.clear();
           PaintingBinding.instance.imageCache.clearLiveImages();
 
-          // Setelah sukses upload, kita kosongin file lokal biar dia maksa ambil dari URL
           setState(() {
             _localImageFile = null;
           });
@@ -123,154 +118,254 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Gagal: $e"),
-                backgroundColor: Colors.red));
+            SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red));
       }
     }
   }
 
-  // --- POP-UP BOTTOM SHEET STATUS MEMBER ---
-  void _showMemberStatusDetails(bool isPro, AppThemeData theme) {
+  // ==========================================================
+  // FITUR MANAJEMEN ALAMAT
+  // ==========================================================
+  void _showAddressManager(AppThemeData theme, List<dynamic> addresses) {
     showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 24),
-            Text(
-              isPro ? "Chupatu Pro Benefits ✨" : "Member Reguler",
-              style: GoogleFonts.plusJakartaSans(fontSize: 20,
-                  fontWeight: FontWeight.bold, color: theme.textMain),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isPro ? "Layanan eksklusif khusus untuk Anda."
-                  : "Upgrade ke Pro untuk pengalaman terbaik.",
-              style: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            _buildBenefitItem(Icons.flash_on_rounded, "Layanan Prioritas",
-                "Sepatu dikerjakan lebih awal.", theme),
-            _buildBenefitItem(Icons.local_shipping_rounded, "Gratis Antar Jemput",
-                "Tanpa biaya tambahan area tertentu.", theme),
-            _buildBenefitItem(Icons.verified_rounded, "Badge Emas Profil",
-                "Status prestisius di aplikasi.", theme),
-            _buildBenefitItem(Icons.card_giftcard_rounded, "Voucher Bulanan",
-                "Diskon khusus member tiap bulan.", theme),
-            const SizedBox(height: 32),
-            if (isPro)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => _confirmDowngrade(),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.red),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text("Batal Berlangganan",
-                      style: GoogleFonts.plusJakartaSans(color: Colors.red,
-                          fontWeight: FontWeight.bold)),
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) {
+          return DraggableScrollableSheet(
+            initialChildSize: 0.6,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
+            builder: (_, controller) {
+              return Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: theme.surface,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
                 ),
-              )
-            else
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(
-                        builder: (context) => MemberPaymentPage(onPaymentSuccess: (){})));
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text("Upgrade ke Pro Sekarang",
-                      style: GoogleFonts.plusJakartaSans(color: Colors.white,
-                          fontWeight: FontWeight.bold)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Daftar Alamat", style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain)),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _showAddAddressDialog(theme, addresses);
+                          },
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text("Tambah"),
+                          style: TextButton.styleFrom(foregroundColor: theme.primary),
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    Expanded(
+                      child: StreamBuilder<DocumentSnapshot>(
+                          stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).snapshots(),
+                          builder: (ctx, snapshot) {
+                            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+                            var userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+                            List<dynamic> currentAddrs = userData['addresses'] ?? [];
+
+                            if (currentAddrs.isEmpty) {
+                              return Center(
+                                  child: Text("Belum ada alamat tersimpan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey))
+                              );
+                            }
+
+                            return ListView.separated(
+                              controller: controller,
+                              itemCount: currentAddrs.length,
+                              separatorBuilder: (c, i) => const SizedBox(height: 12),
+                              itemBuilder: (c, i) {
+                                var addr = currentAddrs[i] as Map<String, dynamic>;
+                                bool isPrimary = addr['isPrimary'] == true;
+
+                                return Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                      color: theme.background,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: isPrimary ? theme.primary : Colors.grey.withOpacity(0.2), width: isPrimary ? 2 : 1)
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(isPrimary ? Icons.location_on : Icons.location_on_outlined, color: isPrimary ? theme.primary : Colors.grey),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Text(addr['label'] ?? 'Alamat', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+                                                if (isPrimary) ...[
+                                                  const SizedBox(width: 8),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(color: theme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                                                    child: Text("Utama", style: TextStyle(color: theme.primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                                                  )
+                                                ]
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(addr['detail'] ?? '', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+                                          ],
+                                        ),
+                                      ),
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(Icons.more_vert, color: Colors.grey),
+                                        onSelected: (val) async {
+                                          if (val == 'primary') {
+                                            await _setPrimaryAddress(currentAddrs, addr['id'], addr['detail']);
+                                          } else if (val == 'delete') {
+                                            await _deleteAddress(currentAddrs, addr['id']);
+                                          }
+                                        },
+                                        itemBuilder: (ctx) => [
+                                          if (!isPrimary)
+                                            const PopupMenuItem(value: 'primary', child: Text("Jadikan Utama")),
+                                          const PopupMenuItem(value: 'delete', child: Text("Hapus Alamat", style: TextStyle(color: Colors.red))),
+                                        ],
+                                      )
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+                          }
+                      ),
+                    )
+                  ],
                 ),
-              ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
+              );
+            },
+          );
+        }
     );
   }
 
-  Widget _buildBenefitItem(IconData icon, String title, String desc, AppThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: theme.primary.withOpacity(0.1),
-                  shape: BoxShape.circle),
-              child: Icon(icon, color: theme.primary, size: 20)
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold,
-                    color: theme.textMain, fontSize: 14)),
-                const SizedBox(height: 4),
-                Text(desc, style: GoogleFonts.plusJakartaSans(fontSize: 12,
-                    color: Colors.grey.shade600)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Future<void> _showAddAddressDialog(AppThemeData theme, List<dynamic> currentAddresses) async {
+    TextEditingController labelCtrl = TextEditingController();
+    TextEditingController detailCtrl = TextEditingController();
 
-  Future<void> _confirmDowngrade() async {
-    final freshUser = FirebaseAuth.instance.currentUser;
-    bool? confirm = await showDialog(
+    await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Konfirmasi"),
-        content: const Text("Berhenti berlangganan Pro?"),
+        title: Text("Tambah Alamat", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: labelCtrl,
+              style: TextStyle(color: theme.textMain),
+              decoration: InputDecoration(
+                labelText: "Label (ex: Rumah, Kantor)",
+                labelStyle: const TextStyle(color: Colors.grey),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: theme.primary), borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: detailCtrl,
+              maxLines: 3,
+              style: TextStyle(color: theme.textMain),
+              decoration: InputDecoration(
+                labelText: "Alamat Lengkap",
+                labelStyle: const TextStyle(color: Colors.grey),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: theme.primary), borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false),
-              child: const Text("Batal", style: TextStyle(color: Colors.grey))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true),
-              child: const Text("Ya, Berhenti",
-                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
+          ElevatedButton(
+            onPressed: () async {
+              if (labelCtrl.text.isEmpty || detailCtrl.text.isEmpty) return;
+
+              String newId = DateTime.now().millisecondsSinceEpoch.toString();
+              bool isFirst = currentAddresses.isEmpty;
+
+              var newAddress = {
+                'id': newId,
+                'label': labelCtrl.text.trim(),
+                'detail': detailCtrl.text.trim(),
+                'isPrimary': isFirst,
+              };
+
+              List<dynamic> updatedList = List.from(currentAddresses)..add(newAddress);
+              Map<String, dynamic> payload = {'addresses': updatedList};
+
+              if (isFirst) payload['address'] = detailCtrl.text.trim();
+
+              await FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).update(payload);
+              if (mounted) {
+                Navigator.pop(ctx);
+                _showAddressManager(theme, updatedList);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: theme.primary),
+            child: const Text("Simpan", style: TextStyle(color: Colors.white)),
+          )
         ],
       ),
     );
-
-    if (confirm == true && freshUser != null) {
-      await FirebaseFirestore.instance.collection('users').doc(freshUser.uid).update({
-        'memberType': '',
-      });
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Kembali ke Member Reguler.")));
-      }
-    }
   }
 
+  Future<void> _setPrimaryAddress(List<dynamic> addresses, String targetId, String fullAddress) async {
+    final freshUser = FirebaseAuth.instance.currentUser;
+    if (freshUser == null) return;
+
+    List<dynamic> updatedList = addresses.map((a) {
+      var newAddr = Map<String, dynamic>.from(a);
+      newAddr['isPrimary'] = (newAddr['id'] == targetId);
+      return newAddr;
+    }).toList();
+
+    await FirebaseFirestore.instance.collection('users').doc(freshUser.uid).update({
+      'addresses': updatedList,
+      'address': fullAddress,
+    });
+  }
+
+  Future<void> _deleteAddress(List<dynamic> addresses, String targetId) async {
+    final freshUser = FirebaseAuth.instance.currentUser;
+    if (freshUser == null) return;
+
+    List<dynamic> updatedList = addresses.where((a) => a['id'] != targetId).toList();
+    String newMainAddress = "";
+
+    if (updatedList.isNotEmpty) {
+      bool hasPrimary = updatedList.any((a) => a['isPrimary'] == true);
+      if (!hasPrimary) {
+        updatedList[0]['isPrimary'] = true;
+        newMainAddress = updatedList[0]['detail'];
+      } else {
+        newMainAddress = updatedList.firstWhere((a) => a['isPrimary'] == true)['detail'];
+      }
+    }
+
+    await FirebaseFirestore.instance.collection('users').doc(freshUser.uid).update({
+      'addresses': updatedList,
+      'address': newMainAddress.isNotEmpty ? newMainAddress : FieldValue.delete(),
+    });
+  }
+
+  // --- DIALOG EDIT PROFIL ---
   Future<void> _showEditDialog(String title, String fieldKey, String currentValue,
       {TextInputType keyboardType = TextInputType.text}) async {
     TextEditingController controller = TextEditingController(text: currentValue == "-" ? "" : currentValue);
@@ -382,6 +477,15 @@ class _ProfilePageState extends State<ProfilePage> {
                   String birthdate = userData['birthdate'] ?? "";
                   bool isPro = (userData['memberType'] == 'Pro');
 
+                  List<dynamic> addressList = userData['addresses'] ?? [];
+                  String displayAddress = "Atur Alamat";
+                  if (addressList.isNotEmpty) {
+                    var primaryAddress = addressList.firstWhere((addr) => addr['isPrimary'] == true, orElse: () => addressList.first);
+                    displayAddress = primaryAddress['label'] ?? 'Alamat Utama';
+                  } else if (userData['address'] != null && userData['address'].toString().isNotEmpty) {
+                    displayAddress = "Lihat Alamat (Legacy)";
+                  }
+
                   String? photoUrl;
                   if (userData['photoUrl'] != null && userData['photoUrl'] != "") {
                     photoUrl = userData['photoUrl'];
@@ -407,7 +511,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                     shape: BoxShape.circle,
                                     color: theme.primary.withOpacity(0.1),
                                     border: Border.all(color: theme.primary, width: 2),
-                                    // PERBAIKAN: NetworkImage sekarang bawa HTTPS + Ngrok Headers
                                     image: _localImageFile != null
                                         ? DecorationImage(
                                         image: FileImage(_localImageFile!),
@@ -444,9 +547,14 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         const SizedBox(height: 32),
 
-                        // --- BANNER STATUS MEMBER ---
+                        // --- BANNER STATUS MEMBER (DIARAHKAN KE HALAMAN BARU) ---
                         GestureDetector(
-                          onTap: () => _showMemberStatusDetails(isPro, theme),
+                          onTap: () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const ChupatuProPage())
+                            );
+                          },
                           child: Container(
                             width: double.infinity,
                             margin: const EdgeInsets.only(bottom: 32),
@@ -478,7 +586,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                           style: GoogleFonts.plusJakartaSans(
                                               color: isPro ? Colors.white : theme.textMain,
                                               fontWeight: FontWeight.w800, fontSize: 16)),
-                                      Text(isPro ? "Status aktif selamanya" : "Ketuk untuk upgrade",
+                                      Text(isPro ? "Status aktif selamanya" : "Ketuk untuk info selengkapnya",
                                           style: GoogleFonts.plusJakartaSans(
                                               color: isPro ? Colors.white70 : Colors.grey, fontSize: 12)),
                                     ],
@@ -527,6 +635,11 @@ class _ProfilePageState extends State<ProfilePage> {
                               _buildInfoRow("Nomor HP", phone.isEmpty ? "+62 8xx" : phone,
                                   theme, onTap: () => _showEditDialog("Nomor HP", "phone", phone,
                                       keyboardType: TextInputType.phone)),
+
+                              const Divider(height: 24),
+                              _buildInfoRow("Alamat", displayAddress, theme,
+                                  onTap: () => _showAddressManager(theme, addressList)),
+
                               const Divider(height: 24),
                               _buildInfoRow("Jenis Kelamin", gender.isEmpty ? "Pilih" : gender,
                                   theme, onTap: () => _showGenderDialog(gender)),
