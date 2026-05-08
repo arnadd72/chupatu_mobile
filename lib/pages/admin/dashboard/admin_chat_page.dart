@@ -11,7 +11,7 @@ class AdminChatPage extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: Colors.grey.shade50, // Backgound sedikit abu biar card chat nonjol
+        backgroundColor: Colors.grey.shade50,
         appBar: AppBar(
           title: Text("Pusat Pesan Admin", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.black)),
           backgroundColor: Colors.white, elevation: 1, iconTheme: const IconThemeData(color: Colors.black),
@@ -59,7 +59,9 @@ class AdminChatPage extends StatelessWidget {
             var data = filteredDocs[index].data() as Map<String, dynamic>;
             String userName = data['userName'] ?? 'User';
             String lastMessage = data['lastMessage'] ?? '-';
-            int unread = data['unreadCount'] ?? 0;
+
+            // ADMIN HANYA MEMBACA UNREAD ADMIN
+            int unread = data['unreadAdmin'] ?? 0;
 
             String timeStr = "";
             if (data['lastTime'] != null) {
@@ -76,15 +78,12 @@ class AdminChatPage extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // FOTO AVATAR PELANGGAN
                     CircleAvatar(
                         radius: 24,
                         backgroundColor: isCS ? Colors.orange.shade50 : Colors.blue.shade50,
                         child: Text(userName.isNotEmpty ? userName[0].toUpperCase() : "U", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isCS ? Colors.orange : Colors.blue))
                     ),
                     const SizedBox(width: 16),
-
-                    // TENGAH (NAMA & PESAN TERAKHIR)
                     Expanded(
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,10 +103,7 @@ class AdminChatPage extends StatelessWidget {
                             ]
                         )
                     ),
-
                     const SizedBox(width: 8),
-
-                    // KANAN (WAKTU & BADGE MERAH WHATSAPP STYLE)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -123,7 +119,7 @@ class AdminChatPage extends StatelessWidget {
                               child: Text(unread.toString(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))
                           )
                         else
-                          const SizedBox(height: 20), // Placeholder agar layout tidak lompat
+                          const SizedBox(height: 20),
                       ],
                     ),
                   ],
