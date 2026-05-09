@@ -44,7 +44,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // ==========================================================
-  // FITUR AUTO MIGRATION
+  // FITUR AUTO MIGRATION (TIDAK DIRUBAH)
   // ==========================================================
   Future<void> _migrateLegacyAddresses() async {
     try {
@@ -68,10 +68,16 @@ class _ProfilePageState extends State<ProfilePage> {
           List<Map<String, dynamic>> migratedAddresses = [];
           for (int i = 0; i < legacySnap.docs.length; i++) {
             var data = legacySnap.docs[i].data();
+
+            double lat = data['latitude'] != null ? (data['latitude'] as num).toDouble() : -7.4245;
+            double lng = data['longitude'] != null ? (data['longitude'] as num).toDouble() : 109.2302;
+
             migratedAddresses.add({
               'id': legacySnap.docs[i].id,
               'label': data['label'] ?? 'Alamat Migrasi ${i + 1}',
               'detail': data['fullAddress'] ?? data['detail'] ?? '',
+              'latitude': lat,
+              'longitude': lng,
               'isPrimary': i == 0,
             });
           }
@@ -87,7 +93,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // --- FUNGSI UPDATE FOTO PROFIL ---
+  // --- FUNGSI UPDATE FOTO PROFIL (TIDAK DIRUBAH) ---
   Future<void> _updateProfilePicture() async {
     final freshUser = FirebaseAuth.instance.currentUser;
     if (freshUser == null) return;
@@ -176,7 +182,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // ==========================================================
-  // FITUR MANAJEMEN ALAMAT (DENGAN EDIT ALAMAT)
+  // FITUR MANAJEMEN ALAMAT
   // ==========================================================
   void _showAddressManager(AppThemeData theme) {
     showModalBottomSheet(
@@ -315,10 +321,14 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // --- DIALOG EDIT ALAMAT ---
+  // --- DIALOG EDIT ALAMAT (DIPERBAIKI) ---
   Future<void> _showEditAddressDialog(AppThemeData theme, List<dynamic> currentAddresses, Map<String, dynamic> addressToEdit) async {
     TextEditingController labelCtrl = TextEditingController(text: addressToEdit['label']);
     TextEditingController detailCtrl = TextEditingController(text: addressToEdit['detail']);
+
+    // Variabel penampung koordinat, diisi dengan data lama jika ada
+    double? selectedLat = addressToEdit['latitude'] != null ? (addressToEdit['latitude'] as num).toDouble() : null;
+    double? selectedLng = addressToEdit['longitude'] != null ? (addressToEdit['longitude'] as num).toDouble() : null;
 
     await showDialog(
       context: context,
@@ -345,9 +355,12 @@ class _ProfilePageState extends State<ProfilePage> {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () async {
-                  String? resultAddress = await _openMapPickerForProfile();
-                  if (resultAddress != null) {
-                    detailCtrl.text = resultAddress; // Otomatis mengisi textfield
+                  // PERBAIKAN: Menangkap seluruh Map hasil pencarian Maps
+                  Map<String, dynamic>? result = await _openMapPickerForProfile();
+                  if (result != null) {
+                    detailCtrl.text = result['address'];
+                    selectedLat = result['latitude'];     // Simpan Latitude
+                    selectedLng = result['longitude'];    // Simpan Longitude
                   }
                 },
                 icon: Icon(Icons.map_rounded, color: theme.primary),
@@ -385,6 +398,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     'id': a['id'],
                     'label': labelCtrl.text.trim(),
                     'detail': detailCtrl.text.trim(),
+                    'latitude': selectedLat ?? -7.4245,  // Simpan kembali koordinat yang baru
+                    'longitude': selectedLng ?? 109.2302,
                     'isPrimary': a['isPrimary'],
                   };
                 }
@@ -411,10 +426,14 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // --- DIALOG TAMBAH ALAMAT ---
+  // --- DIALOG TAMBAH ALAMAT (DIPERBAIKI) ---
   Future<void> _showAddAddressDialog(AppThemeData theme, List<dynamic> currentAddresses) async {
     TextEditingController labelCtrl = TextEditingController();
     TextEditingController detailCtrl = TextEditingController();
+
+    // Variabel penampung koordinat
+    double? selectedLat;
+    double? selectedLng;
 
     await showDialog(
       context: context,
@@ -441,9 +460,12 @@ class _ProfilePageState extends State<ProfilePage> {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () async {
-                  String? resultAddress = await _openMapPickerForProfile();
-                  if (resultAddress != null) {
-                    detailCtrl.text = resultAddress;
+                  // PERBAIKAN: Menangkap seluruh Map hasil pencarian Maps
+                  Map<String, dynamic>? result = await _openMapPickerForProfile();
+                  if (result != null) {
+                    detailCtrl.text = result['address'];
+                    selectedLat = result['latitude'];   // Simpan Latitude
+                    selectedLng = result['longitude'];  // Simpan Longitude
                   }
                 },
                 icon: Icon(Icons.map_rounded, color: theme.primary),
@@ -478,10 +500,13 @@ class _ProfilePageState extends State<ProfilePage> {
               String newId = DateTime.now().millisecondsSinceEpoch.toString();
               bool isFirst = currentAddresses.isEmpty;
 
+              // PERBAIKAN: Menyisipkan latitude dan longitude ke dalam struktur data alamat
               var newAddress = {
                 'id': newId,
                 'label': labelCtrl.text.trim(),
                 'detail': detailCtrl.text.trim(),
+                'latitude': selectedLat ?? -7.4245,  // Gunakan koordinat, atau default jika ga pakai Map
+                'longitude': selectedLng ?? 109.2302,
                 'isPrimary': isFirst,
               };
 
@@ -493,7 +518,6 @@ class _ProfilePageState extends State<ProfilePage> {
               await FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).update(payload);
               if (mounted) {
                 Navigator.pop(ctx);
-                // Tidak perlu memanggil ulang _showAddressManager() karena StreamBuilder akan update otomatis.
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: theme.primary),
@@ -504,8 +528,9 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // --- LOGIKA PEMANGGILAN PETA UNTUK PROFIL ---
-  Future<String?> _openMapPickerForProfile() async {
+  // --- LOGIKA PEMANGGILAN PETA UNTUK PROFIL (DIPERBAIKI RETURN TYPE NYA) ---
+  // Tipe return dirubah dari Future<String?> menjadi Future<Map<String, dynamic>?>
+  Future<Map<String, dynamic>?> _openMapPickerForProfile() async {
     showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
     LatLng initialLoc = const LatLng(-6.974001, 107.630348);
     try {
@@ -523,7 +548,8 @@ class _ProfilePageState extends State<ProfilePage> {
     );
 
     if (result != null && result is Map<String, dynamic>) {
-      return result['address'];
+      // Mengembalikan 1 paket utuh (address, latitude, longitude)
+      return result;
     }
     return null;
   }
@@ -837,7 +863,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                               const Divider(height: 24),
                               _buildInfoRow("Alamat", displayAddress, theme,
-                                  onTap: () => _showAddressManager(theme)), // Diubah parameternya
+                                  onTap: () => _showAddressManager(theme)),
 
                               const Divider(height: 24),
                               _buildInfoRow("Jenis Kelamin", gender.isEmpty ? "Pilih" : gender,
@@ -899,7 +925,7 @@ class _ProfilePageState extends State<ProfilePage> {
 }
 
 // ======================================================================
-// HALAMAN BARU: PEMILIH PETA KHUSUS PROFIL
+// HALAMAN BARU: PEMILIH PETA KHUSUS PROFIL (TIDAK DIRUBAH UI-NYA)
 // ======================================================================
 class ProfileMapSelectionScreen extends StatefulWidget {
   final LatLng initialLocation;

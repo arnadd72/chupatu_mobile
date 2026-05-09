@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:geolocator/geolocator.dart'; // WAJIB UNTUK HITUNG JARAK
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/order_history_page.dart';
 
@@ -60,6 +61,11 @@ class _PaymentPageState extends State<PaymentPage> {
   int _discountAmount = 0;
   bool _isProcessing = false;
 
+  // Variabel untuk Dynamic Pricing
+  bool _isLoadingFee = true;
+  bool _isProMember = false;
+  double _distanceKm = 0.0;
+
   // Variabel CCTV dan URL Laravel
   StreamSubscription<DocumentSnapshot>? _orderSubscription;
   final String apiUrl = "https://malik-pseudomonocyclic-misti.ngrok-free.dev/api/create-mayar-payment";
@@ -67,15 +73,90 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   void initState() {
     super.initState();
-    if (widget.isDelivery) {
-      _deliveryFee = 15000;
-    }
+    // PERBAIKAN: Gak lagi hardcode 15.000, panggil fungsi cerdas!
+    _calculateDynamicFee();
   }
 
   @override
   void dispose() {
     _orderSubscription?.cancel();
+    _promoController.dispose(); // Best practice: dispose controller
     super.dispose();
+  }
+
+  // ==========================================================
+  // FITUR: KALKULASI ONGKIR DINAMIS & CEK MEMBER PRO
+  // ==========================================================
+  Future<void> _calculateDynamicFee() async {
+    if (!widget.isDelivery) {
+      setState(() {
+        _deliveryFee = 0;
+        _isLoadingFee = false;
+      });
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // 1. Cek Status Member Pro di Firestore
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        final data = userDoc.data()!;
+        _isProMember = (data['memberType'] == 'Pro' || data['role'] == 'Pro');
+      }
+
+      // Jika Pro, otomatis ongkir GRATIS
+      if (_isProMember) {
+        setState(() {
+          _deliveryFee = 0;
+          _isLoadingFee = false;
+        });
+        return;
+      }
+
+      // 2. Hitung Jarak Jika Bukan Pro (Menggunakan koordinat Alamat dari BookingPage)
+      if (widget.customerLocation != null) {
+        // Koordinat Toko Chupatu (Di set default area Purwokerto / Telkom Campus)
+        const double storeLat = -7.4357;
+        const double storeLng = 109.2505;
+
+        // Menghitung jarak dalam meter
+        double distanceInMeters = Geolocator.distanceBetween(
+            storeLat,
+            storeLng,
+            widget.customerLocation!.latitude,
+            widget.customerLocation!.longitude
+        );
+
+        _distanceKm = distanceInMeters / 1000;
+
+        // Logika Harga: 3 KM pertama Rp 10.000. Setelahnya nambah Rp 2.500/KM.
+        int calculatedFee = 10000;
+        if (_distanceKm > 3) {
+          int extraKm = (_distanceKm - 3).ceil(); // Pembulatan ke atas (ex: 3.2km dihitung nambah 1km)
+          calculatedFee += (extraKm * 2500);
+        }
+
+        setState(() {
+          _deliveryFee = calculatedFee;
+          _isLoadingFee = false;
+        });
+      } else {
+        // Fallback jika customerLocation gagal dikirim
+        setState(() {
+          _deliveryFee = 15000; // Harga flat standar
+          _isLoadingFee = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Gagal menghitung ongkir: $e");
+      setState(() {
+        _deliveryFee = 15000; // Fallback jika terjadi error
+        _isLoadingFee = false;
+      });
+    }
   }
 
   void _applyPromo() {
@@ -120,6 +201,9 @@ class _PaymentPageState extends State<PaymentPage> {
         'detailAddress': widget.detailAddress,
         'shoeImageUrl': widget.shoeImageUrl ?? '',
         'customerLocation': widget.customerLocation,
+        // TAMBAHAN: Simpan histori jarak dan penggunaan benefit Pro
+        'isProMemberUsed': _isProMember,
+        'distanceKm': _distanceKm,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -143,7 +227,7 @@ class _PaymentPageState extends State<PaymentPage> {
     }
   }
 
-  // --- LOGIKA PEMBAYARAN MAYAR (DIPERBARUI) ---
+  // --- LOGIKA PEMBAYARAN MAYAR ---
   Future<void> _processMayarPayment(String orderId, int totalAmount, User? user) async {
     try {
       var response = await http.post(
@@ -175,12 +259,10 @@ class _PaymentPageState extends State<PaymentPage> {
           if (mounted) {
             setState(() => _isProcessing = false);
 
-            // 👉 PERBAIKAN: Arahkan langsung ke History Page, jangan di-pop ke Home!
-            // Ini bakal ngehapus tumpukan halaman Checkout, dan naruh History Page di atas.
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (context) => const OrderHistoryPage()),
-                  (route) => route.isFirst, // Sisakan halaman paling dasar (MainPage) aja
+                  (route) => route.isFirst,
             );
 
             // 3. Buka Mayar
@@ -208,7 +290,7 @@ class _PaymentPageState extends State<PaymentPage> {
   void _showPendingPaymentDialog(String paymentUrl) {
     showDialog(
       context: context,
-      barrierDismissible: false, // Ga bisa ditutup sembarangan klik luar
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Column(
@@ -229,7 +311,6 @@ class _PaymentPageState extends State<PaymentPage> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Coba buka lagi link Mayar-nya
                     launchUrl(Uri.parse(paymentUrl), mode: LaunchMode.externalApplication);
                   },
                   style: ElevatedButton.styleFrom(
@@ -244,12 +325,9 @@ class _PaymentPageState extends State<PaymentPage> {
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () {
-                  Navigator.of(ctx).pop(); // Tutup dialog
-                  Navigator.of(context).pop(); // Keluar Payment Page
-                  Navigator.of(context).pop(); // Balik ke Home
-
-                  // Nanti kalau lo udah bikin halaman "Daftar Pesanan",
-                  // lo bisa arahin usernya ke situ pakai Navigator.push()
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop();
                 },
                 child: const Text("Bayar Nanti (Kembali ke Beranda)", style: TextStyle(color: Colors.grey)),
               )
@@ -260,7 +338,7 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  // --- DIALOG SUKSES (TIDAK BERUBAH BANYAK) ---
+  // --- DIALOG SUKSES ---
   void _showSuccessDialog() {
     showDialog(
       context: context,
@@ -285,9 +363,9 @@ class _PaymentPageState extends State<PaymentPage> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.of(ctx).pop(); // Tutup dialog sukses
-                Navigator.of(context).pop(); // Tutup PaymentPage
-                Navigator.of(context).pop(); // Tutup BookingPage kembali ke Home
+                Navigator.of(ctx).pop();
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
               child: const Text("Selesai & Mantap"),
@@ -407,7 +485,7 @@ class _PaymentPageState extends State<PaymentPage> {
                     onPressed: () {
                       if (inputPin == correctPin) {
                         Navigator.pop(ctx);
-                        _processPaymentAndOrder(); // Lanjut ke proses pembayaran
+                        _processPaymentAndOrder();
                       } else {
                         setModalState(() {
                           localError = "PIN Salah! Silakan coba lagi.";
@@ -448,7 +526,17 @@ class _PaymentPageState extends State<PaymentPage> {
               elevation: 0,
               centerTitle: true,
             ),
-            body: SingleChildScrollView(
+            // Tampilkan loading screen jika ongkir masih dihitung Firestore
+            body: _isLoadingFee
+                ? Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text("Menghitung biaya antar-jemput...", style: GoogleFonts.plusJakartaSans(color: theme.textMain))
+              ],
+            ))
+                : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,7 +551,17 @@ class _PaymentPageState extends State<PaymentPage> {
                         const SizedBox(height: 8),
                         _buildSummaryRow("Harga Dasar", currencyFormatter.format(widget.basePrice), theme),
                         const SizedBox(height: 8),
-                        _buildSummaryRow("Biaya Antar-Jemput", _deliveryFee == 0 ? "Gratis" : currencyFormatter.format(_deliveryFee), theme),
+
+                        // PERUBAHAN UI: Tampilkan detail Pro Member atau Hitungan Jarak
+                        _buildSummaryRow(
+                            "Biaya Antar-Jemput",
+                            _isProMember
+                                ? "Gratis (Member Pro)"
+                                : (_deliveryFee == 0 ? "Gratis" : "${currencyFormatter.format(_deliveryFee)} (${_distanceKm.toStringAsFixed(1)} KM)"),
+                            theme,
+                            color: _isProMember ? Colors.blue : null
+                        ),
+
                         if (_discountAmount > 0) ...[
                           const SizedBox(height: 8),
                           _buildSummaryRow("Diskon Promo", "- ${currencyFormatter.format(_discountAmount)}", theme, color: Colors.green),
@@ -506,7 +604,6 @@ class _PaymentPageState extends State<PaymentPage> {
                   _buildSectionTitle("Metode Pembayaran", theme),
                   _buildPaymentOption("COD", "Bayar Tunai saat Dijemput", Icons.money, theme),
                   const SizedBox(height: 12),
-                  // Ubah Midtrans jadi Mayar
                   _buildPaymentOption("Mayar", "E-Wallet / Transfer Bank (Otomatis)", Icons.credit_card, theme),
                 ],
               ),
@@ -518,7 +615,8 @@ class _PaymentPageState extends State<PaymentPage> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isProcessing ? null : _handlePaymentAuth,
+                  // Tombol di-disable saat masih loading fee atau processing
+                  onPressed: (_isProcessing || _isLoadingFee) ? null : _handlePaymentAuth,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primary,
                     foregroundColor: Colors.white,
