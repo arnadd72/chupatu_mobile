@@ -27,6 +27,7 @@ import 'package:chupatu_mobile/pages/home/widgets/shoe_tips_widget.dart';
 import 'package:chupatu_mobile/pages/home/widgets/live_tracking_widget.dart';
 import 'package:chupatu_mobile/pages/home/widgets/mini_garage_widget.dart';
 import 'package:chupatu_mobile/pages/home/widgets/promo_banner_widget.dart';
+import 'package:chupatu_mobile/pages/home/widgets/gemini_ai_scanner.dart'; // <--- IMPORT WIDGET AI GEMINI BARU
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -141,8 +142,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _bookingSubscription?.cancel();
     super.dispose();
   }
-
-  // FUNGSI _showThemePicker TELAH DIHAPUS KARENA PINDAH KE SETTINGS
 
   @override
   Widget build(BuildContext context) {
@@ -275,7 +274,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     ),
                                     Row(
                                         children: [
-                                          // PERUBAHAN: TOMBOL CHAT
                                           GestureDetector(
                                               onTap: () {
                                                 Navigator.push(
@@ -351,6 +349,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
                             // LIVE TRACKING
                             LiveTrackingWidget(userId: user!.uid, theme: theme),
+                            const SizedBox(height: 24),
+
+                            // --- CARD AI SCANNER GEMINI (TAMBAHAN BARU) ---
+                            const GeminiScanCard(),
                             const SizedBox(height: 24),
 
                             // mini garage
