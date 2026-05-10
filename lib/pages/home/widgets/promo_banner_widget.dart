@@ -183,11 +183,6 @@ class _PromoBannerWidgetState extends State<PromoBannerWidget> {
           .orderBy('createdAt', descending: true)
           .limit(5).snapshots(),
       builder: (context, snapshot) {
-        List<Widget> hardcodedBanners = [
-          _buildImageBanner('https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800', 'New Member Deal', '50% OFF Deep Clean', widget.theme.primary),
-          _buildImageBanner('https://images.unsplash.com/photo-1616401784845-180882ba9ba8?q=80&w=800', 'Free Pickup & Delivery', 'Min. order Rp 30.000', widget.theme.secondary),
-          _buildImageBanner('https://images.unsplash.com/photo-1512314889357-e157c22f938d?q=80&w=800', 'Express 24H', 'Get it back tomorrow.', Colors.indigo),
-        ];
 
         List<Widget> firebaseBanners = [];
         if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
@@ -203,7 +198,11 @@ class _PromoBannerWidgetState extends State<PromoBannerWidget> {
           }
         }
 
-        List<Widget> finalBanners = [...firebaseBanners, ...hardcodedBanners];
+        // HANYA PAKAI DATA DARI FIREBASE (Dummy dihapus total)
+        List<Widget> finalBanners = firebaseBanners;
+
+        // PROTEKSI: Sembunyikan widget kalau belum ada promo dari admin
+        if (finalBanners.isEmpty) return const SizedBox.shrink();
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _totalBanners = finalBanners.length;
@@ -215,6 +214,7 @@ class _PromoBannerWidgetState extends State<PromoBannerWidget> {
                 height: 200,
                 child: PageView(
                     controller: _bannerController,
+                    physics: const BouncingScrollPhysics(), // Memastikan user tetap bisa geser manual
                     onPageChanged: (index) => setState(() => _currentBannerIndex = index),
                     children: finalBanners
                 )
