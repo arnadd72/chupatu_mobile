@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:chupatu_mobile/pages/main_page.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,7 @@ import 'package:chupatu_mobile/pages/home/home_page.dart';
 
 // 👉 TAMBAHAN: Untuk buka link pembayaran Mayar dari History
 import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
 
 class OrderHistoryPage extends StatefulWidget {
   const OrderHistoryPage({super.key});
@@ -59,7 +61,93 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
     );
   }
 
-  // --- LOGIC KIRIM ULASAN & RATING ---
+  // --- POLLING STATUS PEMBAYARAN DARI HALAMAN RIWAYAT ---
+  // Dijalankan setelah user klik "Bayar Sekarang" dan kembali dari browser Mayar
+  Future<void> _pollPaymentStatusFromHistory(String orderId, String mayarPaymentId, String firebaseUid) async {
+    if (!mounted) return;
+
+    const String apiUrl = "https://malik-pseudomonocyclic-misti.ngrok-free.dev/api/check-payment-status";
+
+    // Tampilkan loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              "Mengecek status pembayaran...",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Polling: coba cek sampai 5x dengan jeda 3 detik
+    String finalStatus = 'unpaid';
+    for (int i = 0; i < 5; i++) {
+      await Future.delayed(const Duration(seconds: 3));
+
+      try {
+        var checkResponse = await http.post(
+          Uri.parse(apiUrl),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'order_id': orderId,
+            'mayar_payment_id': mayarPaymentId,
+            'firebase_uid': firebaseUid,
+            'payment_type': 'service',
+          }),
+        );
+
+        if (checkResponse.statusCode == 200) {
+          var checkData = jsonDecode(checkResponse.body);
+          debugPrint("Poll History #${i + 1}: status = ${checkData['status']}");
+
+          if (checkData['status'] == 'paid') {
+            finalStatus = 'paid';
+            break;
+          }
+        }
+      } catch (e) {
+        debugPrint("Poll History error: $e");
+      }
+    }
+
+    // Tutup dialog loading
+    if (mounted && Navigator.canPop(context)) {
+      Navigator.of(context).pop();
+    }
+
+    if (finalStatus == 'paid') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("✅ Pembayaran berhasil! Status pesanan sudah diupdate."),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Jika Anda sudah membayar, status akan otomatis terupdate dalam beberapa saat."),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _showReviewDialog(String docId, String serviceName, AppThemeData theme) async {
     int rating = 5;
     TextEditingController reviewController = TextEditingController();
@@ -463,11 +551,22 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> with SingleTickerPr
                             // 👉 TOMBOL BAYAR SEKARANG (Otomatis hilang kalau isPendingPayment false)
                             if (canCancel && isPendingPayment && paymentUrl.isNotEmpty)
                               ElevatedButton(
-                                onPressed: () {
-                                  launchUrl(
+                                onPressed: () async {
+                                  // Buka halaman bayar Mayar
+                                  await launchUrl(
                                     Uri.parse(paymentUrl),
                                     mode: LaunchMode.inAppBrowserView,
                                   );
+
+                                  // Setelah user kembali dari browser, cek status pembayaran
+                                  String mayarPaymentId = data['mayarPaymentId'] ?? '';
+                                  if (mayarPaymentId.isNotEmpty && mounted) {
+                                    await _pollPaymentStatusFromHistory(
+                                      docId,
+                                      mayarPaymentId,
+                                      data['userId'] ?? '',
+                                    );
+                                  }
                                 },
                                 style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF0606F9), // Biru Chupatu

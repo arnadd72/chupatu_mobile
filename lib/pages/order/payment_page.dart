@@ -66,6 +66,11 @@ class _PaymentPageState extends State<PaymentPage> {
   bool _isProMember = false;
   double _distanceKm = 0.0;
 
+  // Variabel Sinkronisasi Firestore & Pembayaran
+  bool _isMayarActive = true;
+  bool _isCodActive = true;
+  String _paymentMethod = 'manual';
+
   // Variabel CCTV dan URL Laravel
   StreamSubscription<DocumentSnapshot>? _orderSubscription;
   final String apiUrl = "https://malik-pseudomonocyclic-misti.ngrok-free.dev/api/create-mayar-payment";
@@ -88,40 +93,81 @@ class _PaymentPageState extends State<PaymentPage> {
   // FITUR: KALKULASI ONGKIR DINAMIS & CEK MEMBER PRO
   // ==========================================================
   Future<void> _calculateDynamicFee() async {
-    if (!widget.isDelivery) {
-      setState(() {
-        _deliveryFee = 0;
-        _isLoadingFee = false;
-      });
-      return;
-    }
-
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
 
     try {
-      // 1. Cek Status Member Pro di Firestore
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final data = userDoc.data()!;
-        _isProMember = (data['memberType'] == 'Pro' || data['role'] == 'Pro');
+      // 1. Tarik parameter setting sistem TERLEBIH DAHULU agar metode pembayaran (Mayar) selalu ter-sync
+      final settingsDoc = await FirebaseFirestore.instance.collection('system_settings').doc('config').get();
+      
+      double storeLat = -7.4357;
+      double storeLng = 109.2505;
+      int baseDeliveryFee = 5000;
+      double baseDistanceKm = 3.0;
+      int extraFeePerKm = 2000;
+      int freeDeliveryMinOrder = 50000;
+      bool isDeliveryActive = true;
+
+      if (settingsDoc.exists) {
+        final settingsData = settingsDoc.data()!;
+        storeLat = (settingsData['storeLat'] as num?)?.toDouble() ?? -7.4357;
+        storeLng = (settingsData['storeLng'] as num?)?.toDouble() ?? 109.2505;
+        baseDeliveryFee = (settingsData['baseDeliveryFee'] as num?)?.toInt() ?? 5000;
+        baseDistanceKm = (settingsData['baseDistanceKm'] as num?)?.toDouble() ?? 3.0;
+        extraFeePerKm = (settingsData['extraFeePerKm'] as num?)?.toInt() ?? 2000;
+        freeDeliveryMinOrder = (settingsData['freeDeliveryMinOrder'] as num?)?.toInt() ?? 50000;
+        isDeliveryActive = settingsData['isDeliveryActive'] as bool? ?? true;
+        
+        // Sync payment configurations
+        _isMayarActive = settingsData['isMayarActive'] as bool? ?? true;
+        _paymentMethod = settingsData['paymentMethod'] as String? ?? 'manual';
+        _isCodActive = settingsData['isCodActive'] as bool? ?? true;
+      }
+
+      // 2. Cek Status Member Pro di Firestore
+      if (user != null) {
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (userDoc.exists) {
+          final data = userDoc.data()!;
+          _isProMember = (data['memberType'] == 'Pro' || data['role'] == 'Pro');
+        }
+      }
+
+      // Fungsi Helper untuk menyimpan state ongkir dan default payment
+      void applyState(int fee) {
+        if (mounted) {
+          setState(() {
+            _deliveryFee = fee;
+            _isLoadingFee = false;
+            if (_paymentMethod == 'mayar' && _isMayarActive) {
+              _selectedPaymentMethod = 'Mayar';
+            } else {
+              _selectedPaymentMethod = 'COD';
+            }
+          });
+        }
+      }
+
+      // 3. Logika Early Returns
+      // Jika pesanan bukan Antar Jemput (Hanya Jemput)
+      if (!widget.isDelivery) {
+        applyState(0);
+        return;
       }
 
       // Jika Pro, otomatis ongkir GRATIS
       if (_isProMember) {
-        setState(() {
-          _deliveryFee = 0;
-          _isLoadingFee = false;
-        });
+        applyState(0);
         return;
       }
 
-      // 2. Hitung Jarak Jika Bukan Pro (Menggunakan koordinat Alamat dari BookingPage)
-      if (widget.customerLocation != null) {
-        // Koordinat Toko Chupatu (Di set default area Purwokerto / Telkom Campus)
-        const double storeLat = -7.4357;
-        const double storeLng = 109.2505;
+      // Jika fitur Antar-Jemput dimatikan admin
+      if (!isDeliveryActive) {
+        applyState(0);
+        return;
+      }
 
+      // 4. Hitung Jarak Jika Bukan Pro (Menggunakan koordinat Alamat dari BookingPage)
+      if (widget.customerLocation != null) {
         // Menghitung jarak dalam meter
         double distanceInMeters = Geolocator.distanceBetween(
             storeLat,
@@ -132,42 +178,68 @@ class _PaymentPageState extends State<PaymentPage> {
 
         _distanceKm = distanceInMeters / 1000;
 
-        // Logika Harga: 3 KM pertama Rp 10.000. Setelahnya nambah Rp 2.500/KM.
-        int calculatedFee = 10000;
-        if (_distanceKm > 3) {
-          int extraKm = (_distanceKm - 3).ceil(); // Pembulatan ke atas (ex: 3.2km dihitung nambah 1km)
-          calculatedFee += (extraKm * 2500);
+        // Logika Harga Dinamis dari Firestore
+        int calculatedFee = baseDeliveryFee;
+        if (_distanceKm > baseDistanceKm) {
+          int extraKm = (_distanceKm - baseDistanceKm).ceil(); // Pembulatan ke atas
+          calculatedFee += (extraKm * extraFeePerKm);
         }
 
-        setState(() {
-          _deliveryFee = calculatedFee;
-          _isLoadingFee = false;
-        });
+        // Cek gratis ongkir min order
+        if (widget.basePrice >= freeDeliveryMinOrder) {
+          calculatedFee = 0;
+        }
+
+        applyState(calculatedFee);
       } else {
         // Fallback jika customerLocation gagal dikirim
-        setState(() {
-          _deliveryFee = 15000; // Harga flat standar
-          _isLoadingFee = false;
-        });
+        applyState(baseDeliveryFee);
       }
     } catch (e) {
       debugPrint("Gagal menghitung ongkir: $e");
-      setState(() {
-        _deliveryFee = 15000; // Fallback jika terjadi error
-        _isLoadingFee = false;
-      });
+      if (mounted) {
+        setState(() {
+          _deliveryFee = 15000; // Fallback jika terjadi error
+          _isLoadingFee = false;
+          // Pastikan payment method tetap ter-set meski error
+          if (_paymentMethod == 'mayar' && _isMayarActive) {
+            _selectedPaymentMethod = 'Mayar';
+          } else {
+            _selectedPaymentMethod = 'COD';
+          }
+        });
+      }
     }
   }
 
-  void _applyPromo() {
-    if (_promoController.text.toUpperCase() == 'CHUPATUHEBAT') {
-      setState(() {
-        _discountAmount = 10000;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kode Promo Berhasil! Hemat Rp 10.000"), backgroundColor: Colors.green));
-    } else {
+  Future<void> _applyPromo() async {
+    final promoInput = _promoController.text.trim().toUpperCase();
+    if (promoInput.isEmpty) return;
+
+    try {
+      final settingsDoc = await FirebaseFirestore.instance.collection('system_settings').doc('config').get();
+      if (settingsDoc.exists) {
+        final settingsData = settingsDoc.data()!;
+        final activePromoCode = (settingsData['promoCode'] as String?)?.trim().toUpperCase() ?? 'CHUPATUHEBAT';
+        final activePromoDiscount = (settingsData['promoDiscount'] as num?)?.toInt() ?? 10000;
+
+        if (promoInput == activePromoCode) {
+          setState(() {
+            _discountAmount = activePromoDiscount;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text("Kode Promo Berhasil! Hemat Rp ${NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(activePromoDiscount)}"),
+            backgroundColor: Colors.green,
+          ));
+          return;
+        }
+      }
+      
       setState(() => _discountAmount = 0);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kode Promo Tidak Valid"), backgroundColor: Colors.red));
+    } catch (e) {
+      debugPrint("Gagal memproses promo: $e");
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal memproses promo. Coba lagi."), backgroundColor: Colors.red));
     }
   }
 
@@ -250,26 +322,37 @@ class _PaymentPageState extends State<PaymentPage> {
 
         if (data['success'] == true && data['payment_link'] != null) {
           String paymentUrl = data['payment_link'];
+          String? mayarPaymentId = data['mayar_payment_id'];
 
-          // 1. Simpan Link ke Firestore
+          // 1. Simpan Link + Mayar Payment ID ke Firestore
           await FirebaseFirestore.instance.collection('bookings').doc(orderId).update({
             'paymentUrl': paymentUrl,
+            'mayarPaymentId': mayarPaymentId ?? '',
           });
 
           if (mounted) {
             setState(() => _isProcessing = false);
 
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const OrderHistoryPage()),
-                  (route) => route.isFirst,
-            );
-
-            // 3. Buka Mayar
-            launchUrl(
+            // 2. Buka Mayar di browser dan tunggu user kembali
+            await launchUrl(
               Uri.parse(paymentUrl),
               mode: LaunchMode.inAppBrowserView,
             );
+
+            // 3. Setelah user kembali dari browser, langsung cek status ke API Mayar
+            //    (Plan B: bypass webhook, polling langsung)
+            if (mayarPaymentId != null && mayarPaymentId.isNotEmpty) {
+              await _pollPaymentStatus(orderId, mayarPaymentId, user);
+            } else {
+              // Fallback: langsung navigasi ke order history
+              if (mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const OrderHistoryPage()),
+                  (route) => route.isFirst,
+                );
+              }
+            }
           }
 
         } else {
@@ -282,6 +365,94 @@ class _PaymentPageState extends State<PaymentPage> {
       if (mounted) {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal proses Mayar: $e"), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  // --- FITUR BARU: POLLING STATUS PEMBAYARAN ---
+  // Setelah user kembali dari browser Mayar, kita tanya server:
+  // "Hei, ini invoice udah dibayar belum?" → Jika sudah, update Firestore.
+  Future<void> _pollPaymentStatus(String orderId, String mayarPaymentId, User? user) async {
+    if (!mounted) return;
+
+    // Tampilkan loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              "Mengecek status pembayaran...",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Polling: coba cek sampai 5x dengan jeda 3 detik
+    String finalStatus = 'unpaid';
+    for (int i = 0; i < 5; i++) {
+      await Future.delayed(const Duration(seconds: 3));
+
+      try {
+        final checkUrl = apiUrl.replaceAll('create-mayar-payment', 'check-payment-status');
+        var checkResponse = await http.post(
+          Uri.parse(checkUrl),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'order_id': orderId,
+            'mayar_payment_id': mayarPaymentId,
+            'firebase_uid': user?.uid ?? '',
+            'payment_type': 'service',
+          }),
+        );
+
+        if (checkResponse.statusCode == 200) {
+          var checkData = jsonDecode(checkResponse.body);
+          debugPrint("Poll #${i + 1}: status = ${checkData['status']}");
+
+          if (checkData['status'] == 'paid') {
+            finalStatus = 'paid';
+            break;
+          }
+        }
+      } catch (e) {
+        debugPrint("Poll error: $e");
+      }
+    }
+
+    // Tutup dialog loading
+    if (mounted && Navigator.canPop(context)) {
+      Navigator.of(context).pop();
+    }
+
+    if (finalStatus == 'paid') {
+      // Sukses bayar! Tampilkan dialog sukses
+      if (mounted) {
+        _showSuccessDialog();
+      }
+    } else {
+      // Belum terdeteksi bayar, navigasi ke halaman riwayat
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Jika Anda sudah membayar, status akan otomatis terupdate dalam beberapa saat."),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const OrderHistoryPage()),
+          (route) => route.isFirst,
+        );
       }
     }
   }
@@ -602,9 +773,15 @@ class _PaymentPageState extends State<PaymentPage> {
                   const SizedBox(height: 24),
 
                   _buildSectionTitle("Metode Pembayaran", theme),
-                  _buildPaymentOption("COD", "Bayar Tunai saat Dijemput", Icons.money, theme),
-                  const SizedBox(height: 12),
-                  _buildPaymentOption("Mayar", "E-Wallet / Transfer Bank (Otomatis)", Icons.credit_card, theme),
+                  if (_isCodActive) ...[
+                    _buildPaymentOption("COD", "Bayar Tunai saat Dijemput (COD)", Icons.money, theme),
+                  ],
+                  if (_isCodActive && (_paymentMethod == 'mayar' && _isMayarActive)) ...[
+                    const SizedBox(height: 12),
+                  ],
+                  if (_paymentMethod == 'mayar' && _isMayarActive) ...[
+                    _buildPaymentOption("Mayar", "E-Wallet / Transfer Bank (Otomatis)", Icons.credit_card, theme),
+                  ],
                 ],
               ),
             ),
