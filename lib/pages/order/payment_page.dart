@@ -56,6 +56,8 @@ class PaymentPage extends StatefulWidget {
 class _PaymentPageState extends State<PaymentPage> {
   String _selectedPaymentMethod = 'COD';
   final TextEditingController _promoController = TextEditingController();
+  String? _appliedPromoId;
+  String? _appliedPromoCode;
 
   int _deliveryFee = 0;
   int _discountAmount = 0;
@@ -217,6 +219,66 @@ class _PaymentPageState extends State<PaymentPage> {
     if (promoInput.isEmpty) return;
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      // 1. Cari dulu di collection 'promo_codes' (yang dibuat admin dari Manajemen Promosi/CMS)
+      final promoQuery = await FirebaseFirestore.instance
+          .collection('promo_codes')
+          .where('code', isEqualTo: promoInput)
+          .limit(1)
+          .get();
+
+      if (promoQuery.docs.isNotEmpty) {
+        final promoDoc = promoQuery.docs.first;
+        final promoData = promoDoc.data();
+
+        // Cek apakah aktif
+        final isActive = promoData['isActive'] ?? true;
+        if (!isActive) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Kode Promo Sudah Tidak Aktif"),
+            backgroundColor: Colors.red,
+          ));
+          return;
+        }
+
+        // Cek limit pemakaian
+        final maxUsage = (promoData['maxUsage'] as num?)?.toInt() ?? 999999;
+        final currentUsage = (promoData['currentUsage'] as num?)?.toInt() ?? 0;
+        if (currentUsage >= maxUsage) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Batas Penggunaan Kode Promo Telah Habis"),
+            backgroundColor: Colors.red,
+          ));
+          return;
+        }
+
+        // Cek apakah user ini sudah pernah menggunakan kode ini
+        final usedBy = List<String>.from(promoData['usedBy'] ?? []);
+        if (user != null && usedBy.contains(user.uid)) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Anda sudah menggunakan kode promo ini sebelumnya"),
+            backgroundColor: Colors.red,
+          ));
+          return;
+        }
+
+        final discountAmount = (promoData['discountAmount'] as num?)?.toInt() ?? 10000;
+
+        setState(() {
+          _discountAmount = discountAmount;
+          _appliedPromoId = promoDoc.id;
+          _appliedPromoCode = promoInput;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("Kode Promo Berhasil! Hemat Rp ${NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(discountAmount)}"),
+          backgroundColor: Colors.green,
+        ));
+        return;
+      }
+
+      // 2. Fallback: Cari di system_settings/config (kode promo global)
       final settingsDoc = await FirebaseFirestore.instance.collection('system_settings').doc('config').get();
       if (settingsDoc.exists) {
         final settingsData = settingsDoc.data()!;
@@ -226,6 +288,8 @@ class _PaymentPageState extends State<PaymentPage> {
         if (promoInput == activePromoCode) {
           setState(() {
             _discountAmount = activePromoDiscount;
+            _appliedPromoId = null; // Global settings promo doesn't track doc ID in promo_codes
+            _appliedPromoCode = promoInput;
           });
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text("Kode Promo Berhasil! Hemat Rp ${NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(activePromoDiscount)}"),
@@ -235,7 +299,11 @@ class _PaymentPageState extends State<PaymentPage> {
         }
       }
       
-      setState(() => _discountAmount = 0);
+      setState(() {
+        _discountAmount = 0;
+        _appliedPromoId = null;
+        _appliedPromoCode = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kode Promo Tidak Valid"), backgroundColor: Colors.red));
     } catch (e) {
       debugPrint("Gagal memproses promo: $e");
@@ -262,6 +330,7 @@ class _PaymentPageState extends State<PaymentPage> {
         'basePrice': widget.basePrice,
         'deliveryFee': _deliveryFee,
         'discount': _discountAmount,
+        'promoCode': _appliedPromoCode ?? '',
         'totalPrice': totalPrice,
         'paymentMethod': _selectedPaymentMethod,
         'paymentStatus': _selectedPaymentMethod == 'Mayar' ? 'Pending Payment' : 'Unpaid (COD)',
@@ -278,6 +347,14 @@ class _PaymentPageState extends State<PaymentPage> {
         'distanceKm': _distanceKm,
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Update jumlah pemakaian dan user yang memakai promo code di Firestore
+      if (_appliedPromoId != null) {
+        await FirebaseFirestore.instance.collection('promo_codes').doc(_appliedPromoId).update({
+          'currentUsage': FieldValue.increment(1),
+          'usedBy': FieldValue.arrayUnion([user?.uid ?? '']),
+        });
+      }
 
       // 2. Cek apakah bayar pakai Mayar atau COD
       if (_selectedPaymentMethod == 'Mayar') {
