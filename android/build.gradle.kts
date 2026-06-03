@@ -3,10 +3,6 @@ buildscript {
         google()
         mavenCentral()
     }
-    dependencies {
-        // Tambahkan baris ini untuk menghubungkan Firebase
-        classpath("com.google.gms:google-services:4.4.1")
-    }
 }
 
 allprojects {
