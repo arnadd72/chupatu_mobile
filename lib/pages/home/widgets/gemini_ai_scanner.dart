@@ -413,41 +413,85 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
                 )
               ],
             ),
-            child: ElevatedButton(
-              onPressed: _isAnalyzing
-                  ? null
-                  : () {
-                if (_hasResult) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => CustomServicePage(
-                        aiRecommendation: _aiTips,
+            child: _selectedImage != null && !_isAnalyzing
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _showSourcePicker,
+                          icon: const Icon(Icons.refresh_rounded, color: Colors.purpleAccent, size: 18),
+                          label: Text(
+                            "Foto Ulang",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.purpleAccent,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 56),
+                            side: const BorderSide(color: Colors.purpleAccent),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (_hasResult) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CustomServicePage(
+                                    aiRecommendation: _aiTips,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              _analyzeShoeCondition();
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(0, 56),
+                            backgroundColor: _hasResult ? Colors.green : Colors.purpleAccent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            _hasResult ? "Pesan Layanan" : "Kirim ke AI",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : ElevatedButton(
+                    onPressed: _isAnalyzing
+                        ? null
+                        : _showSourcePicker,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 56),
+                      backgroundColor: Colors.purpleAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                  );
-                } else {
-                  if (_selectedImage != null) _analyzeShoeCondition();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 56),
-                backgroundColor: _hasResult ? Colors.green : Colors.purpleAccent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                _isAnalyzing
-                    ? "Loading..."
-                    : (_hasResult ? "Pesan Layanan Rekomendasi" : "Kirim ke AI"),
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  fontSize: 16,
-                ),
-              ),
-            ),
+                    child: Text(
+                      _isAnalyzing ? "Loading..." : "Pilih Foto Sepatu",
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
           )
         ],
       ),
