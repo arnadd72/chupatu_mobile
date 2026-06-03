@@ -362,12 +362,49 @@ class _BookingPageState extends State<BookingPage> {
   }
 
   void _goToPayment() async {
-    if (_shoeDetailController.text.isEmpty ||
-        _mainAddressController.text.isEmpty ||
-        _detailAddressController.text.isEmpty ||
-        _phoneController.text.isEmpty ||
-        _selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mohon lengkapi semua data!"), backgroundColor: Colors.red));
+    if (_shoeDetailController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Silakan isi Merk & Tipe Spesifik sepatu Anda."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (_phoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Silakan isi Nomor WhatsApp / HP Anda."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Silakan tentukan Tanggal Penjemputan."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (_mainAddressController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Silakan isi atau pilih Alamat Penjemputan Anda."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (_detailAddressController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Silakan isi Detail Alamat Anda (patokan rumah)."),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -468,84 +505,374 @@ class _BookingPageState extends State<BookingPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // BANNER LAYANAN
                     Container(
                       padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: theme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(20), border: Border.all(color: theme.primary.withOpacity(0.2))),
+                      decoration: BoxDecoration(
+                        color: theme.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: theme.primary.withOpacity(0.2)),
+                      ),
                       child: Row(
                           children: [
-                            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: theme.primary.withOpacity(0.2), shape: BoxShape.circle), child: Icon(Icons.cleaning_services_rounded, color: theme.primary, size: 28)),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: theme.primary.withOpacity(0.2), shape: BoxShape.circle),
+                              child: Icon(Icons.cleaning_services_rounded, color: theme.primary, size: 28),
+                            ),
                             const SizedBox(width: 16),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(widget.serviceName, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 18, color: theme.textMain), maxLines: 2, overflow: TextOverflow.ellipsis), const SizedBox(height: 4), Text(formattedPrice, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.primary))]))
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.serviceName,
+                                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 18, color: theme.textMain),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    formattedPrice,
+                                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.primary),
+                                  ),
+                                ],
+                              ),
+                            )
                           ]
                       ),
                     ),
-
-                    _buildSectionTitle("Detail Sepatu", theme),
-
-                    if (!isFromGarage) ...[
-                      _buildLabel("Kategori", theme),
-                      Wrap(spacing: 10, runSpacing: 0, children: _shoeCategories.map((category) { bool isSelected = _selectedCategory == category; return ChoiceChip(label: Text(category), labelStyle: GoogleFonts.plusJakartaSans(color: isSelected ? Colors.white : theme.textMain, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal), selected: isSelected, onSelected: (selected) { if (selected) setState(() => _selectedCategory = category); }, selectedColor: theme.primary, backgroundColor: theme.background, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Colors.transparent : Colors.grey.shade300))); }).toList()),
-                      const SizedBox(height: 16),
-                    ],
-
-                    _buildLabel("Merk & Tipe Spesifik", theme),
-                    _buildTextField(controller: _shoeDetailController, hint: "Contoh: Nike Air Jordan 1 High Panda", icon: Icons.edit_note_rounded, theme: theme, readOnly: isFromGarage),
-                    const SizedBox(height: 16),
-
-                    if (!isFromGarage) ...[
-                      _buildLabel("Foto Sepatu (Opsional)", theme),
-                      GestureDetector(onTap: _pickImage, child: Container(height: 150, width: double.infinity, decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade300), image: _selectedImage != null ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover) : null), child: _selectedImage == null ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_photo_alternate_rounded, color: theme.primary, size: 40), const SizedBox(height: 8), Text("Tap untuk upload foto", style: GoogleFonts.plusJakartaSans(color: Colors.grey))]) : null)),
-                      if (_selectedImage != null) Padding(padding: const EdgeInsets.only(top: 8), child: GestureDetector(onTap: () => setState(() => _selectedImage = null), child: Text("Hapus Foto", style: GoogleFonts.plusJakartaSans(color: Colors.red, fontWeight: FontWeight.bold)))),
-                      const SizedBox(height: 16),
-                    ],
-
-                    _buildLabel("Catatan Khusus", theme),
-                    _buildTextField(controller: _noteController, hint: "Misal: Noda di midsole susah hilang...", icon: Icons.note_alt_outlined, theme: theme, maxLines: 2),
-                    const SizedBox(height: 30), const Divider(), const SizedBox(height: 20),
-
-                    _buildSectionTitle("Data Pelanggan", theme),
-                    _buildLabel("Nomor WhatsApp / HP", theme),
-                    _buildTextField(controller: _phoneController, hint: "0812xxxx (Wajib Aktif)", icon: Icons.phone_android_rounded, theme: theme, isNumber: true),
-                    const SizedBox(height: 16),
-
-                    _buildSectionTitle("Pengiriman & Jadwal", theme),
-                    SwitchListTile(contentPadding: EdgeInsets.zero, activeColor: theme.primary, title: Text("Layanan Antar-Jemput", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain, fontSize: 14)), subtitle: Text(_isDeliveryIncluded ? "Kurir Jemput & Antar Kembali" : "Hanya Jemput (Saya ambil sendiri)", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)), value: _isDeliveryIncluded, onChanged: (val) => setState(() => _isDeliveryIncluded = val)),
-                    const SizedBox(height: 16),
-                    _buildLabel("Jadwal Penjemputan", theme),
-                    Row(children: [
-                      Expanded(flex: 3, child: GestureDetector(onTap: () => _pickDate(context, theme), child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14), decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)), child: Row(children: [Icon(Icons.calendar_today_rounded, color: theme.primary, size: 18), const SizedBox(width: 8), Expanded(child: Text(_selectedDate == null ? "Pilih Tanggal" : DateFormat('dd MMM').format(_selectedDate!), style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis))])))),
-                      const SizedBox(width: 12),
-                      Expanded(flex: 4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12), decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)), child: DropdownButtonHideUnderline(child: DropdownButton<String>(value: _selectedTime, dropdownColor: theme.surface, icon: Icon(Icons.access_time_rounded, color: theme.primary, size: 18), isExpanded: true, items: ['Pagi (09-12)', 'Siang (13-15)', 'Sore (16-18)'].map((String value) { return DropdownMenuItem<String>(value: value, child: Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 13, color: theme.textMain), overflow: TextOverflow.ellipsis)); }).toList(), onChanged: (val) => setState(() => _selectedTime = val!),),),),),
-                    ]),
                     const SizedBox(height: 24),
 
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      _buildLabel("Alamat Penjemputan", theme),
-                      Row(children: [
-                        GestureDetector(onTap: () => _showSavedAddressPicker(theme), child: Container(margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: Row(children: [const Icon(Icons.bookmarks_rounded, color: Colors.orange, size: 14), const SizedBox(width: 4), Text("Tersimpan", style: GoogleFonts.plusJakartaSans(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold))]))),
+                    // CARD 1: DETAIL SEPATU
+                    _buildSectionTitle("Detail Sepatu", theme),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: theme.surface,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.grey.withOpacity(0.15)),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (!isFromGarage) ...[
+                            _buildLabel("Kategori Sepatu", theme),
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 3.2,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                              ),
+                              itemCount: _shoeCategories.length,
+                              itemBuilder: (context, index) {
+                                final category = _shoeCategories[index];
+                                final isSelected = _selectedCategory == category;
+                                return GestureDetector(
+                                  onTap: () => setState(() => _selectedCategory = category),
+                                  child: Container(
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? theme.primary : theme.background,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: isSelected ? theme.primary : Colors.grey.shade300,
+                                        width: 1.2,
+                                      ),
+                                      boxShadow: isSelected
+                                          ? [
+                                              BoxShadow(
+                                                color: theme.primary.withOpacity(0.15),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 3),
+                                              )
+                                            ]
+                                          : null,
+                                    ),
+                                    child: Text(
+                                      category,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: isSelected ? Colors.white : theme.textMain,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                          ],
 
-                        GestureDetector(
-                            onTap: _openMapPicker,
-                            child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(color: theme.primary, borderRadius: BorderRadius.circular(20)),
-                                child: Row(children: [
-                                  const Icon(Icons.map_rounded, color: Colors.white, size: 14),
-                                  const SizedBox(width: 4),
-                                  Text("Pilih di Peta", style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))
-                                ])
-                            )
-                        ),
-                      ],)
-                    ],),
-                    const SizedBox(height: 8),
-                    _buildTextField(controller: _mainAddressController, hint: "Jalan, Kecamatan, Kota (Otomatis GPS / Pilih)", icon: Icons.map_rounded, theme: theme, maxLines: 4),
-                    const SizedBox(height: 16),
-                    _buildLabel("Detail Alamat (Wajib Diisi)", theme),
-                    _buildTextField(controller: _detailAddressController, hint: "Contoh: Pagar Hitam, Samping Warung...", icon: Icons.home_work_outlined, theme: theme, maxLines: 2),
+                          _buildLabel("Merk & Tipe Spesifik", theme),
+                          _buildTextField(
+                            controller: _shoeDetailController,
+                            hint: "Contoh: Nike Air Jordan 1 High Panda",
+                            icon: Icons.edit_note_rounded,
+                            theme: theme,
+                            readOnly: isFromGarage,
+                          ),
+                          const SizedBox(height: 20),
+
+                          if (!isFromGarage) ...[
+                            _buildLabel("Foto Sepatu (Opsional)", theme),
+                            GestureDetector(
+                              onTap: _pickImage,
+                              child: Container(
+                                height: 140,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: theme.background,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                  image: _selectedImage != null
+                                      ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover)
+                                      : null,
+                                ),
+                                child: _selectedImage == null
+                                    ? Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.add_photo_alternate_rounded, color: theme.primary, size: 36),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            "Ketuk untuk upload foto",
+                                            style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 13),
+                                          ),
+                                        ],
+                                      )
+                                    : null,
+                              ),
+                            ),
+                            if (_selectedImage != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _selectedImage = null),
+                                  child: Text(
+                                    "Hapus Foto",
+                                    style: GoogleFonts.plusJakartaSans(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 20),
+                          ],
+
+                          _buildLabel("Catatan Khusus", theme),
+                          _buildTextField(
+                            controller: _noteController,
+                            hint: "Misal: Noda di midsole susah hilang...",
+                            icon: Icons.note_alt_outlined,
+                            theme: theme,
+                            maxLines: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // CARD 2: KONTAK & PENGIRIMAN
+                    _buildSectionTitle("Informasi Kontak & Layanan", theme),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: theme.surface,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.grey.withOpacity(0.15)),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildLabel("Nomor WhatsApp / HP", theme),
+                          _buildTextField(
+                            controller: _phoneController,
+                            hint: "0812xxxx (Wajib Aktif)",
+                            icon: Icons.phone_android_rounded,
+                            theme: theme,
+                            isNumber: true,
+                          ),
+                          const SizedBox(height: 12),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            activeColor: theme.primary,
+                            title: Text(
+                              "Layanan Antar-Jemput",
+                              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain, fontSize: 14),
+                            ),
+                            subtitle: Text(
+                              _isDeliveryIncluded ? "Kurir Jemput & Antar Kembali" : "Hanya Jemput (Saya ambil sendiri)",
+                              style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12),
+                            ),
+                            value: _isDeliveryIncluded,
+                            onChanged: (val) => setState(() => _isDeliveryIncluded = val),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // CARD 3: JADWAL & ALAMAT JEMPUT
+                    _buildSectionTitle("Jadwal & Lokasi Jemput", theme),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: theme.surface,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.grey.withOpacity(0.15)),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildLabel("Jadwal Penjemputan", theme),
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: GestureDetector(
+                                  onTap: () => _pickDate(context, theme),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                    decoration: BoxDecoration(color: theme.background, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade300)),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.calendar_today_rounded, color: theme.primary, size: 18),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            _selectedDate == null ? "Pilih Tanggal" : DateFormat('dd MMM yyyy').format(_selectedDate!),
+                                            style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.w600, fontSize: 13),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(color: theme.background, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade300)),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: _selectedTime,
+                                      dropdownColor: theme.surface,
+                                      icon: Icon(Icons.access_time_rounded, color: theme.primary, size: 18),
+                                      isExpanded: true,
+                                      items: ['Pagi (09-12)', 'Siang (13-15)', 'Sore (16-18)'].map((String value) {
+                                        return DropdownMenuItem<String>(
+                                          value: value,
+                                          child: Text(
+                                            value,
+                                            style: GoogleFonts.plusJakartaSans(fontSize: 13, color: theme.textMain),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        );
+                                      }).toList(),
+                                      onChanged: (val) => setState(() => _selectedTime = val!),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Alamat Penjemputan",
+                                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade600),
+                              ),
+                              Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () => _showSavedAddressPicker(theme),
+                                    child: Container(
+                                      margin: const EdgeInsets.only(right: 8),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.bookmarks_rounded, color: Colors.orange, size: 12),
+                                          const SizedBox(width: 4),
+                                          Text("Tersimpan", style: GoogleFonts.plusJakartaSans(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold))
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: _openMapPicker,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(color: theme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.map_rounded, color: theme.primary, size: 12),
+                                          const SizedBox(width: 4),
+                                          Text("Peta", style: GoogleFonts.plusJakartaSans(color: theme.primary, fontSize: 11, fontWeight: FontWeight.bold))
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          _buildTextField(
+                            controller: _mainAddressController,
+                            hint: "Jalan, Kecamatan, Kota (Otomatis GPS / Pilih)",
+                            icon: Icons.map_rounded,
+                            theme: theme,
+                            maxLines: 3,
+                          ),
+                          const SizedBox(height: 20),
+                          _buildLabel("Detail Alamat (Wajib Diisi)", theme),
+                          _buildTextField(
+                            controller: _detailAddressController,
+                            hint: "Contoh: Nomor rumah, pagar hitam, patokan...",
+                            icon: Icons.home_work_outlined,
+                            theme: theme,
+                            maxLines: 2,
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 40),
 
-                    SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _goToPayment, style: ElevatedButton.styleFrom(backgroundColor: theme.primary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 8, shadowColor: theme.primary.withOpacity(0.4)), child: Text("Lanjut ke Pembayaran", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)))),
+                    // TOMBOL AKSEN UTAMA
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _goToPayment,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 6,
+                          shadowColor: theme.primary.withOpacity(0.3),
+                        ),
+                        child: Text("Lanjut ke Pembayaran", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                      ),
+                    ),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -556,19 +883,47 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
-  Widget _buildSectionTitle(String title, AppThemeData theme) { return Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textMain))); }
-  Widget _buildLabel(String text, AppThemeData theme) { return Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(text, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade600))); }
-  Widget _buildTextField({required TextEditingController controller, required String hint, required IconData icon, required AppThemeData theme, int maxLines = 1, bool isNumber = false, bool readOnly = false}) {
+  Widget _buildSectionTitle(String title, AppThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain)),
+    );
+  }
+
+  Widget _buildLabel(String text, AppThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(text, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade600)),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    required AppThemeData theme,
+    int maxLines = 1,
+    bool isNumber = false,
+    bool readOnly = false,
+  }) {
     return TextField(
         controller: controller,
         maxLines: maxLines,
         keyboardType: isNumber ? TextInputType.phone : TextInputType.text,
         readOnly: readOnly,
-        style: GoogleFonts.plusJakartaSans(color: readOnly ? Colors.grey : theme.textMain),
+        style: GoogleFonts.plusJakartaSans(color: readOnly ? Colors.grey : theme.textMain, fontSize: 14),
         decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey.shade400, fontSize: 13),
-            prefixIcon: Padding(padding: const EdgeInsets.only(top: 12), child: Icon(icon, color: Colors.grey.shade400, size: 22)),
+            prefixIcon: maxLines > 1
+                ? Container(
+                    height: maxLines * 24.0,
+                    padding: const EdgeInsets.only(top: 14),
+                    alignment: Alignment.topCenter,
+                    width: 48,
+                    child: Icon(icon, color: Colors.grey.shade400, size: 22),
+                  )
+                : Icon(icon, color: Colors.grey.shade400, size: 22),
             filled: true,
             fillColor: readOnly ? Colors.grey.shade100 : theme.surface,
             contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
