@@ -81,10 +81,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final fcm = FirebaseMessaging.instance;
 
     NotificationSettings settings = await fcm.requestPermission(
-      alert: true, badge: true, sound: true,
+      alert: true, badge: true, sound: true, provisional: false,
     );
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+    if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional) {
       debugPrint('User ngasih izin notif!');
 
       String? token = await fcm.getToken();
@@ -96,6 +97,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             .doc(user!.uid)
             .set({'fcmToken': token}, SetOptions(merge: true));
       }
+
+      // Dengerin perubahan token FCM
+      fcm.onTokenRefresh.listen((newToken) async {
+        if (user != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user!.uid)
+              .set({'fcmToken': newToken}, SetOptions(merge: true));
+        }
+      });
+    } else {
+      debugPrint('User menolak izin notif.');
     }
   }
 
