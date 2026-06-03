@@ -139,7 +139,10 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                         itemBuilder: (context, index) {
                           var data = docs[index].data() as Map<String, dynamic>;
                           bool isSenderAdmin = false;
-                          var rawSender = data['isSenderAdmin'];
+                          
+                          // Web admin writes `isAdmin: true` or `type: 'admin'` / `senderId: 'admin'`
+                          // Mobile admin writes `isSenderAdmin: true`
+                          var rawSender = data['isSenderAdmin'] ?? data['isAdmin'];
                           if (rawSender is bool) {
                             isSenderAdmin = rawSender;
                           } else if (rawSender is String) {
@@ -147,6 +150,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                           } else if (rawSender is int) {
                             isSenderAdmin = rawSender == 1;
                           }
+
+                          // Fallback check for web admin specific sender type fields
+                          if (!isSenderAdmin) {
+                            var senderType = data['type'] ?? data['senderId'];
+                            if (senderType is String && senderType.toLowerCase() == 'admin') {
+                              isSenderAdmin = true;
+                            }
+                          }
+
                           bool isMe = (widget.isAdmin == isSenderAdmin);
                           return _buildChatBubble(data['text'], isMe, data['createdAt'], theme);
                         },
