@@ -1,18 +1,14 @@
-import 'dart:ui' as ui;
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:lottie/lottie.dart' hide Marker;
+import 'package:lottie/lottie.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/utils/invoice_pdf_helper.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // IMPORT HALAMAN CHAT
 import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
@@ -41,107 +37,28 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   bool _isGeneratingPdf = false;
   bool _isLoadingChat = false;
 
-  // --- VARIABEL PETA, IKON & RUTE ---
-  GoogleMapController? _mapController;
-  BitmapDescriptor customIcon = BitmapDescriptor.defaultMarker;
-  Set<Polyline> _polylines = {};
-
-  // 👇 MASUKIN API KEY GOOGLE MAPS LO DI SINI 👇
-  String googleApiKey = "AIzaSyDah6MCkpOs_HsJK7-Mm90bm5ip_96I7aU";
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCustomMarker();
-  }
-
-  // FUNGSI MENGECILKAN GAMBAR MOTOR BIAR PAS DI PETA
-  Future<Uint8List> getBytesFromAsset(String path, int width) async {
-    ByteData data = await rootBundle.load(path);
-    ui.Codec codec = await ui.instantiateImageCodec(
-        data.buffer.asUint8List(),
-        targetWidth: width
-    );
-    ui.FrameInfo fi = await codec.getNextFrame();
-    return (await fi.image.toByteData(format: ui.ImageByteFormat.png))!
-        .buffer.asUint8List();
-  }
-
-  void _loadCustomMarker() async {
-    final Uint8List markerIcon = await getBytesFromAsset(
-        'assets/images/motor_kurir.png', 50
-    );
-    if (mounted) {
-      setState(() {
-        customIcon = BitmapDescriptor.fromBytes(markerIcon);
-      });
-    }
-  }
-
-  // --- FUNGSI MENCARI RUTE (NATIVE API CALL) ---
-  Future<void> _fetchRoute(LatLng driver, LatLng customer) async {
-    String url = "https://maps.googleapis.com/maps/api/directions/json"
-        "?origin=${driver.latitude},${driver.longitude}"
-        "&destination=${customer.latitude},${customer.longitude}"
-        "&mode=driving"
-        "&key=$googleApiKey";
-
+  Future<void> _openGoogleMapsLocation(double lat, double lng) async {
+    final String url = "https://www.google.com/maps/search/?api=1&query=$lat,$lng";
+    final Uri uri = Uri.parse(url);
     try {
-      var response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        var data = jsonDecode(response.body);
-
-        if (data['routes'] != null && data['routes'].isNotEmpty) {
-          String encodedPolyline = data['routes'][0]['overview_polyline']['points'];
-          List<LatLng> polylineCoordinates = _decodePolyline(encodedPolyline);
-
-          if (mounted) {
-            setState(() {
-              _polylines.add(
-                Polyline(
-                  polylineId: const PolylineId("route_kurir"),
-                  color: const Color(0xFF0606F9),
-                  width: 5,
-                  points: polylineCoordinates,
-                ),
-              );
-            });
-          }
-        }
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      debugPrint("Gagal tarik rute langsung: $e");
+      debugPrint("Error launching Google Maps: $e");
     }
   }
 
-  List<LatLng> _decodePolyline(String encoded) {
-    List<LatLng> poly = [];
-    int index = 0, len = encoded.length;
-    int lat = 0, lng = 0;
-
-    while (index < len) {
-      int b, shift = 0, result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-
-      poly.add(LatLng((lat / 1E5).toDouble(), (lng / 1E5).toDouble()));
+  Future<void> _openGoogleMapsDirections(double originLat, double originLng, double destLat, double destLng) async {
+    final String url = "https://www.google.com/maps/dir/?api=1&origin=$originLat,$originLng&destination=$destLat,$destLng&travelmode=driving";
+    final Uri uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint("Error launching Google Maps Directions: $e");
     }
-    return poly;
   }
 
   // --- FUNGSI BUKA CHAT KE ADMIN ---
@@ -344,10 +261,10 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   }
 
   // --- FUNGSI UNDUH INVOICE ---
-  Future<void> _generateAndDownloadInvoice() async {
+  Future<void> _generateAndDownloadInvoice(Map<String, dynamic> data) async {
     setState(() => _isGeneratingPdf = true);
     try {
-      await InvoicePdfHelper.generateInvoice(widget.docId, widget.data);
+      await InvoicePdfHelper.generateInvoice(widget.docId, data);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -496,497 +413,536 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     );
   }
 
-  Widget _buildImageComparisonCard(String label, String imageUrl, Color accentColor) {
-    return GestureDetector(
-      onTap: () => _showFullScreenImage(imageUrl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-                color: accentColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8)
-            ),
-            child: Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                    color: accentColor, fontWeight: FontWeight.bold, fontSize: 12
-                )
-            ),
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              imageUrl,
-              width: double.infinity,
-              height: 180,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) return child;
-                return Container(
-                  height: 180, color: Colors.grey.shade200,
-                  child: const Center(child: CircularProgressIndicator()),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) => Container(
-                height: 180, color: Colors.grey.shade200,
-                child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  Map<String, dynamic> _getStatusConfig(String status) {
+    switch (status) {
+      case 'Pending': return {'color': const Color(0xFFF59E0B), 'icon': Icons.pending_actions_rounded, 'label': 'Menunggu Konfirmasi'};
+      case 'Confirmed': return {'color': const Color(0xFF3B82F6), 'icon': Icons.check_circle_outline_rounded, 'label': 'Dikonfirmasi'};
+      case 'Picked Up': return {'color': const Color(0xFF8B5CF6), 'icon': Icons.local_shipping_outlined, 'label': 'Sepatu Dijemput'};
+      case 'Processing': return {'color': const Color(0xFF10B981), 'icon': Icons.cleaning_services_rounded, 'label': 'Sedang Dicuci'};
+      case 'Ready': return {'color': const Color(0xFF14B8A6), 'icon': Icons.inventory_2_outlined, 'label': 'Selesai Dicuci'};
+      case 'Delivery': return {'color': const Color(0xFF6366F1), 'icon': Icons.delivery_dining_rounded, 'label': 'Sedang Diantar'};
+      case 'Done': return {'color': const Color(0xFF22C55E), 'icon': Icons.task_alt_rounded, 'label': 'Pesanan Selesai'};
+      case 'Cancelled': return {'color': const Color(0xFFEF4444), 'icon': Icons.cancel_outlined, 'label': 'Dibatalkan'};
+      default: return {'color': Colors.grey, 'icon': Icons.help_outline, 'label': 'Tidak Dikenal'};
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('bookings').doc(widget.docId).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Scaffold(
+            body: Center(child: Text("Pesanan tidak ditemukan.")),
+          );
+        }
 
-    String serviceName = widget.data['serviceName'] ?? 'Layanan';
-    final serviceConfig = _getServiceIcon(serviceName);
-    String dateStr = _formatSafeDate(widget.data['createdAt']);
-    String pickupDateOnly = _formatSafeDate(
-        widget.data['pickupDate'], format: 'dd MMMM yyyy', fallback: 'Belum dijadwalkan'
-    );
-    String pickupTimeStr = widget.data['pickupTime'] ?? '';
-    String finalPickup = pickupTimeStr.isNotEmpty ? "$pickupDateOnly\nJam: $pickupTimeStr" : pickupDateOnly;
-    bool isDelivery = widget.data['isDelivery'] ?? false;
-    String finalDelivery = isDelivery ? "Akan diantar setelah pesanan selesai" : "Ambil sendiri ke toko (Self Pick-up)";
+        var bookingData = snapshot.data!.data() as Map<String, dynamic>;
 
-    String mainAddress = widget.data['mainAddress'] ?? '';
-    String detailAddress = widget.data['detailAddress'] ?? '';
-    String fullAddress = (mainAddress.isNotEmpty || detailAddress.isNotEmpty)
-        ? "$mainAddress\n\nCatatan: $detailAddress"
-        : (widget.data['address'] ?? 'Alamat tidak tersedia');
+        final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
-    String currentStatus = widget.data['status'] ?? 'Pending';
-    bool canCancel = (currentStatus == 'Pending' || currentStatus == 'Confirmed' || currentStatus == 'Pending Payment');
-    bool isDone = (currentStatus == 'Done');
+        String serviceName = bookingData['serviceName'] ?? 'Layanan';
+        final serviceConfig = _getServiceIcon(serviceName);
+        String dateStr = _formatSafeDate(bookingData['createdAt']);
+        String pickupDateOnly = _formatSafeDate(
+            bookingData['pickupDate'], format: 'dd MMMM yyyy', fallback: 'Belum dijadwalkan'
+        );
+        String pickupTimeStr = bookingData['pickupTime'] ?? '';
+        String finalPickup = pickupTimeStr.isNotEmpty ? "$pickupDateOnly\nJam: $pickupTimeStr" : pickupDateOnly;
+        bool isDelivery = bookingData['isDelivery'] ?? false;
+        String finalDelivery = isDelivery ? "Akan diantar setelah pesanan selesai" : "Ambil sendiri ke toko (Self Pick-up)";
 
-    // 👉 URL Foto Sepatu Sebelum Dicuci
-    String? shoeImageUrl = widget.data['shoeImageUrl'];
+        String mainAddress = bookingData['mainAddress'] ?? '';
+        String detailAddress = bookingData['detailAddress'] ?? '';
+        String fullAddress = (mainAddress.isNotEmpty || detailAddress.isNotEmpty)
+            ? "$mainAddress\n\nCatatan: $detailAddress"
+            : (bookingData['address'] ?? 'Alamat tidak tersedia');
 
-    return ValueListenableBuilder<AppThemeData>(
-        valueListenable: ThemeConfig.currentTheme,
-        builder: (context, theme, child) {
-          return Scaffold(
-            backgroundColor: theme.background,
-            appBar: AppBar(
-              backgroundColor: widget.statusColor,
-              elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.white),
-              title: Text("Detail Pesanan", style: GoogleFonts.plusJakartaSans(
-                  color: Colors.white, fontWeight: FontWeight.bold
-              )),
-              centerTitle: true,
-              actions: [
-                IconButton(
-                  onPressed: _showBarcodeDialog,
-                  icon: const Icon(Icons.qr_code_2_rounded),
-                  tooltip: "Scan Barcode",
-                ),
-                const SizedBox(width: 8),
-              ],
-            ),
+        String currentStatus = bookingData['status'] ?? 'Pending';
+        bool canCancel = (currentStatus == 'Pending' || currentStatus == 'Confirmed' || currentStatus == 'Pending Payment');
+        bool isDone = (currentStatus == 'Done');
 
-            body: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // HEADER
-                  Container(
-                    width: double.infinity, padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                        color: widget.statusColor,
-                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30))
+        // 👉 URL Foto Sepatu Sebelum Dicuci
+        String? shoeImageUrl = bookingData['shoeImageUrl'];
+
+        final statusConfig = _getStatusConfig(currentStatus);
+        Color statusColor = statusConfig['color'];
+        IconData statusIcon = statusConfig['icon'];
+        String statusLabel = statusConfig['label'];
+
+        return ValueListenableBuilder<AppThemeData>(
+            valueListenable: ThemeConfig.currentTheme,
+            builder: (context, theme, child) {
+              return Scaffold(
+                backgroundColor: theme.background,
+                appBar: AppBar(
+                  backgroundColor: statusColor,
+                  elevation: 0,
+                  iconTheme: const IconThemeData(color: Colors.white),
+                  title: Text("Detail Pesanan", style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white, fontWeight: FontWeight.bold
+                  )),
+                  centerTitle: true,
+                  actions: [
+                    IconButton(
+                      onPressed: _showBarcodeDialog,
+                      icon: const Icon(Icons.qr_code_2_rounded),
+                      tooltip: "Scan Barcode",
                     ),
-                    child: Column(children: [
-                      Icon(widget.statusIcon, color: Colors.white, size: 60),
-                      const SizedBox(height: 12),
-                      Text(widget.statusLabel, style: GoogleFonts.plusJakartaSans(
-                          color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold
-                      )),
-                      const SizedBox(height: 4),
-                      Text("ID: #${widget.docId.substring(0, 8).toUpperCase()}",
-                          style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 14)
-                      ),
-                    ]),
-                  ),
+                    const SizedBox(width: 8),
+                  ],
+                ),
 
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-
-                        // --- TOMBOL HUBUNGI ADMIN ---
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: _isLoadingChat ? null : _openChatWithAdmin,
-                            icon: _isLoadingChat
-                                ? const SizedBox(width: 20, height: 20,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                : const Icon(Icons.support_agent_rounded),
-                            label: Text(_isLoadingChat ? "Menghubungkan..." : "Hubungi Admin",
-                                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: theme.primary,
-                              elevation: 1,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              side: BorderSide(color: theme.primary.withOpacity(0.5)),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                          ),
+                body: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // HEADER
+                      Container(
+                        width: double.infinity, padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                            color: statusColor,
+                            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30))
                         ),
-                        const SizedBox(height: 24),
+                        child: Column(children: [
+                          Icon(statusIcon, color: Colors.white, size: 60),
+                          const SizedBox(height: 12),
+                          Text(statusLabel, style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold
+                          )),
+                          const SizedBox(height: 4),
+                          Text("ID: #${widget.docId.substring(0, 8).toUpperCase()}",
+                              style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 14)
+                          ),
+                        ]),
+                      ),
 
-                        // --- WIDGET LIVE TRACKING MAPS DENGAN RUTE ---
-                        if (currentStatus == 'Picked Up' || currentStatus == 'Delivery') ...[
-                          _buildSectionTitle("Live Tracking Kurir", theme),
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
 
-                          StreamBuilder<DocumentSnapshot>(
-                              stream: FirebaseFirestore.instance.collection('bookings')
-                                  .doc(widget.docId).snapshots(),
-                              builder: (context, snapshot) {
+                            // --- TOMBOL HUBUNGI ADMIN ---
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _isLoadingChat ? null : _openChatWithAdmin,
+                                icon: _isLoadingChat
+                                    ? const SizedBox(width: 20, height: 20,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                    : const Icon(Icons.support_agent_rounded),
+                                label: Text(_isLoadingChat ? "Menghubungkan..." : "Hubungi Admin",
+                                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: theme.primary,
+                                  elevation: 1,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  side: BorderSide(color: theme.primary.withOpacity(0.5)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
 
-                                LatLng currentLatLng = const LatLng(-6.974001, 107.630348);
-                                LatLng? customerLatLng;
-                                Set<Marker> markers = {};
+                            // --- WIDGET LIVE TRACKING MAPS DENGAN TOMBOL ---
+                            if (currentStatus == 'Picked Up' || currentStatus == 'Delivery') ...[
+                              _buildSectionTitle("Pelacakan Kurir", theme),
 
-                                if (snapshot.hasData && snapshot.data != null) {
-                                  var docData = snapshot.data!.data() as Map<String, dynamic>?;
-
-                                  // Tarik GPS Kurir
-                                  GeoPoint? driverGeo = docData?['driverLocation'];
-                                  if (driverGeo != null) {
-                                    currentLatLng = LatLng(driverGeo.latitude, driverGeo.longitude);
-                                    _mapController?.animateCamera(
-                                        CameraUpdate.newLatLng(currentLatLng)
-                                    );
-
-                                    // Pasang pin motor kurir
-                                    markers.add(Marker(
-                                      markerId: const MarkerId('kurir_chupatu'),
-                                      position: currentLatLng,
-                                      icon: customIcon,
-                                      infoWindow: const InfoWindow(
-                                          title: 'Kurir Chupatu', snippet: 'Sedang di jalan...'
+                              Builder(
+                                builder: (context) {
+                                  GeoPoint? driverGeo = bookingData['driverLocation'];
+                                  GeoPoint? custGeo = bookingData['customerLocation'];
+                                  
+                                  bool hasDriverLoc = driverGeo != null;
+                                  
+                                  return Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.only(bottom: 24),
+                                    padding: const EdgeInsets.all(20),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          theme.primary.withOpacity(0.05),
+                                          theme.primary.withOpacity(0.1),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
                                       ),
-                                    ));
-                                  }
-
-                                  // Tarik GPS Customer
-                                  GeoPoint? custGeo = docData?['customerLocation'];
-                                  if (custGeo != null) {
-                                    customerLatLng = LatLng(custGeo.latitude, custGeo.longitude);
-
-                                    // Pasang pin Rumah Customer warna biru
-                                    markers.add(Marker(
-                                      markerId: const MarkerId('lokasi_customer'),
-                                      position: customerLatLng,
-                                      icon: BitmapDescriptor.defaultMarkerWithHue(
-                                          BitmapDescriptor.hueAzure
-                                      ),
-                                      infoWindow: const InfoWindow(title: 'Lokasi Tujuan'),
-                                    ));
-                                  }
-
-                                  // Bikin Garis kalau 2 titik ada & garis belum digambar
-                                  if (driverGeo != null && custGeo != null && _polylines.isEmpty) {
-                                    _fetchRoute(currentLatLng, customerLatLng!);
-                                  }
+                                      borderRadius: BorderRadius.circular(24),
+                                      border: Border.all(color: theme.primary.withOpacity(0.2), width: 1.5),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.02),
+                                          blurRadius: 10, offset: const Offset(0, 4),
+                                        )
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: theme.primary.withOpacity(0.1),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Icon(
+                                                Icons.local_shipping_rounded,
+                                                color: theme.primary,
+                                                size: 28,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    currentStatus == 'Picked Up'
+                                                        ? "Kurir Sedang Menjemput"
+                                                        : "Kurir Sedang Mengantar",
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 16,
+                                                      color: theme.textMain,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    hasDriverLoc
+                                                        ? "GPS aktif • Terakhir diperbarui secara live"
+                                                        : "Menunggu kurir mengaktifkan GPS...",
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      color: hasDriverLoc ? Colors.green.shade700 : Colors.grey.shade500,
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 20),
+                                        Text(
+                                          "Anda dapat melacak lokasi kurir secara real-time menggunakan aplikasi Google Maps di HP Anda.\n\n💡 Tips: Jika kurir sedang bergerak, kembali ke aplikasi Chupatu lalu tekan tombol di bawah ini lagi untuk memperbarui posisi terbaru kurir.",
+                                          style: GoogleFonts.plusJakartaSans(
+                                            color: Colors.grey.shade600,
+                                            fontSize: 12,
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton.icon(
+                                            onPressed: !hasDriverLoc
+                                                ? null
+                                                : () {
+                                                    final driverVal = driverGeo;
+                                                    final custVal = custGeo;
+                                                    if (custVal != null) {
+                                                      _openGoogleMapsDirections(
+                                                        driverVal.latitude,
+                                                        driverVal.longitude,
+                                                        custVal.latitude,
+                                                        custVal.longitude,
+                                                      );
+                                                    } else {
+                                                      _openGoogleMapsLocation(
+                                                        driverVal.latitude,
+                                                        driverVal.longitude,
+                                                      );
+                                                    }
+                                                  },
+                                            icon: const Icon(Icons.map_rounded, color: Colors.white),
+                                            label: Text(
+                                              hasDriverLoc ? "Buka Peta Google Maps" : "Menunggu Sinyal GPS...",
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: theme.primary,
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(vertical: 16),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(16),
+                                              ),
+                                              elevation: 2,
+                                              shadowColor: theme.primary.withOpacity(0.3),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
                                 }
+                              ),
+                            ],
+                            // --- AKHIR WIDGET MAPS ---
 
-                                return Container(
-                                  height: 250,
+                            // INFO LAYANAN
+                            _buildSectionTitle("Informasi Layanan", theme),
+                            Container(
+                              padding: const EdgeInsets.all(16), decoration: _cardDecoration(theme),
+                              child: Column(
+                                children: [
+                                  Row(children: [
+                                    Container(
+                                      width: 50, height: 50, padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                          color: serviceConfig['color'].withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(12)
+                                      ),
+                                      child: serviceConfig.containsKey('lottie')
+                                          ? Lottie.asset(serviceConfig['lottie'], fit: BoxFit.contain)
+                                          : Icon(serviceConfig['icon'], color: serviceConfig['color'], size: 26),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                        child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(serviceName, style: GoogleFonts.plusJakartaSans(
+                                                  fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain
+                                              )),
+                                              Text(bookingData['shoeDetail'] ?? 'Detail sepatu',
+                                                  style: GoogleFonts.plusJakartaSans(color: Colors.grey)
+                                              )
+                                            ]
+                                        )
+                                    ),
+                                  ]),
+                                  const Divider(height: 24),
+                                  _buildInfoRow("Kategori", bookingData['category'] ?? '-', theme),
+                                  const SizedBox(height: 8),
+                                  _buildInfoRow("Tanggal Order", dateStr, theme),
+                                  const SizedBox(height: 8),
+                                  _buildInfoRow("Catatan", bookingData['notes'] ?? '-', theme),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+
+                            // 👉 WIDGET: FOTO SEPATU PELANGGAN (JIKA ADA)
+                            if (shoeImageUrl != null && shoeImageUrl.isNotEmpty && !isDone) ...[
+                              _buildSectionTitle("Foto Sepatu (Before)", theme),
+                              GestureDetector(
+                                onTap: () => _showFullScreenImage(shoeImageUrl),
+                                child: Container(
+                                  width: double.infinity,
+                                  height: 180,
                                   margin: const EdgeInsets.only(bottom: 24),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: const Color(0xFFD4AF37), width: 2),
+                                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withOpacity(0.03),
-                                        blurRadius: 10, offset: const Offset(0, 4),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
                                       )
                                     ],
                                   ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(18),
-                                    child: GoogleMap(
-                                      mapType: MapType.normal,
-                                      initialCameraPosition: CameraPosition(
-                                        target: currentLatLng,
-                                        zoom: 16.0,
-                                      ),
-                                      onMapCreated: (GoogleMapController controller) {
-                                        _mapController = controller;
-                                      },
-                                      zoomControlsEnabled: false,
-                                      myLocationButtonEnabled: false,
-                                      scrollGesturesEnabled: false,
-                                      markers: markers,
-                                      polylines: _polylines,
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        Image.network(
+                                          shoeImageUrl,
+                                          fit: BoxFit.cover,
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null) return child;
+                                            return Container(
+                                              color: theme.surface,
+                                              child: const Center(child: CircularProgressIndicator()),
+                                            );
+                                          },
+                                          errorBuilder: (context, error, stackTrace) => Container(
+                                            color: theme.surface,
+                                            child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(Icons.broken_image_rounded, size: 40, color: Colors.grey.shade400),
+                                                const SizedBox(height: 8),
+                                                Text("Gagal memuat foto", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        // Ikon Kaca Pembesar di pojok biar user tau bisa diklik
+                                        Positioned(
+                                          right: 12,
+                                          bottom: 12,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(0.6),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 20),
+                                          ),
+                                        )
+                                      ],
                                     ),
                                   ),
-                                );
-                              }
-                          ),
-                        ],
-                        // --- AKHIR WIDGET MAPS ---
-
-                        // INFO LAYANAN
-                        _buildSectionTitle("Informasi Layanan", theme),
-                        Container(
-                          padding: const EdgeInsets.all(16), decoration: _cardDecoration(theme),
-                          child: Column(
-                            children: [
-                              Row(children: [
-                                Container(
-                                  width: 50, height: 50, padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                      color: serviceConfig['color'].withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12)
-                                  ),
-                                  child: serviceConfig.containsKey('lottie')
-                                      ? Lottie.asset(serviceConfig['lottie'], fit: BoxFit.contain)
-                                      : Icon(serviceConfig['icon'], color: serviceConfig['color'], size: 26),
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                    child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(serviceName, style: GoogleFonts.plusJakartaSans(
-                                              fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain
-                                          )),
-                                          Text(widget.data['shoeDetail'] ?? 'Detail sepatu',
-                                              style: GoogleFonts.plusJakartaSans(color: Colors.grey)
-                                          )
-                                        ]
-                                    )
-                                ),
-                              ]),
-                              const Divider(height: 24),
-                              _buildInfoRow("Kategori", widget.data['category'] ?? '-', theme),
-                              const SizedBox(height: 8),
-                              _buildInfoRow("Tanggal Order", dateStr, theme),
-                              const SizedBox(height: 8),
-                              _buildInfoRow("Catatan", widget.data['notes'] ?? '-', theme),
+                              ),
                             ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
 
-                        // 👉 WIDGET: FOTO SEPATU PELANGGAN (JIKA ADA)
-                        if (shoeImageUrl != null && shoeImageUrl.isNotEmpty && !isDone) ...[
-                          _buildSectionTitle("Foto Sepatu (Before)", theme),
-                          GestureDetector(
-                            onTap: () => _showFullScreenImage(shoeImageUrl),
-                            child: Container(
-                              width: double.infinity,
-                              height: 180,
-                              margin: const EdgeInsets.only(bottom: 24),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  )
+                            // ALAMAT
+                            _buildSectionTitle("Alamat & Jadwal", theme),
+                            Container(
+                              padding: const EdgeInsets.all(16), decoration: _cardDecoration(theme),
+                              child: Column(
+                                children: [
+                                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Icon(Icons.location_on, color: Colors.red.shade400, size: 24),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                        child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text("Alamat Penjemputan", style: GoogleFonts.plusJakartaSans(
+                                                  fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain
+                                              )),
+                                              const SizedBox(height: 4),
+                                              Text(fullAddress, style: GoogleFonts.plusJakartaSans(
+                                                  color: Colors.grey, height: 1.5
+                                              ))
+                                            ]
+                                        )
+                                    ),
+                                  ]),
+                                  const Divider(height: 24),
+                                  _buildInfoRow("Jadwal Jemput", finalPickup, theme),
+                                  const SizedBox(height: 8),
+                                  _buildInfoRow("Pengantaran", finalDelivery, theme),
                                 ],
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(18),
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    Image.network(
-                                      shoeImageUrl,
-                                      fit: BoxFit.cover,
-                                      loadingBuilder: (context, child, loadingProgress) {
-                                        if (loadingProgress == null) return child;
-                                        return Container(
-                                          color: theme.surface,
-                                          child: const Center(child: CircularProgressIndicator()),
-                                        );
-                                      },
-                                      errorBuilder: (context, error, stackTrace) => Container(
-                                        color: theme.surface,
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(Icons.broken_image_rounded, size: 40, color: Colors.grey.shade400),
-                                            const SizedBox(height: 8),
-                                            Text("Gagal memuat foto", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    // Ikon Kaca Pembesar di pojok biar user tau bisa diklik
-                                    Positioned(
-                                      right: 12,
-                                      bottom: 12,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.6),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 20),
-                                      ),
-                                    )
-                                  ],
-                                ),
-                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 24),
 
-                        // ALAMAT
-                        _buildSectionTitle("Alamat & Jadwal", theme),
-                        Container(
-                          padding: const EdgeInsets.all(16), decoration: _cardDecoration(theme),
-                          child: Column(
-                            children: [
-                              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Icon(Icons.location_on, color: Colors.red.shade400, size: 24),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                    child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text("Alamat Penjemputan", style: GoogleFonts.plusJakartaSans(
-                                              fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain
-                                          )),
-                                          const SizedBox(height: 4),
-                                          Text(fullAddress, style: GoogleFonts.plusJakartaSans(
-                                              color: Colors.grey, height: 1.5
-                                          ))
-                                        ]
-                                    )
-                                ),
-                              ]),
-                              const Divider(height: 24),
-                              _buildInfoRow("Jadwal Jemput", finalPickup, theme),
-                              const SizedBox(height: 8),
-                              _buildInfoRow("Pengantaran", finalDelivery, theme),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // PEMBAYARAN
-                        _buildSectionTitle("Rincian Pembayaran", theme),
-                        Container(
-                          padding: const EdgeInsets.all(16), decoration: _cardDecoration(theme),
-                          child: Column(
-                            children: [
-                              _buildPriceRow("Harga Layanan", widget.data['basePrice'] ?? 0, currency, theme),
-                              const SizedBox(height: 8),
-                              _buildPriceRow("Biaya Antar Jemput", widget.data['deliveryFee'] ?? 0, currency, theme),
-                              if ((widget.data['discount'] ?? 0) > 0) ...[
-                                const SizedBox(height: 8),
-                                _buildPriceRow("Diskon", -(widget.data['discount'] as int), currency, theme, isDiscount: true)
-                              ],
-                              const Divider(height: 24),
-                              Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text("Metode Bayar", style: GoogleFonts.plusJakartaSans(
-                                        color: Colors.grey, fontSize: 12
-                                    )),
-                                    Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                            color: theme.primary.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(8)
+                            // PEMBAYARAN
+                            _buildSectionTitle("Rincian Pembayaran", theme),
+                            Container(
+                              padding: const EdgeInsets.all(16), decoration: _cardDecoration(theme),
+                              child: Column(
+                                children: [
+                                  _buildPriceRow("Harga Layanan", bookingData['basePrice'] ?? 0, currency, theme),
+                                  const SizedBox(height: 8),
+                                  _buildPriceRow("Biaya Antar Jemput", bookingData['deliveryFee'] ?? 0, currency, theme),
+                                  if ((bookingData['discount'] ?? 0) > 0) ...[
+                                    const SizedBox(height: 8),
+                                    _buildPriceRow("Diskon", -(bookingData['discount'] as int), currency, theme, isDiscount: true)
+                                  ],
+                                  const Divider(height: 24),
+                                  Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text("Metode Bayar", style: GoogleFonts.plusJakartaSans(
+                                            color: Colors.grey, fontSize: 12
+                                        )),
+                                        Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                                color: theme.primary.withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(8)
+                                            ),
+                                            child: Text(bookingData['paymentMethod'] ?? 'COD',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                    fontWeight: FontWeight.bold, fontSize: 12, color: theme.primary
+                                                )
+                                            )
                                         ),
-                                        child: Text(widget.data['paymentMethod'] ?? 'COD',
+                                      ]
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text("Total Tagihan", style: GoogleFonts.plusJakartaSans(
+                                            fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain
+                                        )),
+                                        Text(currency.format(bookingData['totalPrice'] ?? 0),
                                             style: GoogleFonts.plusJakartaSans(
-                                                fontWeight: FontWeight.bold, fontSize: 12, color: theme.primary
+                                                fontWeight: FontWeight.w900, fontSize: 18, color: Colors.green
                                             )
                                         )
-                                    ),
-                                  ]
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text("Total Tagihan", style: GoogleFonts.plusJakartaSans(
-                                        fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain
-                                    )),
-                                    Text(currency.format(widget.data['totalPrice'] ?? 0),
-                                        style: GoogleFonts.plusJakartaSans(
-                                            fontWeight: FontWeight.w900, fontSize: 18, color: Colors.green
-                                        )
-                                    )
-                                  ]
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // ==========================================================
-                        // PEMANGGILAN WIDGET MAGIC RESULT
-                        // ==========================================================
-                        _buildMagicResultSection(widget.data, theme),
-
-                        const SizedBox(height: 32),
-
-                        // TOMBOL AKSI UTAMA
-                        if (canCancel || isDone)
-                          SizedBox(
-                            width: double.infinity,
-                            child: canCancel
-                                ? OutlinedButton.icon(
-                              onPressed: _cancelOrder,
-                              icon: const Icon(Icons.cancel_outlined, size: 18),
-                              label: Text("Batalkan Pesanan", style: GoogleFonts.plusJakartaSans(
-                                  fontWeight: FontWeight.bold
-                              )),
-                              style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  side: const BorderSide(color: Colors.redAccent),
-                                  foregroundColor: Colors.redAccent,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
-                              ),
-                            )
-                                : ElevatedButton.icon(
-                              onPressed: _isGeneratingPdf ? null : _generateAndDownloadInvoice,
-                              icon: _isGeneratingPdf
-                                  ? const SizedBox(width: 20, height: 20,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                  : const Icon(Icons.picture_as_pdf_rounded, size: 18),
-                              label: Text(_isGeneratingPdf ? "Menyiapkan PDF..." : "Unduh Invoice",
-                                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  backgroundColor: Colors.green.shade600,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  elevation: 0
+                                      ]
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
 
-                        const SizedBox(height: 40),
-                      ],
-                    ),
+                            // ==========================================================
+                            // PEMANGGILAN WIDGET MAGIC RESULT
+                            // ==========================================================
+                            _buildMagicResultSection(bookingData, theme),
+
+                            const SizedBox(height: 32),
+
+                            // TOMBOL AKSI UTAMA
+                            if (canCancel || isDone)
+                              SizedBox(
+                                width: double.infinity,
+                                child: canCancel
+                                    ? OutlinedButton.icon(
+                                  onPressed: _cancelOrder,
+                                  icon: const Icon(Icons.cancel_outlined, size: 18),
+                                  label: Text("Batalkan Pesanan", style: GoogleFonts.plusJakartaSans(
+                                      fontWeight: FontWeight.bold
+                                  )),
+                                  style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      side: const BorderSide(color: Colors.redAccent),
+                                      foregroundColor: Colors.redAccent,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                                  ),
+                                )
+                                    : ElevatedButton.icon(
+                                  onPressed: _isGeneratingPdf ? null : () => _generateAndDownloadInvoice(bookingData),
+                                  icon: _isGeneratingPdf
+                                      ? const SizedBox(width: 20, height: 20,
+                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                      : const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                                  label: Text(_isGeneratingPdf ? "Menyiapkan PDF..." : "Unduh Invoice",
+                                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      backgroundColor: Colors.green.shade600,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      elevation: 0
+                                  ),
+                                ),
+                              ),
+
+                            const SizedBox(height: 40),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          );
-        }
+                ),
+              );
+            }
+        );
+      }
     );
   }
 
