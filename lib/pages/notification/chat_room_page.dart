@@ -138,7 +138,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                         itemCount: docs.length,
                         itemBuilder: (context, index) {
                           var data = docs[index].data() as Map<String, dynamic>;
-                          bool isSenderAdmin = data['isSenderAdmin'] ?? false;
+                          bool isSenderAdmin = false;
+                          var rawSender = data['isSenderAdmin'];
+                          if (rawSender is bool) {
+                            isSenderAdmin = rawSender;
+                          } else if (rawSender is String) {
+                            isSenderAdmin = rawSender.toLowerCase() == 'true';
+                          } else if (rawSender is int) {
+                            isSenderAdmin = rawSender == 1;
+                          }
                           bool isMe = (widget.isAdmin == isSenderAdmin);
                           return _buildChatBubble(data['text'], isMe, data['createdAt'], theme);
                         },

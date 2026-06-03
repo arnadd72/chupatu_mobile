@@ -89,9 +89,12 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             .collection('chats').add({
           'userId': user.uid,
           'userName': user.displayName ?? 'Customer',
+          'adminName': 'Admin Chupatu',
           'lastMessage': 'Halo Admin, saya mau tanya pesanan #${widget.docId.substring(0, 6)}',
           'lastTime': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
+          'unreadAdmin': 1,
+          'unreadUser': 0,
         });
         chatId = newChat.id;
       }

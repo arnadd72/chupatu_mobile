@@ -240,9 +240,12 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
         DocumentReference newChat = await FirebaseFirestore.instance.collection('chats').add({
           'userId': customerId,
           'userName': customerName,
+          'adminName': 'Admin Chupatu',
           'lastMessage': '',
           'lastTime': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
+          'unreadAdmin': 0,
+          'unreadUser': 0,
         });
         chatId = newChat.id;
       }

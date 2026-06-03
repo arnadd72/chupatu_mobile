@@ -82,13 +82,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final fcm = FirebaseMessaging.instance;
 
     NotificationSettings settings = await fcm.requestPermission(
-<<<<<<< HEAD
       alert: true,
       badge: true,
       sound: true,
-=======
-      alert: true, badge: true, sound: true, provisional: false,
->>>>>>> 70b1064a473af2c0721c6686f944efdace9f7326
+      provisional: false,
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||

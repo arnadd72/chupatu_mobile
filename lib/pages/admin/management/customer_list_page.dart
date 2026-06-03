@@ -248,10 +248,12 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
         var newChat = await FirebaseFirestore.instance.collection('chats').add({
           'userId': widget.userId,
           'userName': customerName,
+          'adminName': 'Admin Chupatu',
           'lastMessage': '',
           'lastTime': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
-          'unreadCount': 0,
+          'unreadAdmin': 0,
+          'unreadUser': 0,
         });
         chatDocId = newChat.id;
       }
