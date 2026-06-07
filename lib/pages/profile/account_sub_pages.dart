@@ -134,7 +134,7 @@ class _SecurityPageState extends State<SecurityPage> {
               ),
               if (!isOtpSent)
                 ElevatedButton(
-                  onPressed: isSending ? null : () async {
+                   onPressed: isSending ? null : () async {
                     setModalState(() { isSending = true; localError = null; });
 
                     var rnd = math.Random();
@@ -146,10 +146,29 @@ class _SecurityPageState extends State<SecurityPage> {
                     }
 
                     try {
+                      // Ambil Fonnte token dari Firestore (tidak disimpan di kode)
+                      final configDoc = await FirebaseFirestore.instance
+                          .collection('system_settings')
+                          .doc('config')
+                          .get();
+                      final fonnteToken = configDoc.data()?['fonnteToken'] ?? '';
+
+                      if (fonnteToken.isEmpty) {
+                        debugPrint("=================================");
+                        debugPrint("MODE TESTING - OTP ANDA: $generatedOtp");
+                        debugPrint("=================================");
+                        setModalState(() {
+                          isOtpSent = true;
+                          isSending = false;
+                          localError = "Mode Testing: Token Fonnte belum diatur Admin. Cek terminal VS Code.";
+                        });
+                        return;
+                      }
+
                       final response = await http.post(
                         Uri.parse('https://api.fonnte.com/send'),
                         headers: {
-                          'Authorization': 'Zi3f46rXBWaxt6p9ysvG', // <-- NANTI GANTI TOKEN ASLI BOS DI SINI
+                          'Authorization': fonnteToken,
                         },
                         body: {
                           'target': formattedPhone,

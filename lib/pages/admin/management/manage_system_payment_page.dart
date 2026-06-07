@@ -29,6 +29,10 @@ class _ManageSystemPaymentPageState extends State<ManageSystemPaymentPage> {
   final _mayarApiKeyCtrl = TextEditingController();
   final _mayarWebhookSecretCtrl = TextEditingController();
 
+  // --- STATE FONNTE (WhatsApp OTP) ---
+  bool _obscureFonnteToken = true;
+  final _fonnteTokenCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +61,9 @@ class _ManageSystemPaymentPageState extends State<ManageSystemPaymentPage> {
         _isMayarSandbox = data['isMayarSandbox'] ?? true;
         _mayarApiKeyCtrl.text = data['mayarApiKey'] ?? '';
         _mayarWebhookSecretCtrl.text = data['mayarWebhookSecret'] ?? '';
+
+        // Load Fonnte Data
+        _fonnteTokenCtrl.text = data['fonnteToken'] ?? '';
       }
     } catch (e) {
       debugPrint("Gagal meload konfigurasi: $e");
@@ -82,6 +89,9 @@ class _ManageSystemPaymentPageState extends State<ManageSystemPaymentPage> {
         'isMayarSandbox': _isMayarSandbox,
         'mayarApiKey': _mayarApiKeyCtrl.text.trim(),
         'mayarWebhookSecret': _mayarWebhookSecretCtrl.text.trim(),
+
+        // Simpan Data Fonnte
+        'fonnteToken': _fonnteTokenCtrl.text.trim(),
 
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -113,6 +123,7 @@ class _ManageSystemPaymentPageState extends State<ManageSystemPaymentPage> {
     _freeDeliveryMinOrderCtrl.dispose();
     _mayarApiKeyCtrl.dispose();
     _mayarWebhookSecretCtrl.dispose();
+    _fonnteTokenCtrl.dispose();
     super.dispose();
   }
 
@@ -292,6 +303,41 @@ class _ManageSystemPaymentPageState extends State<ManageSystemPaymentPage> {
                             ),
                           ),
                         ]
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // =======================================================
+                  // PENGATURAN FONNTE (WhatsApp OTP)
+                  // =======================================================
+                  _buildSectionCard(
+                    theme: theme,
+                    title: "WhatsApp OTP (Fonnte.com)",
+                    icon: Icons.chat_rounded,
+                    color: Colors.green,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Token API Fonnte digunakan untuk mengirim kode OTP ke WhatsApp pelanggan. Dapatkan token di fonnte.com/dashboard.",
+                          style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12, height: 1.5),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _fonnteTokenCtrl,
+                          obscureText: _obscureFonnteToken,
+                          style: TextStyle(color: theme.textMain, fontFamily: 'monospace'),
+                          decoration: _inputDecoration(
+                            theme,
+                            "Fonnte API Token",
+                            helperText: "Token dari dashboard Fonnte.com Anda.",
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscureFonnteToken ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                              onPressed: () => setState(() => _obscureFonnteToken = !_obscureFonnteToken),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),

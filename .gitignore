@@ -52,3 +52,6 @@ ios/Runner/GoogleService-Info.plist
 android/key.properties
 **/*.keystore
 **/*.jks
+
+# === FIREBASE CONFIG (Regenerate via: flutterfire configure) ===
+lib/config/firebase_options.dart
