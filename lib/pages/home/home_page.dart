@@ -21,6 +21,7 @@ import 'package:chupatu_mobile/pages/home/garage/garage_page.dart';
 import 'package:chupatu_mobile/pages/order/custom_service_page.dart';
 import 'package:chupatu_mobile/pages/home/review_rating_section.dart';
 import 'package:chupatu_mobile/pages/notification/customer_chat_page.dart';
+import 'package:chupatu_mobile/services/notification_service.dart';
 
 // WIDGET IMPORTS
 import 'package:chupatu_mobile/pages/home/widgets/shoe_tips_widget.dart';
@@ -119,31 +120,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _showStatusUpdatePopup(String docId, Map<String, dynamic> data,
       String serviceName, String newStatus) {
     if (!mounted) return;
-    final theme = ThemeConfig.currentTheme.value;
 
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: "TopNotif",
-      barrierColor: Colors.black.withOpacity(0.1),
-      transitionDuration: const Duration(milliseconds: 400),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return _TopNotificationPopup(
-          docId: docId,
-          data: data,
-          serviceName: serviceName,
-          newStatus: newStatus,
-          theme: theme,
-        );
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        return SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero)
-              .animate(CurvedAnimation(
-                  parent: animation, curve: Curves.easeOutCubic)),
-          child: child,
-        );
-      },
+    NotificationService().showNotification(
+      id: docId.hashCode,
+      title: "Update Pesanan: $serviceName",
+      body: "Status pesanan Anda telah diperbarui menjadi: ${newStatus.toUpperCase()}",
     );
   }
 

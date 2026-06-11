@@ -11,6 +11,7 @@ import 'package:chupatu_mobile/config/firebase_options.dart';
 import 'package:chupatu_mobile/pages/auth/landing_page.dart';
 import 'package:chupatu_mobile/pages/main_page.dart';
 import 'package:chupatu_mobile/pages/admin/dashboard/admin_home_page.dart';
+import 'package:chupatu_mobile/services/notification_service.dart'; // Import NotificationService
 
 // ============================================================
 // KONFIGURASI BAHASA (LANGUAGE CONFIG)
@@ -84,16 +85,6 @@ class ThemeConfig {
 // 2. MAIN FUNCTION, BACKGROUND HANDLER & LOCAL NOTIFICATIONS
 // ============================================================
 
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();
-
-const AndroidNotificationChannel channel = AndroidNotificationChannel(
-  'chupatu_status_channel', // id
-  'Pembaruan Status Pesanan', // title
-  description: 'Menerima notifikasi perubahan status pesanan sepatu Anda.', // description
-  importance: Importance.max,
-);
-
 // --- TAMBAHAN: PENJAGA NOTIF SAAT APLIKASI DITUTUP ---
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -112,26 +103,9 @@ void main() async {
   // --- TAMBAHAN: Daftarin penjaga notif background ---
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // --- TAMBAHAN: Inisialisasi Local Notifications ---
-  const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-
-  const InitializationSettings initializationSettings = InitializationSettings(
-    android: initializationSettingsAndroid,
-  );
-
-  await flutterLocalNotificationsPlugin.initialize(
-    initializationSettings,
-    onDidReceiveNotificationResponse: (NotificationResponse response) {
-      debugPrint("Notifikasi diklik: ${response.payload}");
-    },
-  );
-
-  // Buat channel notifikasi khusus Android
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(channel);
+  // --- TAMBAHAN: Inisialisasi Notification Service ---
+  final notificationService = NotificationService();
+  await notificationService.init();
 
   // Atur opsi presentasi notifikasi saat aplikasi di foreground
   await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
@@ -146,22 +120,10 @@ void main() async {
     AndroidNotification? android = message.notification?.android;
 
     if (notification != null && android != null) {
-      flutterLocalNotificationsPlugin.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            channel.id,
-            channel.name,
-            channelDescription: channel.description,
-            icon: '@mipmap/ic_launcher',
-            importance: Importance.max,
-            priority: Priority.high,
-            playSound: true,
-          ),
-        ),
-        payload: message.data.toString(),
+      notificationService.showNotification(
+        id: notification.hashCode,
+        title: notification.title ?? 'Notifikasi Baru',
+        body: notification.body ?? '',
       );
     }
   });
