@@ -105,9 +105,13 @@ class _CustomServicePageState extends State<CustomServicePage> {
             iconTheme: IconThemeData(color: theme.textMain),
           ),
           body: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- WIDGET REKOMENDASI AI ---
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // --- WIDGET REKOMENDASI AI ---
               if (widget.aiRecommendation != null)
                 Container(
                   width: double.infinity,
@@ -170,8 +174,7 @@ class _CustomServicePageState extends State<CustomServicePage> {
                 ),
               ),
 
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
+              StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('services')
                       .orderBy('createdAt', descending: true)
@@ -187,6 +190,8 @@ class _CustomServicePageState extends State<CustomServicePage> {
                     var docs = snapshot.data!.docs;
 
                     return ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 10,
@@ -278,9 +283,13 @@ class _CustomServicePageState extends State<CustomServicePage> {
                   },
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
 
-              // BOTTOM BAR
-              Container(
+      // BOTTOM BAR
+      Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: theme.surface,
