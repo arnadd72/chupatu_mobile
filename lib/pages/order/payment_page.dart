@@ -350,10 +350,16 @@ class _PaymentPageState extends State<PaymentPage> {
 
       // Update jumlah pemakaian dan user yang memakai promo code di Firestore
       if (_appliedPromoId != null) {
-        await FirebaseFirestore.instance.collection('promo_codes').doc(_appliedPromoId).update({
-          'currentUsage': FieldValue.increment(1),
-          'usedBy': FieldValue.arrayUnion([user?.uid ?? '']),
-        });
+        try {
+          await FirebaseFirestore.instance.collection('promo_codes').doc(_appliedPromoId).update({
+            'currentUsage': FieldValue.increment(1),
+            'usedBy': FieldValue.arrayUnion([user?.uid ?? '']),
+          });
+        } catch (promoError) {
+          // Abaikan jika terjadi error permission pada Firebase rules promo_codes
+          // agar proses pesanan tetap bisa dilanjutkan.
+          debugPrint("Gagal update promo usage: $promoError");
+        }
       }
 
       // 2. Cek apakah bayar pakai Mayar atau COD

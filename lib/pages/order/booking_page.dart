@@ -329,7 +329,14 @@ class _BookingPageState extends State<BookingPage> {
   }
 
   Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
+    // OPTIMASI: Batasi resolusi maksimal gambar agar ukurannya sangat kecil 
+    // (di bawah 500kb) sehingga proses upload ke server jauh lebih cepat.
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery, 
+      imageQuality: 50,
+      maxWidth: 800,
+      maxHeight: 800,
+    );
     if (image != null) setState(() => _selectedImage = File(image.path));
   }
 
