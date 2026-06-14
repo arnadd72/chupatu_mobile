@@ -170,9 +170,9 @@ class InvoicePdfHelper {
 
     // Tampilkan Dialog Print / Save PDF bawaan HP
     final bytes = await pdf.save();
-    await Printing.sharePdf(
-        bytes: bytes,
-        filename: 'Invoice_Chupatu_${docId.substring(0,6)}.pdf'
+    await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => bytes,
+        name: 'Invoice_Chupatu_${docId.substring(0,6)}.pdf'
     );
   }
 

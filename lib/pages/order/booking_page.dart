@@ -329,15 +329,55 @@ class _BookingPageState extends State<BookingPage> {
   }
 
   Future<void> _pickImage() async {
-    // OPTIMASI: Batasi resolusi maksimal gambar agar ukurannya sangat kecil 
-    // (di bawah 500kb) sehingga proses upload ke server jauh lebih cepat.
-    final XFile? image = await _picker.pickImage(
-      source: ImageSource.gallery, 
-      imageQuality: 50,
-      maxWidth: 800,
-      maxHeight: 800,
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ThemeConfig.currentTheme.value.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        final theme = ThemeConfig.currentTheme.value;
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(top: 16, bottom: 8, left: 16),
+                child: Text("Pilih Sumber Foto", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textMain)),
+              ),
+              ListTile(
+                leading: Icon(Icons.photo_library, color: theme.primary),
+                title: Text('Galeri', style: GoogleFonts.plusJakartaSans(color: theme.textMain)),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final XFile? image = await _picker.pickImage(
+                    source: ImageSource.gallery,
+                    imageQuality: 50,
+                    maxWidth: 800,
+                    maxHeight: 800,
+                  );
+                  if (image != null) setState(() => _selectedImage = File(image.path));
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.photo_camera, color: theme.primary),
+                title: Text('Kamera', style: GoogleFonts.plusJakartaSans(color: theme.textMain)),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final XFile? image = await _picker.pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 50,
+                    maxWidth: 800,
+                    maxHeight: 800,
+                  );
+                  if (image != null) setState(() => _selectedImage = File(image.path));
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
-    if (image != null) setState(() => _selectedImage = File(image.path));
   }
 
   Future<void> _openMapPicker() async {
