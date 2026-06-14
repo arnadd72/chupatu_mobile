@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,16 +7,25 @@ import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/booking_page.dart';
 
 class CustomServicePage extends StatefulWidget {
-  // 1. Parameter untuk saran AI
   final String? aiRecommendation;
-
-  // 2. PARAMETER BARU UNTUK TRANSIT DATA SEPATU DARI GARASI
   final Map<String, dynamic>? selectedShoe;
+
+  // Data dari AI Scanner
+  final File? aiImageFile;
+  final String? aiImageUrl;
+  final String? aiShoeBrand;
+  final String? aiShoeType;
+  final String? aiCondition;
 
   const CustomServicePage({
     super.key,
     this.aiRecommendation,
-    this.selectedShoe, // Tangkap di sini
+    this.selectedShoe,
+    this.aiImageFile,
+    this.aiImageUrl,
+    this.aiShoeBrand,
+    this.aiShoeType,
+    this.aiCondition,
   });
 
   @override
@@ -64,8 +74,12 @@ class _CustomServicePageState extends State<CustomServicePage> {
         builder: (context) => BookingPage(
           serviceName: "Custom: $combinedNames",
           basePrice: _totalPrice,
-          // 3. LEMPAR DATA SEPATU KE BOOKING PAGE
           selectedShoe: widget.selectedShoe,
+          aiImageFile: widget.aiImageFile,
+          aiImageUrl: widget.aiImageUrl,
+          aiShoeBrand: widget.aiShoeBrand,
+          aiShoeType: widget.aiShoeType,
+          aiCondition: widget.aiCondition,
         ),
       ),
     );

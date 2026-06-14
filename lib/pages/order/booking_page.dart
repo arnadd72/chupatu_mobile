@@ -28,11 +28,23 @@ class BookingPage extends StatefulWidget {
   final int basePrice;
   final Map<String, dynamic>? selectedShoe;
 
+  // Data dari AI Scanner
+  final File? aiImageFile;
+  final String? aiImageUrl;
+  final String? aiShoeBrand;
+  final String? aiShoeType;
+  final String? aiCondition;
+
   const BookingPage({
     super.key,
     required this.serviceName,
     required this.basePrice,
     this.selectedShoe,
+    this.aiImageFile,
+    this.aiImageUrl,
+    this.aiShoeBrand,
+    this.aiShoeType,
+    this.aiCondition,
   });
 
   @override
@@ -78,12 +90,25 @@ class _BookingPageState extends State<BookingPage> {
       if (widget.selectedShoe!['note'] != null) {
         _noteController.text = widget.selectedShoe!['note'];
       }
+    } else if (widget.aiShoeBrand != null || widget.aiShoeType != null) {
+      String brand = widget.aiShoeBrand ?? '';
+      String type = widget.aiShoeType ?? '';
+      _shoeDetailController.text = "$brand - $type";
+      _noteController.text = widget.aiCondition ?? '';
+      if (widget.aiImageFile != null) {
+        _selectedImage = widget.aiImageFile;
+      }
     }
   }
 
   Future<String?> _uploadFotoKeLaravel() async {
     if (widget.selectedShoe != null && widget.selectedShoe!['image'] != null) {
       return widget.selectedShoe!['image'];
+    }
+
+    // Jika user memakai foto dari AI dan tidak menggantinya, pakai URL yang sudah ada
+    if (widget.aiImageUrl != null && _selectedImage?.path == widget.aiImageFile?.path) {
+      return widget.aiImageUrl;
     }
 
     if (_selectedImage == null) return null;

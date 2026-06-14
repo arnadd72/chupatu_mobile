@@ -106,6 +106,7 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
   String _aiTips = "-";
   List<String> _recommendedServices = [];
   bool _hasResult = false;
+  String? _uploadedImageUrl;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -149,6 +150,7 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
         var resData = await responseUpload.stream.bytesToString();
         var jsonRes = json.decode(resData);
         String urlFoto = jsonRes['url'];
+        _uploadedImageUrl = urlFoto;
 
         final responseGemini = await http.post(
           Uri.parse(GeminiApiConfig.geminiUrl),
@@ -446,6 +448,11 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
                                 MaterialPageRoute(
                                   builder: (context) => CustomServicePage(
                                     aiRecommendation: _aiTips,
+                                    aiImageFile: _selectedImage,
+                                    aiImageUrl: _uploadedImageUrl,
+                                    aiShoeBrand: _shoeBrand,
+                                    aiShoeType: _shoeType,
+                                    aiCondition: _condition,
                                   ),
                                 ),
                               );
