@@ -183,10 +183,11 @@ class _LiveTrackingPageState extends State<LiveTrackingPage> {
                                 shape: BoxShape.circle,
                                 boxShadow: [BoxShadow(blurRadius: 5, color: Colors.black26)]
                              ),
-                             child: const Icon(
-                               Icons.motorcycle_rounded,
-                               color: goldColor,
-                               size: 30,
+                             child: Image.asset(
+                               'assets/images/motor_kurir.png',
+                               width: 40,
+                               height: 40,
+                               fit: BoxFit.contain,
                              ),
                           ),
                         ),
