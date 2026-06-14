@@ -2,10 +2,11 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class InvoicePdfHelper {
-  static Future<void> generateInvoice(String docId, Map<String, dynamic> data) async {
+  static Future<Uint8List> _generateInvoiceBytes(String docId, Map<String, dynamic> data) async {
     final pdf = pw.Document();
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
@@ -168,11 +169,22 @@ class InvoicePdfHelper {
       ),
     );
 
-    // Tampilkan Dialog Print / Save PDF bawaan HP
-    final bytes = await pdf.save();
+    return await pdf.save();
+  }
+
+  static Future<void> downloadInvoice(String docId, Map<String, dynamic> data) async {
+    final bytes = await _generateInvoiceBytes(docId, data);
     await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => bytes,
         name: 'Invoice_Chupatu_${docId.substring(0,6)}.pdf'
+    );
+  }
+
+  static Future<void> shareInvoice(String docId, Map<String, dynamic> data) async {
+    final bytes = await _generateInvoiceBytes(docId, data);
+    await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'Invoice_Chupatu_${docId.substring(0,6)}.pdf'
     );
   }
 

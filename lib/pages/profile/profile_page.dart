@@ -704,6 +704,25 @@ class _ProfilePageState extends State<ProfilePage> {
                   String birthdate = userData['birthdate'] ?? "";
                   bool isPro = (userData['memberType'] == 'Pro');
 
+                  // Hitung sisa hari masa aktif Pro
+                  DateTime? proValidUntil;
+                  int proRemainingDays = 0;
+                  String proExpiredLabel = '';
+                  if (isPro && userData['proValidUntil'] != null) {
+                    try {
+                      final raw = userData['proValidUntil'];
+                      if (raw is Timestamp) {
+                        proValidUntil = raw.toDate();
+                      } else {
+                        proValidUntil = DateTime.tryParse(raw.toString());
+                      }
+                      if (proValidUntil != null) {
+                        proRemainingDays = proValidUntil.difference(DateTime.now()).inDays;
+                        proExpiredLabel = DateFormat('dd MMM yyyy').format(proValidUntil);
+                      }
+                    } catch (_) {}
+                  }
+
                   List<dynamic> addressList = userData['addresses'] ?? [];
                   String displayAddress = "Atur Alamat";
                   if (addressList.isNotEmpty) {
@@ -811,9 +830,20 @@ class _ProfilePageState extends State<ProfilePage> {
                                           style: GoogleFonts.plusJakartaSans(
                                               color: isPro ? Colors.white : theme.textMain,
                                               fontWeight: FontWeight.w800, fontSize: 16)),
-                                      Text(isPro ? "Status aktif selamanya" : "Ketuk untuk info selengkapnya",
+                                      Text(
+                                          isPro
+                                              ? (proRemainingDays > 0
+                                                  ? "Aktif • Berakhir $proExpiredLabel (sisa $proRemainingDays hari)"
+                                                  : proRemainingDays == 0
+                                                      ? "Aktif • Berakhir hari ini!"
+                                                      : "Masa aktif telah berakhir")
+                                              : "Ketuk untuk info selengkapnya",
                                           style: GoogleFonts.plusJakartaSans(
-                                              color: isPro ? Colors.white70 : Colors.grey, fontSize: 12)),
+                                              color: isPro
+                                                  ? (proRemainingDays <= 3 ? Colors.red.shade200 : Colors.white70)
+                                                  : Colors.grey,
+                                              fontSize: 11),
+                                        ),
                                     ],
                                   ),
                                 ),

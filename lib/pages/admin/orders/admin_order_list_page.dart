@@ -13,7 +13,26 @@ class AdminOrderListPage extends StatefulWidget {
 }
 
 class _AdminOrderListPageState extends State<AdminOrderListPage> {
-  String _selectedFilter = 'Semua';
+  String _selectedStatusFilter = 'Semua Status';
+  String _selectedMemberFilter = 'Semua Member';
+
+  final List<String> _statusFilters = [
+    'Semua Status',
+    'Pending',
+    'Confirmed',
+    'Picked Up',
+    'Processing',
+    'Ready',
+    'Delivery',
+    'Done',
+    'Cancelled'
+  ];
+
+  final List<String> _memberFilters = [
+    'Semua Member',
+    'Member Pro',
+    'Member Reguler'
+  ];
 
   Color _getStatusColor(String status) {
     switch (status) {
@@ -45,18 +64,31 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                     Text("Daftar Pesanan", style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.bold, color: theme.textMain)),
                     const SizedBox(height: 16),
 
-                    // FILTER HORIZONTAL
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildFilterChip('Semua', theme),
-                          _buildFilterChip('Pending', theme),
-                          _buildFilterChip('Proses', theme),
-                          _buildFilterChip('Selesai', theme),
-                          _buildFilterChip('Batal', theme),
-                        ],
-                      ),
+                    // FILTER ROW DROPDOWNS
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildDropdown(
+                            value: _selectedStatusFilter,
+                            items: _statusFilters,
+                            onChanged: (val) {
+                              if (val != null) setState(() => _selectedStatusFilter = val);
+                            },
+                            theme: theme,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildDropdown(
+                            value: _selectedMemberFilter,
+                            items: _memberFilters,
+                            onChanged: (val) {
+                              if (val != null) setState(() => _selectedMemberFilter = val);
+                            },
+                            theme: theme,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -78,14 +110,35 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                     var docs = snapshot.data!.docs.where((doc) {
                       var data = doc.data() as Map<String, dynamic>;
                       String status = data['status'] ?? 'Pending';
+                      bool isPro = data['isProMemberUsed'] == true;
 
-                      if (_selectedFilter == 'Semua') return true;
-                      if (_selectedFilter == 'Pending') return status == 'Pending' || status == 'Confirmed';
-                      if (_selectedFilter == 'Proses') return ['Picked Up', 'Processing', 'Ready', 'Delivery'].contains(status);
-                      if (_selectedFilter == 'Selesai') return status == 'Done';
-                      if (_selectedFilter == 'Batal') return status == 'Cancelled';
-                      return true;
+                      // Cek Filter Status
+                      bool matchStatus = true;
+                      if (_selectedStatusFilter != 'Semua Status') {
+                        matchStatus = status == _selectedStatusFilter;
+                      }
+
+                      // Cek Filter Member
+                      bool matchMember = true;
+                      if (_selectedMemberFilter == 'Member Pro') {
+                        matchMember = isPro;
+                      } else if (_selectedMemberFilter == 'Member Reguler') {
+                        matchMember = !isPro;
+                      }
+
+                      return matchStatus && matchMember;
                     }).toList();
+
+                    // MENGURUTKAN: Member PRO di posisi teratas
+                    docs.sort((a, b) {
+                      bool isProA = (a.data() as Map<String, dynamic>)['isProMemberUsed'] ?? false;
+                      bool isProB = (b.data() as Map<String, dynamic>)['isProMemberUsed'] ?? false;
+                      
+                      if (isProA && !isProB) return -1;
+                      if (!isProA && isProB) return 1;
+                      // Jika sama-sama Pro atau Reguler, biarkan berdasarkan tanggal (sudah diurutkan Firestore)
+                      return 0;
+                    });
 
                     if (docs.isEmpty) {
                       return Center(child: Text("Tidak ada pesanan di kategori ini", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
@@ -108,28 +161,38 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
     );
   }
 
-  // WIDGET TOMBOL FILTER
-  Widget _buildFilterChip(String label, AppThemeData theme) {
-    bool isSelected = _selectedFilter == label;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = label),
-      child: Container(
-        margin: const EdgeInsets.only(right: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          // PERUBAHAN: Warna background menyesuaikan tema
-          color: isSelected ? theme.primary : theme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? theme.primary : Colors.grey.withOpacity(0.3)),
-        ),
-        child: Text(
-          label,
+  // WIDGET DROPDOWN FILTER
+  Widget _buildDropdown({
+    required String value,
+    required List<String> items,
+    required Function(String?) onChanged,
+    required AppThemeData theme,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          dropdownColor: theme.surface,
           style: GoogleFonts.plusJakartaSans(
-            // PERUBAHAN: Warna teks menyesuaikan tema
-              color: isSelected ? Colors.white : theme.textMain,
-              fontWeight: FontWeight.bold,
-              fontSize: 12
+            color: theme.textMain,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
           ),
+          onChanged: onChanged,
+          items: items.map((String item) {
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(item, maxLines: 1, overflow: TextOverflow.ellipsis),
+            );
+          }).toList(),
         ),
       ),
     );
@@ -186,7 +249,28 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(data['customerName'] ?? 'Customer', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+                    Row(
+                      children: [
+                        Text(data['customerName'] ?? 'Customer', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+                        if (data['isProMemberUsed'] == true) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: [Colors.amber.shade400, Colors.orange.shade400]),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 12),
+                                const SizedBox(width: 4),
+                                Text("PRO", style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                              ],
+                            ),
+                          )
+                        ],
+                      ],
+                    ),
                     const SizedBox(height: 8),
 
                     // BADGE STATUS

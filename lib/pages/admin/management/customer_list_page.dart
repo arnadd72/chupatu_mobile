@@ -30,6 +30,9 @@ class _CustomerListPageState extends State<CustomerListPage> {
     'Belanja Terbesar',
   ];
 
+  String _memberTypeFilter = 'Semua';
+  final List<String> _memberTypeOptions = ['Semua', 'Pro', 'Regular'];
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AppThemeData>(
@@ -67,30 +70,58 @@ class _CustomerListPageState extends State<CustomerListPage> {
                       const SizedBox(height: 12),
 
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text("Urutkan:", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                              borderRadius: BorderRadius.circular(8),
-                              color: theme.background,
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                                borderRadius: BorderRadius.circular(8),
+                                color: theme.background,
+                              ),
+                              child: DropdownButton<String>(
+                                value: _memberTypeFilter,
+                                isExpanded: true,
+                                dropdownColor: theme.surface,
+                                underline: const SizedBox(),
+                                icon: Icon(Icons.workspace_premium_rounded, size: 20, color: Colors.amber),
+                                items: _memberTypeOptions.map((String value) {
+                                  return DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(value == 'Pro' ? '⭐ PRO' : value, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: theme.textMain, fontWeight: value == 'Pro' ? FontWeight.bold : FontWeight.normal)),
+                                  );
+                                }).toList(),
+                                onChanged: (newValue) {
+                                  if (newValue != null) setState(() => _memberTypeFilter = newValue);
+                                },
+                              ),
                             ),
-                            child: DropdownButton<String>(
-                              value: _sortOption,
-                              dropdownColor: theme.surface,
-                              underline: const SizedBox(),
-                              icon: Icon(Icons.sort, size: 20, color: theme.textMain),
-                              items: _sortOptions.map((String value) {
-                                return DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: theme.textMain)),
-                                );
-                              }).toList(),
-                              onChanged: (newValue) {
-                                if (newValue != null) setState(() => _sortOption = newValue);
-                              },
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                                borderRadius: BorderRadius.circular(8),
+                                color: theme.background,
+                              ),
+                              child: DropdownButton<String>(
+                                value: _sortOption,
+                                isExpanded: true,
+                                dropdownColor: theme.surface,
+                                underline: const SizedBox(),
+                                icon: Icon(Icons.sort, size: 20, color: theme.textMain),
+                                items: _sortOptions.map((String value) {
+                                  return DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: theme.textMain)),
+                                  );
+                                }).toList(),
+                                onChanged: (newValue) {
+                                  if (newValue != null) setState(() => _sortOption = newValue);
+                                },
+                              ),
                             ),
                           ),
                         ],
@@ -116,7 +147,14 @@ class _CustomerListPageState extends State<CustomerListPage> {
                         // SMART FALLBACK UNTUK NAMA DI LIST
                         String name = (data['displayName'] ?? data['name'] ?? data['fullName'] ?? '').toLowerCase();
                         String id = doc.id.toLowerCase();
-                        return name.contains(_searchQuery) || id.contains(_searchQuery);
+                        String mType = data['memberType'] ?? 'Regular Member';
+                        
+                        bool matchSearch = name.contains(_searchQuery) || id.contains(_searchQuery);
+                        bool matchType = true;
+                        if (_memberTypeFilter == 'Pro') matchType = (mType == 'Pro');
+                        if (_memberTypeFilter == 'Regular') matchType = (mType != 'Pro');
+                        
+                        return matchSearch && matchType;
                       }).toList();
 
                       filteredDocs.sort((a, b) {
@@ -298,6 +336,126 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
     );
   }
 
+  // ── KELOLA MEMBERSHIP PRO ──
+  Future<void> _manageMembership(bool isPro) async {
+    final theme = ThemeConfig.currentTheme.value;
+    int? daysToAdd;
+
+    if (!isPro) {
+      // Upgrade ke Pro: pilih durasi
+      daysToAdd = await showDialog<int>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: theme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text("Upgrade ke Member PRO", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("Pilih durasi berlangganan:", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 13)),
+              const SizedBox(height: 16),
+              ...[
+                {"label": "30 Hari (1 Bulan)", "days": 30},
+                {"label": "60 Hari (2 Bulan)", "days": 60},
+                {"label": "90 Hari (3 Bulan)", "days": 90},
+                {"label": "365 Hari (1 Tahun)", "days": 365},
+              ].map((opt) => ListTile(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                leading: const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFDB931)),
+                title: Text(opt["label"] as String, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: theme.textMain)),
+                onTap: () => Navigator.pop(ctx, opt["days"] as int),
+              )),
+            ],
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal"))],
+        ),
+      );
+      if (daysToAdd == null || !mounted) return;
+      final validUntil = DateTime.now().add(Duration(days: daysToAdd));
+      await FirebaseFirestore.instance.collection('users').doc(widget.userId).update({
+        'memberType': 'Pro',
+        'proStartedAt': FieldValue.serverTimestamp(),
+        'proValidUntil': Timestamp.fromDate(validUntil),
+      });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Berhasil diupgrade ke PRO selama $daysToAdd hari!"), backgroundColor: const Color(0xFFFDB931)));
+    } else {
+      // Sudah Pro: opsi Perpanjang atau Hentikan
+      final action = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: theme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text("Kelola Membership PRO", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                leading: const Icon(Icons.add_circle_outline, color: Colors.green),
+                title: Text("Perpanjang Masa Aktif", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: theme.textMain)),
+                subtitle: Text("Tambah durasi dari tanggal berakhir saat ini", style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey)),
+                onTap: () => Navigator.pop(ctx, 'extend'),
+              ),
+              const Divider(height: 4),
+              ListTile(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                leading: const Icon(Icons.cancel_outlined, color: Colors.red),
+                title: Text("Hentikan Membership PRO", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: Colors.red)),
+                subtitle: Text("Kembalikan ke member Regular", style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey)),
+                onTap: () => Navigator.pop(ctx, 'downgrade'),
+              ),
+            ],
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal"))],
+        ),
+      );
+      if (action == null || !mounted) return;
+
+      if (action == 'downgrade') {
+        await FirebaseFirestore.instance.collection('users').doc(widget.userId).update({'memberType': 'Regular'});
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Membership PRO dihentikan."), backgroundColor: Colors.orange));
+      } else if (action == 'extend') {
+        daysToAdd = await showDialog<int>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: theme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text("Perpanjang Berapa Hari?", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ...[
+                  {"label": "+30 Hari (1 Bulan)", "days": 30},
+                  {"label": "+60 Hari (2 Bulan)", "days": 60},
+                  {"label": "+90 Hari (3 Bulan)", "days": 90},
+                ].map((opt) => ListTile(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  leading: const Icon(Icons.add, color: Colors.green),
+                  title: Text(opt["label"] as String, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: theme.textMain)),
+                  onTap: () => Navigator.pop(ctx, opt["days"] as int),
+                )),
+              ],
+            ),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal"))],
+          ),
+        );
+        if (daysToAdd == null || !mounted) return;
+        // Perpanjang dari tanggal kadaluarsa saat ini
+        final currentDoc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
+        final currentData = currentDoc.data() as Map<String, dynamic>;
+        DateTime baseDate = DateTime.now();
+        if (currentData['proValidUntil'] != null) {
+          try { baseDate = (currentData['proValidUntil'] as Timestamp).toDate(); } catch (_) {}
+        }
+        final newValidUntil = baseDate.add(Duration(days: daysToAdd));
+        await FirebaseFirestore.instance.collection('users').doc(widget.userId).update({
+          'proValidUntil': Timestamp.fromDate(newValidUntil),
+        });
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Masa aktif diperpanjang +$daysToAdd hari!"), backgroundColor: Colors.green));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
@@ -451,6 +609,98 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
                             theme: theme,
                             onTap: () => _toggleBanStatus(isBanned),
                           ),
+                          const SizedBox(height: 12),
+
+                          // ── MANAJEMEN MEMBERSHIP PRO ──
+                          (() {
+                            // Parse proValidUntil
+                            DateTime? proValidUntil;
+                            int proRemainingDays = 0;
+                            String proExpiredLabel = '-';
+                            bool isPro = memberType == 'Pro';
+                            if (isPro && liveData['proValidUntil'] != null) {
+                              try {
+                                final raw = liveData['proValidUntil'];
+                                proValidUntil = raw is Timestamp ? raw.toDate() : DateTime.tryParse(raw.toString());
+                                if (proValidUntil != null) {
+                                  proRemainingDays = proValidUntil.difference(DateTime.now()).inDays;
+                                  proExpiredLabel = DateFormat('dd MMM yyyy').format(proValidUntil);
+                                }
+                              } catch (_) {}
+                            }
+
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: isPro
+                                    ? const LinearGradient(colors: [Color(0xFFFDB931), Color(0xFFECAA05)])
+                                    : null,
+                                color: isPro ? null : theme.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: isPro ? Colors.transparent : Colors.grey.withOpacity(0.2)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.workspace_premium_rounded, color: isPro ? Colors.white : Colors.grey, size: 20),
+                                      const SizedBox(width: 8),
+                                      Text("Membership PRO", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14, color: isPro ? Colors.white : theme.textMain)),
+                                      const Spacer(),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: isPro ? Colors.white.withOpacity(0.2) : Colors.grey.withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Text(isPro ? "AKTIF" : "TIDAK AKTIF",
+                                            style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: isPro ? Colors.white : Colors.grey)),
+                                      ),
+                                    ],
+                                  ),
+                                  if (isPro && proValidUntil != null) ...[
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.timer_outlined, color: Colors.white70, size: 14),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          proRemainingDays > 0
+                                              ? "Berakhir $proExpiredLabel  •  $proRemainingDays hari lagi"
+                                              : proRemainingDays == 0 ? "Berakhir hari ini!" : "Sudah kadaluarsa",
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 11,
+                                            color: proRemainingDays <= 3 ? Colors.red.shade200 : Colors.white70,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () => _manageMembership(isPro),
+                                      icon: Icon(isPro ? Icons.manage_accounts : Icons.workspace_premium_rounded, size: 16),
+                                      label: Text(
+                                        isPro ? "Kelola / Hentikan PRO" : "Upgrade ke Member PRO",
+                                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: isPro ? Colors.white : const Color(0xFFFDB931),
+                                        foregroundColor: isPro ? const Color(0xFFECAA05) : Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        elevation: 0,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }()),
                           const SizedBox(height: 30),
 
                           // --- INFO PRIBADI (DENGAN SMART FALLBACK) ---

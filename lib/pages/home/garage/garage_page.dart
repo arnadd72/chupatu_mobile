@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:chupatu_mobile/pages/order/booking_page.dart';
 import 'package:chupatu_mobile/pages/home/garage/shoe_detail_page.dart';
 import 'package:chupatu_mobile/pages/order/custom_service_page.dart';
+import 'package:lottie/lottie.dart';
 
 class ApiConfig {
   static const String baseUrl = 'https://malik-pseudomonocyclic-misti.ngrok-free.dev/api';
@@ -271,14 +272,26 @@ class _GaragePageState extends State<GaragePage> {
                       String name = s['name'] ?? 'Layanan';
                       String price = s['price'] != null ? s['price'].toString() : 'Rp -';
                       String nameLower = name.toLowerCase();
-                      IconData icon = Icons.cleaning_services_rounded; Color color = theme.primary;
+                      String imageUrl = s['imageUrl'] ?? '';
+                      Color color = theme.primary;
 
-                      if (nameLower.contains('deep')) { icon = Icons.water_drop_rounded; color = Colors.blue; }
-                      else if (nameLower.contains('fast')) { icon = Icons.timer_rounded; color = Colors.orange; }
-                      else if (nameLower.contains('yellow')) { icon = Icons.wb_sunny_rounded; color = Colors.amber; }
-                      else if (nameLower.contains('repair')) { icon = Icons.build_rounded; color = Colors.grey; }
-                      else if (nameLower.contains('repaint')) { icon = Icons.format_paint_rounded; color = Colors.purple; }
-                      else if (nameLower.contains('water')) { icon = Icons.umbrella_rounded; color = Colors.teal; }
+                      String? lottiePath;
+                      if (nameLower.contains('deep')) { lottiePath = 'assets/lottie/water_drop.json'; color = Colors.blue; }
+                      else if (nameLower.contains('fast')) { lottiePath = 'assets/lottie/Stopwatch.json'; color = Colors.orange; }
+                      else if (nameLower.contains('yellow')) { lottiePath = 'assets/lottie/sparkle.json'; color = Colors.amber; }
+                      else if (nameLower.contains('repair')) { lottiePath = 'assets/lottie/wrench.json'; color = Colors.grey; }
+                      else if (nameLower.contains('repaint')) { lottiePath = 'assets/lottie/paint.json'; color = Colors.purple; }
+                      else if (nameLower.contains('water')) { lottiePath = 'assets/lottie/umbrella.json'; color = Colors.teal; }
+                      else if (nameLower.contains('custom')) { lottiePath = 'assets/lottie/pencil.json'; color = Colors.pink; }
+
+                      Widget serviceIconWidget;
+                      if (lottiePath != null) {
+                        serviceIconWidget = SizedBox(height: 35, width: 35, child: Lottie.asset(lottiePath, fit: BoxFit.contain));
+                      } else if (imageUrl.isNotEmpty) {
+                        serviceIconWidget = ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(imageUrl, width: 35, height: 35, fit: BoxFit.cover, errorBuilder: (c,e,s) => Icon(Icons.cleaning_services_rounded, color: color, size: 28)));
+                      } else {
+                        serviceIconWidget = Icon(Icons.cleaning_services_rounded, color: color, size: 28);
+                      }
 
                       return InkWell(
                         onTap: () {
@@ -295,7 +308,7 @@ class _GaragePageState extends State<GaragePage> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(icon, color: color, size: 28), const SizedBox(height: 8),
+                              serviceIconWidget, const SizedBox(height: 8),
                               Text(name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.bold, color: theme.textMain)),
                               Text(price, style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.grey.shade600)),
                             ],

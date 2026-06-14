@@ -253,6 +253,23 @@ class _PaymentPageState extends State<PaymentPage> {
           return;
         }
 
+        // Cek target member (Pro / Regular / Semua)
+        String targetMember = promoData['targetMember'] ?? 'Semua';
+        if (targetMember == 'Pro' && !_isProMember) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Kode promo ini khusus untuk Member PRO!"),
+            backgroundColor: Colors.red,
+          ));
+          return;
+        }
+        if (targetMember == 'Regular' && _isProMember) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Kode promo ini khusus untuk Member Regular."),
+            backgroundColor: Colors.red,
+          ));
+          return;
+        }
+
         // Cek apakah user ini sudah pernah menggunakan kode ini
         final usedBy = List<String>.from(promoData['usedBy'] ?? []);
         if (user != null && usedBy.contains(user.uid)) {

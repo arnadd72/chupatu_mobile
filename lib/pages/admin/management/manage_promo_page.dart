@@ -43,6 +43,7 @@ class _ManagePromoPageState extends State<ManagePromoPage>
   final _voucherMaxUsageCtrl = TextEditingController(); // cth: 100
   String? _editingVoucherId;
   bool _isVoucherActive = true;
+  String _voucherTargetMember = 'Semua';
 
   @override
   void initState() {
@@ -176,6 +177,7 @@ class _ManagePromoPageState extends State<ManagePromoPage>
     setState(() {
       _editingVoucherId = null;
       _isVoucherActive = true;
+      _voucherTargetMember = 'Semua';
     });
   }
 
@@ -186,6 +188,7 @@ class _ManagePromoPageState extends State<ManagePromoPage>
     setState(() {
       _editingVoucherId = docId;
       _isVoucherActive = data['isActive'] ?? true;
+      _voucherTargetMember = data['targetMember'] ?? 'Semua';
       _tabController.animateTo(1); // Pindah ke tab voucher
     });
   }
@@ -204,6 +207,7 @@ class _ManagePromoPageState extends State<ManagePromoPage>
         'discountAmount': int.tryParse(_voucherDiscountCtrl.text) ?? 0,
         'maxUsage': int.tryParse(_voucherMaxUsageCtrl.text) ?? 0,
         'isActive': _isVoucherActive,
+        'targetMember': _voucherTargetMember,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -591,6 +595,19 @@ class _ManagePromoPageState extends State<ManagePromoPage>
             ],
           ),
           const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _voucherTargetMember,
+            items: ['Semua', 'Pro', 'Regular'].map((e) => DropdownMenuItem(value: e, child: Text("Target Member: $e"))).toList(),
+            onChanged: (val) => setState(() => _voucherTargetMember = val ?? 'Semua'),
+            decoration: InputDecoration(
+              labelText: "Target Member",
+              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.withOpacity(0.5))),
+              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: theme.primary)),
+            ),
+            dropdownColor: theme.surface,
+            style: TextStyle(color: theme.textMain),
+          ),
+          const SizedBox(height: 16),
 
           SwitchListTile(
             title: Text("Voucher Bisa Digunakan", style: TextStyle(color: theme.textMain)),
@@ -639,6 +656,7 @@ class _ManagePromoPageState extends State<ManagePromoPage>
                     bool isActive = data['isActive'] ?? true;
                     int maxUsage = data['maxUsage'] ?? 0;
                     int currentUsage = data['currentUsage'] ?? 0;
+                    String targetMember = data['targetMember'] ?? 'Semua';
                     List<dynamic> usedBy = data['usedBy'] ?? [];
 
                     return Card(
@@ -646,7 +664,7 @@ class _ManagePromoPageState extends State<ManagePromoPage>
                       child: ExpansionTile(
                         leading: Icon(Icons.local_activity, color: isActive ? Colors.teal : Colors.grey),
                         title: Text(data['code'] ?? '', style: TextStyle(color: theme.textMain, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                        subtitle: Text("Potongan: Rp ${data['discountAmount']} | Terpakai: $currentUsage / $maxUsage", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        subtitle: Text("Target: $targetMember | Pot: Rp ${data['discountAmount']} | Pakai: $currentUsage / $maxUsage", style: const TextStyle(color: Colors.grey, fontSize: 12)),
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

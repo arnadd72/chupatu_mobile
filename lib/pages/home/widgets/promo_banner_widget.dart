@@ -123,44 +123,66 @@ class _PromoBannerWidgetState extends State<PromoBannerWidget> {
                                     }
 
                                     var promoData = snapshot.data!.data() as Map<String, dynamic>;
+                                    String targetMember = promoData['targetMember'] ?? 'Semua';
                                     String code = promoData['code'] ?? '';
                                     if (code.isEmpty) return const SizedBox.shrink();
 
-                                    return GestureDetector(
-                                      onTap: () {
-                                        Clipboard.setData(ClipboardData(text: code));
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text("Kode '$code' disalin!"),
-                                              backgroundColor: Colors.teal,
-                                              behavior: SnackBarBehavior.floating,
-                                            )
-                                        );
-                                      },
-                                      child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withOpacity(0.2),
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(
-                                                color: Colors.white.withOpacity(0.5), style: BorderStyle.solid
+                                    return Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (targetMember == 'Pro')
+                                          Container(
+                                            margin: const EdgeInsets.only(right: 8),
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.amber,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 14),
+                                                const SizedBox(width: 4),
+                                                Text('KHUSUS PRO', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
+                                              ],
                                             ),
                                           ),
-                                          child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(Icons.copy, color: Colors.white, size: 14),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                    "KODE: $code",
-                                                    style: GoogleFonts.plusJakartaSans(
-                                                        color: Colors.white,
-                                                        fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1
-                                                    )
+                                        GestureDetector(
+                                          onTap: () {
+                                            Clipboard.setData(ClipboardData(text: code));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text("Kode '$code' disalin!"),
+                                                  backgroundColor: Colors.teal,
+                                                  behavior: SnackBarBehavior.floating,
+                                                )
+                                            );
+                                          },
+                                          child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withOpacity(0.2),
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(
+                                                    color: Colors.white.withOpacity(0.5), style: BorderStyle.solid
                                                 ),
-                                              ]
-                                          )
-                                      ),
+                                              ),
+                                              child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(Icons.copy, color: Colors.white, size: 14),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                        "KODE: $code",
+                                                        style: GoogleFonts.plusJakartaSans(
+                                                            color: Colors.white,
+                                                            fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1
+                                                        )
+                                                    ),
+                                                  ]
+                                              )
+                                          ),
+                                        ),
+                                      ],
                                     );
                                   }
                               )

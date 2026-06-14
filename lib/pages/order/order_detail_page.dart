@@ -265,10 +265,26 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   }
 
   // --- FUNGSI UNDUH INVOICE ---
-  Future<void> _generateAndDownloadInvoice(Map<String, dynamic> data) async {
+  Future<void> _downloadInvoice(Map<String, dynamic> data) async {
     setState(() => _isGeneratingPdf = true);
     try {
-      await InvoicePdfHelper.generateInvoice(widget.docId, data);
+      await InvoicePdfHelper.downloadInvoice(widget.docId, data);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Gagal: ${e.toString()}"), backgroundColor: Colors.red)
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isGeneratingPdf = false);
+    }
+  }
+
+  // --- FUNGSI BAGIKAN INVOICE ---
+  Future<void> _shareInvoice(Map<String, dynamic> data) async {
+    setState(() => _isGeneratingPdf = true);
+    try {
+      await InvoicePdfHelper.shareInvoice(widget.docId, data);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -908,23 +924,49 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
                                   ),
                                 )
-                                    : ElevatedButton.icon(
-                                  onPressed: _isGeneratingPdf ? null : () => _generateAndDownloadInvoice(bookingData),
-                                  icon: _isGeneratingPdf
-                                      ? const SizedBox(width: 20, height: 20,
-                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                      : const Icon(Icons.picture_as_pdf_rounded, size: 18),
-                                  label: Text(_isGeneratingPdf ? "Menyiapkan PDF..." : "Unduh Invoice",
-                                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 16),
-                                      backgroundColor: Colors.green.shade600,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                      elevation: 0
-                                  ),
-                                ),
+                                    : Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          _buildSectionTitle("Dokumen Invoice", theme),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: ElevatedButton.icon(
+                                                  onPressed: _isGeneratingPdf ? null : () => _downloadInvoice(bookingData),
+                                                  icon: _isGeneratingPdf
+                                                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                                      : const Icon(Icons.download_rounded, size: 18),
+                                                  label: Text(_isGeneratingPdf ? "Proses..." : "Unduh", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13)),
+                                                  style: ElevatedButton.styleFrom(
+                                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                                      backgroundColor: Colors.green.shade600,
+                                                      foregroundColor: Colors.white,
+                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                      elevation: 0
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: ElevatedButton.icon(
+                                                  onPressed: _isGeneratingPdf ? null : () => _shareInvoice(bookingData),
+                                                  icon: _isGeneratingPdf
+                                                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                                      : const Icon(Icons.share_rounded, size: 18),
+                                                  label: Text(_isGeneratingPdf ? "Proses..." : "Bagikan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13)),
+                                                  style: ElevatedButton.styleFrom(
+                                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                                      backgroundColor: theme.primary,
+                                                      foregroundColor: Colors.white,
+                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                      elevation: 0
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                               ),
 
                             const SizedBox(height: 40),

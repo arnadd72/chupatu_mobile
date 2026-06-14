@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart';
 import 'package:chupatu_mobile/pages/order/booking_page.dart';
 
 class QuickOrder extends StatelessWidget {
@@ -78,6 +79,40 @@ class QuickOrder extends StatelessWidget {
 
                     // AMBIL URL GAMBAR DARI FIRESTORE
                     String imageUrl = data['imageUrl'] ?? '';
+                    // TENTUKAN APAKAH PAKAI LOTTIE ATAU GAMBAR DARI FIRESTORE
+                    String? lottiePath;
+                    String nameLower = name.toLowerCase();
+                    if (nameLower.contains('deep')) lottiePath = 'assets/lottie/water_drop.json';
+                    else if (nameLower.contains('fast')) lottiePath = 'assets/lottie/Stopwatch.json';
+                    else if (nameLower.contains('yellow')) lottiePath = 'assets/lottie/sparkle.json';
+                    else if (nameLower.contains('repair')) lottiePath = 'assets/lottie/wrench.json';
+                    else if (nameLower.contains('repaint')) lottiePath = 'assets/lottie/paint.json';
+                    else if (nameLower.contains('water')) lottiePath = 'assets/lottie/umbrella.json';
+                    else if (nameLower.contains('custom')) lottiePath = 'assets/lottie/pencil.json';
+
+                    Widget serviceIconWidget;
+                    if (lottiePath != null) {
+                      serviceIconWidget = Container(
+                        width: 70, height: 70,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blueAccent.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Lottie.asset(lottiePath, fit: BoxFit.contain),
+                      );
+                    } else if (imageUrl.isNotEmpty) {
+                      serviceIconWidget = ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          imageUrl,
+                          width: 70, height: 70, fit: BoxFit.cover,
+                          errorBuilder: (ctx, err, stack) => _buildPlaceholder(),
+                        ),
+                      );
+                    } else {
+                      serviceIconWidget = _buildPlaceholder();
+                    }
 
                     return InkWell(
                       onTap: () {
@@ -102,17 +137,8 @@ class QuickOrder extends StatelessWidget {
                             ]),
                         child: Row(
                           children: [
-                            // GAMBAR LAYANAN DENGAN PROTEKSI ERROR
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: imageUrl.isNotEmpty
-                                  ? Image.network(
-                                  imageUrl,
-                                  width: 70, height: 70, fit: BoxFit.cover,
-                                  errorBuilder: (ctx, err, stack) =>
-                                      _buildPlaceholder())
-                                  : _buildPlaceholder(),
-                            ),
+                            // GAMBAR/LOTTIE LAYANAN
+                            serviceIconWidget,
                             const SizedBox(width: 16),
                             Expanded(
                                 child: Column(

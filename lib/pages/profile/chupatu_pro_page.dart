@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import 'package:chupatu_mobile/main.dart';
 // PASTIKAN IMPORT INI SESUAI DENGAN LOKASI FILE ANDA
 import 'package:chupatu_mobile/pages/profile/member_payment_page.dart';
@@ -79,6 +80,25 @@ class _ChupatuProPageState extends State<ChupatuProPage> {
 
                   bool isPro = (userData['memberType'] == 'Pro');
 
+                  // Hitung sisa hari masa aktif
+                  DateTime? proValidUntil;
+                  int proRemainingDays = 0;
+                  String proExpiredLabel = '';
+                  if (isPro && userData['proValidUntil'] != null) {
+                    try {
+                      final raw = userData['proValidUntil'];
+                      if (raw is Timestamp) {
+                        proValidUntil = raw.toDate();
+                      } else {
+                        proValidUntil = DateTime.tryParse(raw.toString());
+                      }
+                      if (proValidUntil != null) {
+                        proRemainingDays = proValidUntil.difference(DateTime.now()).inDays;
+                        proExpiredLabel = DateFormat('dd MMMM yyyy', 'id_ID').format(proValidUntil);
+                      }
+                    } catch (_) {}
+                  }
+
                   return SingleChildScrollView(
                     padding: const EdgeInsets.all(24),
                     child: Column(
@@ -114,7 +134,38 @@ class _ChupatuProPageState extends State<ChupatuProPage> {
                                     : "Tingkatkan pengalaman cuci sepatu Anda ke level maksimal.",
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.plusJakartaSans(color: Colors.white.withOpacity(0.9), fontSize: 14),
-                              )
+                              ),
+                              // ── KETERANGAN MASA AKTIF ──
+                              if (isPro && proValidUntil != null) ...[
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.timer_outlined, color: Colors.white, size: 16),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        proRemainingDays > 0
+                                            ? "Aktif hingga $proExpiredLabel  •  $proRemainingDays hari lagi"
+                                            : proRemainingDays == 0
+                                                ? "Berakhir hari ini!"
+                                                : "Masa aktif telah berakhir",
+                                        style: GoogleFonts.plusJakartaSans(
+                                          color: proRemainingDays <= 3 ? Colors.red.shade100 : Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),

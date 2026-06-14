@@ -89,7 +89,24 @@ class AdminChatPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(userName, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                              FutureBuilder<DocumentSnapshot>(
+                                future: FirebaseFirestore.instance.collection('users').doc(data['userId']).get(),
+                                builder: (context, userSnap) {
+                                  bool isPro = false;
+                                  if (userSnap.hasData && userSnap.data!.exists) {
+                                    isPro = (userSnap.data!.data() as Map<String, dynamic>)['memberType'] == 'Pro';
+                                  }
+                                  return Row(
+                                    children: [
+                                      Text(userName, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                                      if (isPro) ...[
+                                        const SizedBox(width: 6),
+                                        const Icon(Icons.workspace_premium_rounded, color: Colors.amber, size: 16),
+                                      ]
+                                    ],
+                                  );
+                                },
+                              ),
                               const SizedBox(height: 4),
                               Text(
                                   lastMessage,
