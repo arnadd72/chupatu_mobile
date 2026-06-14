@@ -8,6 +8,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/utils/invoice_pdf_helper.dart';
 import 'package:chupatu_mobile/pages/home/magic_result_detail_page.dart';
+import 'package:chupatu_mobile/pages/order/live_tracking_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // IMPORT HALAMAN CHAT
@@ -638,7 +639,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                                         ),
                                         const SizedBox(height: 20),
                                         Text(
-                                          "Anda dapat melacak lokasi kurir secara real-time menggunakan aplikasi Google Maps di HP Anda.\n\n💡 Tips: Jika kurir sedang bergerak, kembali ke aplikasi Chupatu lalu tekan tombol di bawah ini lagi untuk memperbarui posisi terbaru kurir.",
+                                          "Lacak pergerakan kurir secara langsung di dalam aplikasi menggunakan peta rute pintar yang telah kami perbarui.",
                                           style: GoogleFonts.plusJakartaSans(
                                             color: Colors.grey.shade600,
                                             fontSize: 12,
@@ -652,25 +653,16 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                                             onPressed: !hasDriverLoc
                                                 ? null
                                                 : () {
-                                                    final driverVal = driverGeo;
-                                                    final custVal = custGeo;
-                                                    if (custVal != null) {
-                                                      _openGoogleMapsDirections(
-                                                        driverVal.latitude,
-                                                        driverVal.longitude,
-                                                        custVal.latitude,
-                                                        custVal.longitude,
-                                                      );
-                                                    } else {
-                                                      _openGoogleMapsLocation(
-                                                        driverVal.latitude,
-                                                        driverVal.longitude,
-                                                      );
-                                                    }
+                                                    Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) => LiveTrackingPage(docId: widget.docId),
+                                                      ),
+                                                    );
                                                   },
                                             icon: const Icon(Icons.map_rounded, color: Colors.white),
                                             label: Text(
-                                              hasDriverLoc ? "Buka Peta Google Maps" : "Menunggu Sinyal GPS...",
+                                              hasDriverLoc ? "Buka Peta Pelacakan" : "Menunggu Sinyal GPS...",
                                               style: GoogleFonts.plusJakartaSans(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 14,

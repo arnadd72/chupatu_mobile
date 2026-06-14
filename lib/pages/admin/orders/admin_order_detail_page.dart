@@ -44,6 +44,10 @@ class _AdminOrderDetailPageState extends State<AdminOrderDetailPage> {
   void initState() {
     super.initState();
     _currentStatus = widget.data['status'] ?? 'Pending';
+    // Otomatis jalankan tracking jika status sudah Picked Up atau Delivery
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleLiveTracking(_currentStatus);
+    });
   }
 
   @override
