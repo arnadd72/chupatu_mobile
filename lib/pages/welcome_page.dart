@@ -78,16 +78,27 @@ class _WelcomePageState extends State<WelcomePage>
   }
 
   void _runTimeline() async {
+    // OPTIMASI: Mulai inisialisasi Firebase & Notif di background
+    // selagi animasi splash screen berjalan. Ini mencegah lag di hp spek rendah.
+    Future initFuture = initAppServices();
+
     // 1. Mulai animasi logo
     _logoController.forward();
 
     // 2. Tunggu 800ms, lalu mulai animasi teks
     await Future.delayed(const Duration(milliseconds: 800));
-    setState(() { _showText = true; });
+    if (mounted) {
+      setState(() { _showText = true; });
+    }
     _textController.forward();
 
-    // 3. Pindah halaman dengan transisi halus (Fade) setelah 3 detik
-    await Future.delayed(const Duration(seconds: 3));
+    // 3. Pindah halaman setelah sisa waktu (2200ms) ATAU inisialisasi selesai,
+    // mana saja yang paling lama. Memastikan Firebase siap sebelum masuk AuthWrapper.
+    await Future.wait([
+      Future.delayed(const Duration(milliseconds: 2200)),
+      initFuture,
+    ]);
+
     if(mounted) {
       Navigator.pushReplacement(
           context,

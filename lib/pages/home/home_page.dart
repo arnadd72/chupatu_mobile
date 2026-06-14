@@ -47,7 +47,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    _setupPushNotifications();
+    // OPTIMASI: Beri jeda 1 detik agar inisialisasi FCM tidak memberatkan
+    // render pertama atau merusak mulusnya animasi transisi halaman
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      _setupPushNotifications();
+    });
 
     _upgradeAnimController = AnimationController(
       vsync: this,
@@ -205,12 +209,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               body: Stack(
                 children: [
                   SafeArea(
-                    child: SingleChildScrollView(
+                    // OPTIMASI: Menggunakan ListView alih-alih SingleChildScrollView+Column.
+                    // ListView memiliki mekanisme lazy-loading di mana ia hanya me-render
+                    // widget yang terlihat di layar. Ini sangat ampuh menghilangkan lag di awal buka beranda.
+                    child: ListView(
                       padding: const EdgeInsets.only(bottom: 120),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // HEADER PROFILE
+                      children: [
+                        // HEADER PROFILE
                           Padding(
                             padding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
                             child: Row(
@@ -531,8 +536,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ),
 
                           const SizedBox(height: 120),
-                        ],
-                      ),
+                      ],
                     ),
                   ),
                   if (_showFloatingPromo)

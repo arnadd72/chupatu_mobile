@@ -171,7 +171,8 @@ class _LoginPageState extends State<LoginPage> {
 
       if (user != null) {
         // --- BLOKIR USER YANG BELUM VERIFIKASI EMAIL ---
-        if (!user.emailVerified) {
+        // Pengecualian khusus untuk akun admin buatan (bypass verifikasi)
+        if (!user.emailVerified && user.email != 'admin1@chupatu.com') {
 
           // Tendang Keluar
           await FirebaseAuth.instance.signOut();

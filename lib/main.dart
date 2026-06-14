@@ -93,41 +93,50 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint("Notif masuk pas app ditutup: ${message.messageId}");
 }
 
-void main() async {
+// OPTIMASI: Fungsi inisialisasi berat dipisah agar tidak memblokir render pertama UI.
+// Akan dipanggil dari WelcomePage secara asynchronous selagi animasi berjalan.
+Future<void> initAppServices() async {
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    // --- TAMBAHAN: Daftarin penjaga notif background ---
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // --- TAMBAHAN: Inisialisasi Notification Service ---
+    final notificationService = NotificationService();
+    await notificationService.init();
+
+    // Atur opsi presentasi notifikasi saat aplikasi di foreground
+    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // Dengerin notifikasi saat aplikasi lagi kebuka (Foreground)
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      RemoteNotification? notification = message.notification;
+      AndroidNotification? android = message.notification?.android;
+
+      if (notification != null && android != null) {
+        notificationService.showNotification(
+          id: notification.hashCode,
+          title: notification.title ?? 'Notifikasi Baru',
+          body: notification.body ?? '',
+        );
+      }
+    });
+  } catch (e) {
+    debugPrint("Init Error: $e");
+  }
+}
+
+void main() {
+  // OPTIMASI: Jangan await fungsi berat di sini, agar Flutter langsung
+  // me-render UI secepat kilat (mengurangi blank screen/lag di hp spek rendah).
   WidgetsFlutterBinding.ensureInitialized();
-
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // --- TAMBAHAN: Daftarin penjaga notif background ---
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // --- TAMBAHAN: Inisialisasi Notification Service ---
-  final notificationService = NotificationService();
-  await notificationService.init();
-
-  // Atur opsi presentasi notifikasi saat aplikasi di foreground
-  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
-
-  // Dengerin notifikasi saat aplikasi lagi kebuka (Foreground)
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    RemoteNotification? notification = message.notification;
-    AndroidNotification? android = message.notification?.android;
-
-    if (notification != null && android != null) {
-      notificationService.showNotification(
-        id: notification.hashCode,
-        title: notification.title ?? 'Notifikasi Baru',
-        body: notification.body ?? '',
-      );
-    }
-  });
-
   runApp(const ChupatuApp());
 }
 
