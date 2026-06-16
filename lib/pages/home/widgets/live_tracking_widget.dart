@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/order_history_page.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class LiveTrackingWidget extends StatelessWidget {
   final String userId;
@@ -56,21 +57,44 @@ class LiveTrackingWidget extends StatelessWidget {
               }
 
               // 2. REVISI LOGIKA LOADING:
-              // Hanya tampilkan loading jika BENAR-BENAR tidak ada data sama sekali.
-              // Kalau data sudah ada (misal update status), jangan tampilkan loading biar ga kedip.
-              if (!orderSnapshot.hasData) {
-                return Container(
-                  height: 100,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(24)),
-                  // Opsional: Hilangkan loading jika ingin benar-benar statis, tapi sebaiknya ada di awal saja
-                  child: const Center(
-                      child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2))),
+              final isLoading = orderSnapshot.connectionState == ConnectionState.waiting;
+              if (isLoading && (!orderSnapshot.hasData || orderSnapshot.data!.docs.isEmpty)) {
+                return Skeletonizer(
+                  enabled: true,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.grey.shade300)),
+                    child: Row(
+                      children: [
+                        Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                                color: Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(16))),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                  width: double.infinity,
+                                  height: 16,
+                                  color: Colors.grey.shade300),
+                              const SizedBox(height: 8),
+                              Container(
+                                  width: 100,
+                                  height: 12,
+                                  color: Colors.grey.shade300),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               }
 

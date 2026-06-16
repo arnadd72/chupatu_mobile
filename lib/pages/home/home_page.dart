@@ -164,6 +164,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             String displayName = user?.displayName ?? 'Guest';
             String photoURL = user?.photoURL ?? 'https://i.pravatar.cc/150';
             bool unreadNotif = true;
+            bool isLoadingUser = userSnapshot.connectionState == ConnectionState.waiting;
 
             if (userSnapshot.hasData &&
                 userSnapshot.data != null &&
@@ -428,7 +429,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ),
                           const SizedBox(height: 24),
 
-                          if (!isPro) ...[
+                          if (!isLoadingUser && !isPro) ...[
                             _buildChupatuPro(theme),
                             const SizedBox(height: 24),
                           ],

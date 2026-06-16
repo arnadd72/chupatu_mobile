@@ -6,6 +6,7 @@ import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/booking_page.dart';
 import 'package:chupatu_mobile/pages/order/custom_service_page.dart';
 import 'package:chupatu_mobile/pages/home/review_rating_section.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class ServiceDetailPage extends StatelessWidget {
   final String serviceName;
@@ -97,32 +98,28 @@ class ServiceDetailPage extends StatelessWidget {
                   fit: BoxFit.cover,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
-                    return Container(color: Colors.grey.shade200, child: const Center(child: CircularProgressIndicator()));
+                    return Skeletonizer(
+                      enabled: true,
+                      child: Container(color: Colors.grey.shade300, width: double.infinity, height: 400),
+                    );
                   },
                   errorBuilder: (c,e,s) => Container(color: Colors.grey.shade300, child: const Center(child: Icon(Icons.broken_image, size: 50, color: Colors.grey))),
                 ),
               ),
 
-              // --- TOMBOL BACK & SHARE ---
+              // --- TOMBOL BACK ---
               Positioned(
-                top: 50, left: 20, right: 20,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 44, height: 44,
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.black),
-                      ),
+                top: 50, left: 20,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]),
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 6.0), // Nyesuain biar panahnya center
+                      child: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.black),
                     ),
-                    Container(
-                      width: 44, height: 44,
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]),
-                      child: const Icon(Icons.share_rounded, size: 20, color: Colors.black),
-                    ),
-                  ],
+                  ),
                 ),
               ),
 

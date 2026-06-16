@@ -14,19 +14,19 @@ class ShoeTipsWidget extends StatelessWidget {
       {
         'title': 'Jangan Jemur di Matahari',
         'desc': 'Sinar UV bikin lem sepatu cepat rusak dan warna pudar.',
-        'img': 'https://images.unsplash.com/photo-1520256862855-3982eb6c8ca2?q=80&w=600',
+        'img': 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=600',
         'content': 'Menjemur sepatu langsung di bawah sinar matahari dapat menyebabkan lem sepatu meleleh dan warna bahan (terutama suede/canvas) menjadi pudar. Sebaiknya angin-anginkan saja di tempat teduh.'
       },
       {
         'title': 'Simpan Pakai Silica Gel',
         'desc': 'Cegah jamur dengan menjaga kelembapan di rak sepatu.',
-        'img': 'https://images.unsplash.com/photo-1595341888016-a392ef81b7de?q=80&w=600',
+        'img': 'https://images.unsplash.com/photo-1585366119957-e9730b6d0f60?q=80&w=600',
         'content': 'Kelembapan adalah musuh utama sepatu. Selalu masukkan silica gel ke dalam kotak sepatu atau rak penyimpanan untuk menyerap kelembapan berlebih dan mencegah tumbuhnya jamur.'
       },
       {
         'title': 'Bersihkan Noda Segera',
         'desc': 'Noda tanah atau kopi akan sulit hilang jika dibiarkan > 24 jam.',
-        'img': 'https://images.unsplash.com/photo-1605034313761-73ea4a0cfbf3?q=80&w=600',
+        'img': 'https://images.unsplash.com/photo-1512374382149-233c42b6a83b?q=80&w=600',
         'content': 'Jangan menunda membersihkan noda! Semakin lama noda menempel, semakin dalam ia meresap ke serat kain. Gunakan tisu basah atau lap lembab sesegera mungkin saat terkena noda.'
       },
     ];

@@ -36,8 +36,11 @@ class _MainPageState extends State<MainPage> {
 
             body: Stack(
               children: [
-                // 1. KONTEN UTAMA
-                _pages[_currentIndex],
+                // 1. KONTEN UTAMA (Pakai IndexedStack agar state terjaga dan tidak ngelag saat pindah tab)
+                IndexedStack(
+                  index: _currentIndex,
+                  children: _pages,
+                ),
 
                 // 2. FLOATING CARD NAVBAR (Lebih Ramping & Kompak)
                 Align(

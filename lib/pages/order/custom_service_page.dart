@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/booking_page.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class CustomServicePage extends StatefulWidget {
   final String? aiRecommendation;
@@ -178,7 +179,40 @@ class _CustomServicePageState extends State<CustomServicePage> {
                       .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
+                      return Skeletonizer(
+                        enabled: true,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          itemCount: 4,
+                          separatorBuilder: (c, i) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: theme.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(width: 24, height: 24, decoration: const BoxDecoration(color: Colors.grey, shape: BoxShape.circle)),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Container(width: 150, height: 16, color: Colors.grey),
+                                        const SizedBox(height: 4),
+                                        Container(width: 80, height: 12, color: Colors.grey),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      );
                     }
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                       return const Center(child: Text("Belum ada layanan."));
