@@ -184,7 +184,7 @@ class AccountPage extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 30),
-                  Text("Versi 1.2.4 (Beta)",
+                  Text("Versi 1.2.5 (Beta)",
                       style: GoogleFonts.plusJakartaSans(
                           color: Colors.grey, fontSize: 12)),
                 ],
