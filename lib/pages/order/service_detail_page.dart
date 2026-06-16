@@ -24,38 +24,35 @@ class ServiceDetailPage extends StatelessWidget {
 
   // --- 1. LOGIKA GAMBAR HD OTOMATIS ---
   String _getSmartImage(String service) {
-    String lowerService = service.toLowerCase();
-    if (lowerService.contains('custom')) {
-      return 'https://images.unsplash.com/photo-1515955656352-a1fa3ffcd111?auto=format&fit=crop&q=80&w=1000';
-    }
-
-    switch (lowerService) {
-      case 'deep clean': return 'https://images.unsplash.com/photo-1600185365926-3a6d3de3dddb?auto=format&fit=crop&q=80&w=1000';
-      case 'fast clean': return 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&q=80&w=1000';
-      case 'unyellowing': return 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?auto=format&fit=crop&q=80&w=1000';
-      case 'repair': return 'https://images.unsplash.com/photo-1581102854955-455b8045a557?auto=format&fit=crop&q=80&w=1000';
-      case 'repaint': return 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&q=80&w=1000';
-      case 'waterproof': return 'https://images.unsplash.com/photo-1543508282-6319a3e2621f?auto=format&fit=crop&q=80&w=1000';
-      case 'pickup': return 'https://images.unsplash.com/photo-1616406432452-07bc59280cd3?auto=format&fit=crop&q=80&w=1000';
-      default: return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=1000';
-    }
+    String normalized = service.toLowerCase().replaceAll(RegExp(r'[\s\-]'), '');
+    
+    if (normalized.contains('custom')) return 'assets/images/custom_sub.jpg';
+    if (normalized.contains('deepclean')) return 'assets/images/deepclean_sub.webp';
+    if (normalized.contains('fastclean')) return 'assets/images/fastclean_sub.avif';
+    if (normalized.contains('unyellow')) return 'assets/images/unyellow_sub.jpg';
+    if (normalized.contains('repair')) return 'assets/images/repair_sub.webp';
+    if (normalized.contains('repaint')) return 'assets/images/repaint_sub.webp';
+    if (normalized.contains('waterproof')) return 'assets/images/Waterproof_sub.webp';
+    if (normalized.contains('pickup')) return 'assets/images/pickup_sub.jpg';
+    
+    return 'assets/images/custom_sub.jpg';
   }
 
   // --- 2. LOGIKA DESKRIPSI MARKETING ---
   String _getSmartDescription(String service) {
-    String lowerService = service.toLowerCase();
+    String normalized = service.toLowerCase().replaceAll(RegExp(r'[\s\-]'), '');
 
-    if (lowerService.contains('custom')) {
+    if (normalized.contains('custom')) {
       return "Layanan perawatan sepatu profesional yang fleksibel dan dapat disesuaikan dengan kebutuhan spesifik sepatu Anda.\n\nDi sini Anda dapat merakit dan menggabungkan beberapa layanan sekaligus (misal: Deep Clean + Waterproof). Klik tombol 'Pesan Sekarang' di bawah untuk mulai merakit paket layanan Anda sendiri!";
     }
 
-    if (lowerService.contains('deep clean')) return "Berikan perawatan terbaik untuk sepatu kesayanganmu! Layanan Deep Clean membersihkan debu, noda membandel, dan bakteri hingga ke pori-pori terdalam.\n\nCocok untuk semua bahan (Canvas, Suede, Leather, Nubuck). Hasilnya sepatu bersih total, wangi segar, dan higienis seperti baru kembali.";
-    if (lowerService.contains('fast clean')) return "Butuh sepatu bersih dadakan buat hangout atau meeting? Fast Clean solusinya! \n\nFokus pembersihan pada bagian Upper dan Midsole yang cepat namun tetap detail. Proses kilat, sepatu langsung glowing dan siap diajak jalan lagi dalam waktu singkat.";
-    if (lowerService.contains('unyellowing')) return "Midsole sepatu menguning bikin gak pede? Jangan dibuang dulu! \n\nTeknik Unyellowing kami ampuh menghilangkan noda oksidasi membandel yang bikin sepatu terlihat kusam. Kami kembalikan warna putih cerah pada sol sepatumu, bikin tampilannya fresh lagi seperti baru beli.";
-    if (lowerService.contains('repair')) return "Sol sepatu mangap atau jebol saat dipakai? Tenang, serahkan pada ahlinya!\n\nKami melakukan Reglue (pengeleman ulang) dengan lem standar pabrik yang super kuat dan teknik press mesin. Sepatu tempur andalanmu bakal kokoh lagi, siap melangkah jauh tanpa khawatir rusak di jalan.";
-    if (lowerService.contains('repaint')) return "Warna sepatu pudar termakan usia? Atau bosan dengan warna lama?\n\nLayanan Repaint kami menggunakan cat premium anti-luntur/crack. Bisa kembalikan warna asli agar tajam kembali, atau ganti warna total (Custom Color) sesuai kepribadianmu. Finishing presisi dan tahan lama.";
-    if (lowerService.contains('waterproof')) return "Lindungi investasimu! Lapisan Nano-Coating transparan yang memberikan efek daun talas pada sepatu.\n\nAir, kopi, saus, atau lumpur gak bakal nempel! Melindungi bahan sepatu dari noda cair agar lebih awet, mudah dibersihkan, dan tetap bernapas. Wajib buat sneakers mahal!";
-    if (lowerService.contains('pickup')) return "Males keluar rumah macet-macetan? Biar kurir kami yang jemput sepatumu!\n\nLayanan antar-jemput gratis untuk area tertentu dengan minimal transaksi. Kurir ramah, amanah, dan tepat waktu. Kamu cukup duduk manis, sepatu kotor dijemput, pulang-pulang sudah bersih kinclong.";
+    if (normalized.contains('deepclean')) return "Berikan perawatan terbaik untuk sepatu kesayanganmu! Layanan Deep Clean membersihkan debu, noda membandel, dan bakteri hingga ke pori-pori terdalam.\n\nCocok untuk semua bahan (Canvas, Suede, Leather, Nubuck). Hasilnya sepatu bersih total, wangi segar, dan higienis seperti baru kembali.";
+    if (normalized.contains('fastclean')) return "Butuh sepatu bersih dadakan buat hangout atau meeting? Fast Clean solusinya! \n\nFokus pembersihan pada bagian Upper dan Midsole yang cepat namun tetap detail. Proses kilat, sepatu langsung glowing dan siap diajak jalan lagi dalam waktu singkat.";
+    if (normalized.contains('unyellow')) return "Midsole sepatu menguning bikin gak pede? Jangan dibuang dulu! \n\nTeknik Unyellowing kami ampuh menghilangkan noda oksidasi membandel yang bikin sepatu terlihat kusam. Kami kembalikan warna putih cerah pada sol sepatumu, bikin tampilannya fresh lagi seperti baru beli.";
+    if (normalized.contains('repair')) return "Sol sepatu mangap atau jebol saat dipakai? Tenang, serahkan pada ahlinya!\n\nKami melakukan Reglue (pengeleman ulang) dengan lem standar pabrik yang super kuat dan teknik press mesin. Sepatu tempur andalanmu bakal kokoh lagi, siap melangkah jauh tanpa khawatir rusak di jalan.";
+    if (normalized.contains('repaint')) return "Warna sepatu pudar termakan usia? Atau bosan dengan warna lama?\n\nLayanan Repaint kami menggunakan cat premium anti-luntur/crack. Bisa kembalikan warna asli agar tajam kembali, atau ganti warna total (Custom Color) sesuai kepribadianmu. Finishing presisi dan tahan lama.";
+    if (normalized.contains('waterproof')) return "Lindungi investasimu! Lapisan Nano-Coating transparan yang memberikan efek daun talas pada sepatu.\n\nAir, kopi, saus, atau lumpur gak bakal nempel! Melindungi bahan sepatu dari noda cair agar lebih awet, mudah dibersihkan, dan tetap bernapas. Wajib buat sneakers mahal!";
+    if (normalized.contains('pickup')) return "Males keluar rumah macet-macetan? Biar kurir kami yang jemput sepatumu!\n\nLayanan antar-jemput gratis untuk area tertentu dengan minimal transaksi. Kurir ramah, amanah, dan tepat waktu. Kamu cukup duduk manis, sepatu kotor dijemput, pulang-pulang sudah bersih kinclong.";
 
     return "Layanan perawatan sepatu profesional dengan teknik khusus, bahan pembersih premium, dan peralatan modern untuk memberikan hasil maksimal pada setiap pasang sepatu Anda. Kepuasan pelanggan adalah prioritas utama kami.";
   }
@@ -93,16 +90,9 @@ class ServiceDetailPage extends StatelessWidget {
               Positioned(
                 top: 0, left: 0, right: 0,
                 height: 400,
-                child: Image.network(
+                child: Image.asset(
                   finalImage,
                   fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Skeletonizer(
-                      enabled: true,
-                      child: Container(color: Colors.grey.shade300, width: double.infinity, height: 400),
-                    );
-                  },
                   errorBuilder: (c,e,s) => Container(color: Colors.grey.shade300, child: const Center(child: Icon(Icons.broken_image, size: 50, color: Colors.grey))),
                 ),
               ),

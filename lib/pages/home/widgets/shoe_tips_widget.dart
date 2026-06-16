@@ -14,19 +14,19 @@ class ShoeTipsWidget extends StatelessWidget {
       {
         'title': 'Jangan Jemur di Matahari',
         'desc': 'Sinar UV bikin lem sepatu cepat rusak dan warna pudar.',
-        'img': 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=600',
+        'img': 'assets/images/sepatu nike.jpg',
         'content': 'Menjemur sepatu langsung di bawah sinar matahari dapat menyebabkan lem sepatu meleleh dan warna bahan (terutama suede/canvas) menjadi pudar. Sebaiknya angin-anginkan saja di tempat teduh.'
       },
       {
         'title': 'Simpan Pakai Silica Gel',
         'desc': 'Cegah jamur dengan menjaga kelembapan di rak sepatu.',
-        'img': 'https://images.unsplash.com/photo-1585366119957-e9730b6d0f60?q=80&w=600',
+        'img': 'assets/images/sepatu-hitamputih.jpg',
         'content': 'Kelembapan adalah musuh utama sepatu. Selalu masukkan silica gel ke dalam kotak sepatu atau rak penyimpanan untuk menyerap kelembapan berlebih dan mencegah tumbuhnya jamur.'
       },
       {
         'title': 'Bersihkan Noda Segera',
         'desc': 'Noda tanah atau kopi akan sulit hilang jika dibiarkan > 24 jam.',
-        'img': 'https://images.unsplash.com/photo-1512374382149-233c42b6a83b?q=80&w=600',
+        'img': 'assets/images/sepatu-running.jpg',
         'content': 'Jangan menunda membersihkan noda! Semakin lama noda menempel, semakin dalam ia meresap ke serat kain. Gunakan tisu basah atau lap lembab sesegera mungkin saat terkena noda.'
       },
     ];
@@ -65,7 +65,7 @@ class ShoeTipsWidget extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
-                    child: Image.network(
+                    child: Image.asset(
                       item['img']!,
                       width: 100,
                       height: double.infinity,
@@ -119,7 +119,7 @@ class TipsDetailPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.network(imageUrl, width: double.infinity, height: 250, fit: BoxFit.cover),
+            Image.asset(imageUrl, width: double.infinity, height: 250, fit: BoxFit.cover),
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
