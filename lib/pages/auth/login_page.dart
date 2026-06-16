@@ -74,7 +74,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0606F9),
+                backgroundColor: const Color(0xFF22D3EE),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: () async {
@@ -214,7 +214,7 @@ class _LoginPageState extends State<LoginPage> {
                     child: const Text("Kirim Ulang Link"),
                   ),
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0606F9)),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF22D3EE)),
                     onPressed: () => Navigator.pop(context),
                     child: const Text("OK", style: TextStyle(color: Colors.white)),
                   ),
@@ -290,12 +290,12 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryBlue = Color(0xFF0606F9);
-    const Color accentCyan = Color(0xFF00D4FF);
-    const Color textDark = Color(0xFF0B0F19);
+    const Color primaryBlue = Color(0xFF22D3EE);
+    const Color accentCyan = Color(0xFF06B6D4);
+    const Color textDark = Color(0xFF083344);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: const Color(0xFFECFEFF),
       body: Stack(
         children: [
           // Background Mesh
@@ -361,7 +361,7 @@ class _LoginPageState extends State<LoginPage> {
                               width: 70, height: 70,
                               decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: primaryBlue.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))]),
                               child: Center(
-                                child: Image.asset('assets/images/logo.png', height: 40, errorBuilder: (context, error, stackTrace) => const Icon(Icons.checkroom_rounded, size: 40, color: primaryBlue)),
+                                child: Image.asset('assets/images/logo.png', height: 40),
                               ),
                             ),
 
@@ -401,7 +401,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ? const CircularProgressIndicator(color: primaryBlue)
                                 : Container(
                               width: double.infinity, height: 58,
-                              decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(colors: [Color(0xFF0606F9), Color(0xFF00D4FF)]), boxShadow: [BoxShadow(color: primaryBlue.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8))]),
+                              decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(colors: [Color(0xFF22D3EE), Color(0xFF06B6D4)]), boxShadow: [BoxShadow(color: primaryBlue.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8))]),
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
@@ -466,7 +466,7 @@ class _LoginPageState extends State<LoginPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(padding: const EdgeInsets.only(left: 8, bottom: 8), child: Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF0B0F19)))),
+        Padding(padding: const EdgeInsets.only(left: 8, bottom: 8), child: Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF083344)))),
         Container(
           decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.transparent)),
           child: TextField(
@@ -476,7 +476,7 @@ class _LoginPageState extends State<LoginPage> {
               prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 22), suffixIcon: suffix,
               hintText: 'Enter your $label', hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey.shade400, fontSize: 14),
               border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF0606F9), width: 1.5)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF22D3EE), width: 1.5)),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200, width: 1)),
             ),
           ),

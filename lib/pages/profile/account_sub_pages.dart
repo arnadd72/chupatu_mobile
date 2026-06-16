@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/common/terms_conditions_page.dart';
 import 'package:chupatu_mobile/pages/common/privacy_policy_page.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 // ==========================================
 // 1. HALAMAN KEAMANAN AKUN (Password & PIN)
@@ -359,10 +360,10 @@ class _SecurityPageState extends State<SecurityPage> {
             elevation: 0,
             iconTheme: IconThemeData(color: theme.textMain),
           ),
-          body: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : ListView(
-            padding: const EdgeInsets.all(24),
+          body: Skeletonizer(
+            enabled: _isLoading,
+            child: ListView(
+              padding: const EdgeInsets.all(24),
             children: [
               Text("Verifikasi Data", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.grey)),
               const SizedBox(height: 12),
@@ -492,6 +493,7 @@ class _SecurityPageState extends State<SecurityPage> {
               ),
             ],
           ),
+          ),
         );
       },
     );
@@ -559,15 +561,16 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           return Scaffold(
             backgroundColor: theme.background,
             appBar: AppBar(title: Text("Pengaturan Notifikasi", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)), backgroundColor: theme.surface, elevation: 0, iconTheme: IconThemeData(color: theme.textMain)),
-            body: _isLoading
-                ? Center(child: CircularProgressIndicator(color: theme.primary))
-                : ListView(
-              padding: const EdgeInsets.all(20),
+            body: Skeletonizer(
+              enabled: _isLoading,
+              child: ListView(
+                padding: const EdgeInsets.all(20),
               children: [
                 SwitchListTile(title: Text("Update Status Pesanan", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)), subtitle: Text("Notifikasi saat sepatu dijemput, dicuci, dan selesai", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)), activeColor: theme.primary, value: orderNotif, onChanged: (val) { setState(() => orderNotif = val); _saveSetting('orderNotif', val); }),
                 const Divider(),
                 SwitchListTile(title: Text("Promo & Diskon", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: theme.textMain)), subtitle: Text("Dapatkan info potongan harga terbaru", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)), activeColor: theme.primary, value: promoNotif, onChanged: (val) { setState(() => promoNotif = val); _saveSetting('promoNotif', val); }),
               ],
+            ),
             ),
           );
         }

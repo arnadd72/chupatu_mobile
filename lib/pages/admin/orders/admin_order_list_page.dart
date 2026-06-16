@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/admin/orders/admin_order_detail_page.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class AdminOrderListPage extends StatefulWidget {
   const AdminOrderListPage({super.key});
@@ -99,15 +100,13 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance.collection('bookings').orderBy('createdAt', descending: true).snapshots(),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                    if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) {
                       return Center(child: Text("Belum ada data", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
                     }
 
-                    var docs = snapshot.data!.docs.where((doc) {
+                    var baseDocs = isLoading ? [] : snapshot.data!.docs;
+                    var docs = baseDocs.where((doc) {
                       var data = doc.data() as Map<String, dynamic>;
                       String status = data['status'] ?? 'Pending';
                       bool isPro = data['isProMemberUsed'] == true;
@@ -140,17 +139,27 @@ class _AdminOrderListPageState extends State<AdminOrderListPage> {
                       return 0;
                     });
 
-                    if (docs.isEmpty) {
+                    if (!isLoading && docs.isEmpty) {
                       return Center(child: Text("Tidak ada pesanan di kategori ini", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
                     }
 
-                    return ListView.builder(
+                    return Skeletonizer(
+                      enabled: isLoading,
+                      child: ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      itemCount: docs.length,
+                      itemCount: isLoading ? 4 : docs.length,
                       itemBuilder: (context, index) {
+                        if (isLoading) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            height: 100,
+                            decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16)),
+                          );
+                        }
                         var data = docs[index].data() as Map<String, dynamic>;
                         return _buildOrderCard(docs[index].id, data, theme);
                       },
+                    ),
                     );
                   },
                 ),

@@ -17,13 +17,13 @@ class AccountPage extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text("Keluar Akun?", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-        content: Text("Apakah Anda yakin ingin keluar dan ganti akun?", style: GoogleFonts.plusJakartaSans()),
+        title: Text("Keluar Akun?",
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+        content: Text("Apakah Anda yakin ingin keluar dan ganti akun?",
+            style: GoogleFonts.plusJakartaSans()),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text("Batal")
-          ),
+              onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx); // Tutup Dialog
@@ -39,7 +39,7 @@ class AccountPage extends StatelessWidget {
                 if (context.mounted) {
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (context) => const LoginPage()),
-                        (route) => false,
+                    (route) => false,
                   );
                 }
               } catch (e) {
@@ -50,9 +50,11 @@ class AccountPage extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text("Ya, Keluar", style: TextStyle(color: Colors.white)),
+            child:
+                const Text("Ya, Keluar", style: TextStyle(color: Colors.white)),
           )
         ],
       ),
@@ -70,7 +72,9 @@ class AccountPage extends StatelessWidget {
               backgroundColor: theme.surface,
               elevation: 0,
               automaticallyImplyLeading: false,
-              title: Text("Pengaturan Akun", style: GoogleFonts.plusJakartaSans(color: theme.textMain, fontWeight: FontWeight.bold)),
+              title: Text("Pengaturan Akun",
+                  style: GoogleFonts.plusJakartaSans(
+                      color: theme.textMain, fontWeight: FontWeight.bold)),
               centerTitle: true,
             ),
             body: SingleChildScrollView(
@@ -81,40 +85,78 @@ class AccountPage extends StatelessWidget {
 
                   // --- SECTION 1: PROFIL & ALAMAT ---
                   _buildSectionContainer(theme, [
-                    _buildSettingTile(Icons.person_outline_rounded, "Ubah Profil", "Atur identitas dan biodata diri kamu", theme, onTap: () {
+                    _buildSettingTile(
+                        Icons.person_outline_rounded,
+                        "Ubah Profil",
+                        "Atur identitas dan biodata diri kamu",
+                        theme, onTap: () {
                       // HAPUS CONST DISINI BIAR AMAN
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => ProfilePage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => ProfilePage()));
                     }),
                     _buildDivider(),
-                    _buildSettingTile(Icons.storefront_outlined, "Daftar Alamat", "Atur alamat penjemputan layanan sepatu", theme, onTap: () {
+                    _buildSettingTile(
+                        Icons.storefront_outlined,
+                        "Daftar Alamat",
+                        "Atur alamat penjemputan layanan sepatu",
+                        theme, onTap: () {
                       // HAPUS CONST DISINI BIAR AMAN
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => AddressListPage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => AddressListPage()));
                     }),
                   ]),
 
                   // --- SECTION 2: KEAMANAN & NOTIFIKASI ---
                   _buildSectionContainer(theme, [
-                    _buildSettingTile(Icons.shield_outlined, "Keamanan Akun", "Kata sandi, PIN, & verifikasi data", theme, onTap: () {
+                    _buildSettingTile(Icons.shield_outlined, "Keamanan Akun",
+                        "Kata sandi, PIN, & verifikasi data", theme, onTap: () {
                       // HAPUS CONST DISINI BIAR AMAN
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => SecurityPage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => SecurityPage()));
                     }),
                     _buildDivider(),
-                    _buildSettingTile(Icons.notifications_none_rounded, "Notifikasi", "Atur segala jenis pesan notifikasi", theme, onTap: () {
+                    _buildSettingTile(
+                        Icons.notifications_none_rounded,
+                        "Notifikasi",
+                        "Atur segala jenis pesan notifikasi",
+                        theme, onTap: () {
                       // === INI YANG TADI ERROR, SAYA SUDAH HAPUS 'const'-NYA ===
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationSettingsPage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) =>
+                                  NotificationSettingsPage()));
                     }),
                     _buildDivider(),
-                    _buildSettingTile(Icons.phonelink_setup_rounded, "Pengaturan Aplikasi", "Tema gelap/terang, bahasa, dan cache", theme, onTap: () {
+                    _buildSettingTile(
+                        Icons.phonelink_setup_rounded,
+                        "Pengaturan Aplikasi",
+                        "Tema gelap/terang, bahasa, dan cache",
+                        theme, onTap: () {
                       // HAPUS CONST DISINI BIAR AMAN
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => AppSettingsPage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => AppSettingsPage()));
                     }),
                   ]),
 
                   // --- SECTION 3: TENTANG APLIKASI ---
                   _buildSectionContainer(theme, [
-                    _buildSettingTile(Icons.info_outline_rounded, "Seputar Chupatu", "Syarat & ketentuan, kebijakan privasi, bantuan", theme, onTap: () {
+                    _buildSettingTile(
+                        Icons.info_outline_rounded,
+                        "Seputar Chupatu",
+                        "Syarat & ketentuan, kebijakan privasi, bantuan",
+                        theme, onTap: () {
                       // HAPUS CONST DISINI BIAR AMAN
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => AboutPage()));
+                      Navigator.push(context,
+                          MaterialPageRoute(builder: (context) => AboutPage()));
                     }),
                   ]),
 
@@ -128,25 +170,28 @@ class AccountPage extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: () => _signOut(context),
                         icon: const Icon(Icons.logout_rounded, size: 20),
-                        label: Text("Keluar Akun", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                        label: Text("Keluar Akun",
+                            style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.bold, fontSize: 16)),
                         style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             side: const BorderSide(color: Colors.redAccent),
                             foregroundColor: Colors.redAccent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
-                        ),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16))),
                       ),
                     ),
                   ),
 
                   const SizedBox(height: 30),
-                  Text("Versi 1.2.1 (Beta)", style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 12)),
+                  Text("Versi 1.2.4 (Beta)",
+                      style: GoogleFonts.plusJakartaSans(
+                          color: Colors.grey, fontSize: 12)),
                 ],
               ),
             ),
           );
-        }
-    );
+        });
   }
 
   // --- WIDGET HELPERS ---
@@ -157,25 +202,35 @@ class AccountPage extends StatelessWidget {
             color: theme.surface,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.grey.withOpacity(0.1)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]
-        ),
-        child: Column(children: children)
-    );
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4))
+            ]),
+        child: Column(children: children));
   }
 
-  Widget _buildSettingTile(IconData icon, String title, String subtitle, AppThemeData theme, {required VoidCallback onTap}) {
+  Widget _buildSettingTile(
+      IconData icon, String title, String subtitle, AppThemeData theme,
+      {required VoidCallback onTap}) {
     return ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         leading: Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: theme.primary.withOpacity(0.1), shape: BoxShape.circle),
-            child: Icon(icon, color: theme.primary, size: 24)
-        ),
-        title: Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 15, color: theme.textMain)),
-        subtitle: Text(subtitle, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+            decoration: BoxDecoration(
+                color: theme.primary.withOpacity(0.1), shape: BoxShape.circle),
+            child: Icon(icon, color: theme.primary, size: 24)),
+        title: Text(title,
+            style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                color: theme.textMain)),
+        subtitle: Text(subtitle,
+            style:
+                GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
         trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
-        onTap: onTap
-    );
+        onTap: onTap);
   }
 
   Widget _buildDivider() {

@@ -8,6 +8,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:chupatu_mobile/main.dart'; // IMPORT TEMA
+import 'package:skeletonizer/skeletonizer.dart';
 
 class FinanceReportPage extends StatefulWidget {
   const FinanceReportPage({super.key});
@@ -219,8 +220,8 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
           .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-        var docs = snapshot.data?.docs ?? [];
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+        List<QueryDocumentSnapshot> docs = isLoading ? [] : (snapshot.data?.docs ?? []);
 
         List<DocumentSnapshot> sortedDocs = List.from(docs);
         sortedDocs.sort((a, b) => (a['createdAt'] as Timestamp).toDate().compareTo((b['createdAt'] as Timestamp).toDate()));
@@ -264,7 +265,9 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
         String displayValue = _touchedValue != null ? currencyFormat.format(_touchedValue) : currencyFormat.format(totalRevenue);
         String displayLabel = _touchedDate ?? "Total Pemasukan ($_selectedRange)";
 
-        return SingleChildScrollView(
+        return Skeletonizer(
+          enabled: isLoading,
+          child: SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 80),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,7 +296,7 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
 
                     Text("Layanan Terlaris", style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textMain)),
                     const SizedBox(height: 12),
-                    if (sortedServices.isEmpty) Text("-", style: TextStyle(color: theme.textMain)) else
+                    if (isLoading) Column(children: List.generate(3, (index) => _buildProgressBar("Loading Service", "Loading Order", 0.5, _stockGreen, theme))) else if (sortedServices.isEmpty) Text("-", style: TextStyle(color: theme.textMain)) else
                       Column(
                         children: sortedServices.take(5).map((e) {
                           double percentage = (e.value / docs.length);
@@ -319,7 +322,7 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
                       ],
                     ),
                     const SizedBox(height: 12),
-                    if (sortedCustomers.isEmpty) Text("-", style: TextStyle(color: theme.textMain)) else
+                    if (isLoading) Container(decoration: BoxDecoration(border: Border.all(color: Colors.grey.withOpacity(0.2)), borderRadius: BorderRadius.circular(12)), child: ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: 3, separatorBuilder: (c,i) => Divider(height: 1, color: Colors.grey.withOpacity(0.2)), itemBuilder: (context, index) { return ListTile(dense: true, leading: CircleAvatar(backgroundColor: theme.surface, child: Text((index+1).toString(), style: TextStyle(color: theme.textMain, fontWeight: FontWeight.bold))), title: Text("Loading Name", style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 13, color: theme.textMain)), subtitle: Text("Loading Total", style: GoogleFonts.manrope(fontSize: 11, color: Colors.grey)), trailing: Text("Loading Order", style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: theme.textMain, fontSize: 12))); })) else if (sortedCustomers.isEmpty) Text("-", style: TextStyle(color: theme.textMain)) else
                       Container(
                         decoration: BoxDecoration(border: Border.all(color: Colors.grey.withOpacity(0.2)), borderRadius: BorderRadius.circular(12)),
                         child: ListView.separated(
@@ -347,8 +350,9 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
               ),
 
               Divider(thickness: 8, color: theme.surface),
-              _buildTransactionList(docs, true, theme),
+              _buildTransactionList(docs, true, theme, isLoading),
             ],
+          ),
           ),
         );
       },
@@ -366,8 +370,8 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
           .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-        var docs = snapshot.data?.docs ?? [];
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+        List<QueryDocumentSnapshot> docs = isLoading ? [] : (snapshot.data?.docs ?? []);
 
         List<DocumentSnapshot> sortedDocs = List.from(docs);
         sortedDocs.sort((a, b) => (a['createdAt'] as Timestamp).toDate().compareTo((b['createdAt'] as Timestamp).toDate()));
@@ -390,7 +394,9 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
         String displayValue = _touchedValue != null ? "${_touchedValue!.toInt()} Pcs" : "$totalItems Pcs";
         String displayLabel = _touchedDate ?? "Total Stok Masuk ($_selectedRange)";
 
-        return SingleChildScrollView(
+        return Skeletonizer(
+          enabled: isLoading,
+          child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -405,7 +411,7 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
                   children: [
                     Text("Barang Paling Sering Dibeli", style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textMain)),
                     const SizedBox(height: 12),
-                    if (sortedItems.isEmpty) Text("-", style: TextStyle(color: theme.textMain)) else
+                    if (isLoading) Column(children: List.generate(3, (index) => _buildProgressBar("Loading Item", "Loading Pcs", 0.5, _stockRed, theme))) else if (sortedItems.isEmpty) Text("-", style: TextStyle(color: theme.textMain)) else
                       Column(
                         children: sortedItems.take(5).map((e) {
                           double percentage = totalItems > 0 ? (e.value / totalItems) : 0;
@@ -417,8 +423,9 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
               ),
 
               Divider(thickness: 8, color: theme.surface),
-              _buildTransactionList(docs, false, theme),
+              _buildTransactionList(docs, false, theme, isLoading),
             ],
+          ),
           ),
         );
       },
@@ -502,9 +509,13 @@ class _FinanceReportPageState extends State<FinanceReportPage> with SingleTicker
     return SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20), child: Row(children: _ranges.map((range) { bool isSelected = _selectedRange == range; return GestureDetector(onTap: () => setState(() => _selectedRange = range), child: Container(margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: isSelected ? theme.primary : theme.surface, borderRadius: BorderRadius.circular(20)), child: Text(range, style: GoogleFonts.manrope(color: isSelected ? Colors.white : Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)))); }).toList()));
   }
 
-  Widget _buildTransactionList(List<QueryDocumentSnapshot> docs, bool isIncome, AppThemeData theme) {
+  Widget _buildTransactionList(List<QueryDocumentSnapshot> docs, bool isIncome, AppThemeData theme, bool isLoading) {
     final currencyFormat = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     Color color = isIncome ? _stockGreen : _stockRed;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20), child: Text("Riwayat Detail ($_selectedRange)", style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain))), ListView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: docs.length, itemBuilder: (context, index) { var data = docs[index].data() as Map<String, dynamic>; DateTime dt = (data['createdAt'] as Timestamp).toDate(); String title = isIncome ? (data['serviceName'] ?? 'Service') : (data['itemName'] ?? 'Item'); String subtitle = isIncome ? (data['customerName'] ?? 'User') : "Stok Masuk"; String valueStr = isIncome ? currencyFormat.format(data['totalPrice'] ?? 0) : "+${data['amount']} Pcs"; return Container(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain)), const SizedBox(height: 4), Text("${DateFormat('dd MMM HH:mm').format(dt)} • $subtitle", style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey))])), Text(valueStr, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: color))])); })]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20), child: Text("Riwayat Detail ($_selectedRange)", style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textMain))), ListView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: isLoading ? 3 : docs.length, itemBuilder: (context, index) { 
+      if (isLoading) {
+        return Container(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Loading Title", style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain)), const SizedBox(height: 4), Text("Loading Date • Loading User", style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey))])), Text("Loading Value", style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: color))]));
+      }
+      var data = docs[index].data() as Map<String, dynamic>; DateTime dt = (data['createdAt'] as Timestamp).toDate(); String title = isIncome ? (data['serviceName'] ?? 'Service') : (data['itemName'] ?? 'Item'); String subtitle = isIncome ? (data['customerName'] ?? 'User') : "Stok Masuk"; String valueStr = isIncome ? currencyFormat.format(data['totalPrice'] ?? 0) : "+${data['amount']} Pcs"; return Container(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textMain)), const SizedBox(height: 4), Text("${DateFormat('dd MMM HH:mm').format(dt)} • $subtitle", style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey))])), Text(valueStr, style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14, color: color))])); })]);
   }
 }

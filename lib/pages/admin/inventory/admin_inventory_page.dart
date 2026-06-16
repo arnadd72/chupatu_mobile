@@ -5,6 +5,7 @@ import 'package:intl/intl.dart'; // TAMBAHAN: Untuk Format Rupiah
 import 'package:chupatu_mobile/main.dart';
 // IMPORT HALAMAN HISTORY
 import 'package:chupatu_mobile/pages/admin/inventory/inventory_history_page.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class AdminInventoryPage extends StatefulWidget {
   const AdminInventoryPage({super.key});
@@ -381,10 +382,8 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
                         .collection('inventory')
                         .orderBy('name').snapshots(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                      if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) {
                         return Center(
                             child: Text(
                                 "Gudang Kosong",
@@ -393,15 +392,24 @@ class _AdminInventoryPageState extends State<AdminInventoryPage> {
                         );
                       }
 
-                      var docs = snapshot.data!.docs;
+                      var docs = isLoading ? [] : snapshot.data!.docs;
 
-                      return ListView.separated(
-                        itemCount: docs.length,
+                      return Skeletonizer(
+                        enabled: isLoading,
+                        child: ListView.separated(
+                        itemCount: isLoading ? 4 : docs.length,
                         separatorBuilder: (c, i) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
+                          if (isLoading) {
+                            return Container(
+                              height: 120,
+                              decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16)),
+                            );
+                          }
                           var data = docs[index].data() as Map<String, dynamic>;
                           return _buildStockCard(docs[index].id, data, theme);
                         },
+                      ),
                       );
                     },
                   ),

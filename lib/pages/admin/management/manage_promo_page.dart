@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:chupatu_mobile/main.dart'; // IMPORT TEMA
+import 'package:skeletonizer/skeletonizer.dart';
 
 class ManagePromoPage extends StatefulWidget {
   const ManagePromoPage({super.key});
@@ -483,16 +484,30 @@ class _ManagePromoPageState extends State<ManagePromoPage>
           StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('promos').orderBy('createdAt', descending: true).snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Text("Belum ada banner.");
+                final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) return const Text("Belum ada banner.");
 
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    var doc = snapshot.data!.docs[index];
-                    var data = doc.data() as Map<String, dynamic>;
+                var docs = isLoading ? [] : snapshot.data!.docs;
+
+                return Skeletonizer(
+                  enabled: isLoading,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: isLoading ? 2 : docs.length,
+                    itemBuilder: (context, index) {
+                      if (isLoading) {
+                        return Card(
+                          color: theme.surface,
+                          child: const ListTile(
+                            leading: CircleAvatar(radius: 25, backgroundColor: Colors.grey),
+                            title: Text("Loading Banner..."),
+                            subtitle: Text("Loading Status..."),
+                          ),
+                        );
+                      }
+                      var doc = docs[index];
+                      var data = doc.data() as Map<String, dynamic>;
                     bool isActive = data['isActive'] ?? true;
 
                     return Card(
@@ -517,6 +532,7 @@ class _ManagePromoPageState extends State<ManagePromoPage>
                       ),
                     );
                   },
+                ),
                 );
               }
           )
@@ -642,18 +658,32 @@ class _ManagePromoPageState extends State<ManagePromoPage>
           StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('promo_codes').orderBy('createdAt', descending: true).snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Text("Belum ada voucher.");
+                final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) return const Text("Belum ada voucher.");
 
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    var doc = snapshot.data!.docs[index];
-                    var data = doc.data() as Map<String, dynamic>;
+                var docs = isLoading ? [] : snapshot.data!.docs;
 
-                    bool isActive = data['isActive'] ?? true;
+                return Skeletonizer(
+                  enabled: isLoading,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: isLoading ? 2 : docs.length,
+                    itemBuilder: (context, index) {
+                      if (isLoading) {
+                        return Card(
+                          color: theme.surface,
+                          child: const ListTile(
+                            leading: Icon(Icons.local_activity, color: Colors.grey),
+                            title: Text("Loading Voucher..."),
+                            subtitle: Text("Loading Voucher Details..."),
+                          ),
+                        );
+                      }
+                      var doc = docs[index];
+                      var data = doc.data() as Map<String, dynamic>;
+
+                      bool isActive = data['isActive'] ?? true;
                     int maxUsage = data['maxUsage'] ?? 0;
                     int currentUsage = data['currentUsage'] ?? 0;
                     String targetMember = data['targetMember'] ?? 'Semua';
@@ -694,6 +724,7 @@ class _ManagePromoPageState extends State<ManagePromoPage>
                       ),
                     );
                   },
+                ),
                 );
               }
           )

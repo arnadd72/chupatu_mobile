@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:chupatu_mobile/pages/home/widgets/gemini_ai_scanner.dart';
 
 class MagicResultDetailPage extends StatefulWidget {
   final String title;
@@ -29,10 +30,9 @@ class _MagicResultDetailPageState extends State<MagicResultDetailPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: Text(
-            widget.title,
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold)
-        ),
+        title: Text(widget.title,
+            style: GoogleFonts.plusJakartaSans(
+                color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
       body: Column(
@@ -41,7 +41,8 @@ class _MagicResultDetailPageState extends State<MagicResultDetailPage> {
             padding: const EdgeInsets.all(20),
             child: Text(
               "Geser garis pemisah ke kiri atau kanan untuk melihat perbedaan Before & After.",
-              style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 14),
+              style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white70, fontSize: 14),
               textAlign: TextAlign.center,
             ),
           ),
@@ -52,14 +53,16 @@ class _MagicResultDetailPageState extends State<MagicResultDetailPage> {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final width = constraints.maxWidth;
-                    final height = constraints.maxHeight * 0.8; // Pakai 80% dari tinggi layar
+                    final height = constraints.maxHeight *
+                        0.8; // Pakai 80% dari tinggi layar
 
                     return GestureDetector(
                       onPanUpdate: (details) {
                         setState(() {
                           // Update posisi slider sesuai gerakan jari
                           _sliderValue += details.delta.dx / width;
-                          _sliderValue = _sliderValue.clamp(0.0, 1.0); // Jangan sampai keluar kotak
+                          _sliderValue = _sliderValue.clamp(
+                              0.0, 1.0); // Jangan sampai keluar kotak
                         });
                       },
                       child: ClipRRect(
@@ -81,7 +84,8 @@ class _MagicResultDetailPageState extends State<MagicResultDetailPage> {
                               ClipRect(
                                 child: Align(
                                   alignment: Alignment.centerLeft,
-                                  widthFactor: _sliderValue, // Lebarnya mengikuti slider
+                                  widthFactor:
+                                      _sliderValue, // Lebarnya mengikuti slider
                                   child: Image.network(
                                     widget.beforeImg,
                                     width: width,
@@ -110,19 +114,22 @@ class _MagicResultDetailPageState extends State<MagicResultDetailPage> {
                                         width: 30,
                                         decoration: BoxDecoration(
                                             color: Colors.white,
-                                            borderRadius: BorderRadius.circular(8),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
                                             boxShadow: [
                                               BoxShadow(
-                                                  color: Colors.black.withOpacity(0.3),
-                                                  blurRadius: 5
-                                              )
-                                            ]
-                                        ),
+                                                  color: Colors.black
+                                                      .withOpacity(0.3),
+                                                  blurRadius: 5)
+                                            ]),
                                         child: const Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceEvenly,
                                           children: [
-                                            Icon(Icons.arrow_left, size: 14, color: Colors.black),
-                                            Icon(Icons.arrow_right, size: 14, color: Colors.black),
+                                            Icon(Icons.arrow_left,
+                                                size: 14, color: Colors.black),
+                                            Icon(Icons.arrow_right,
+                                                size: 14, color: Colors.black),
                                           ],
                                         ),
                                       )
@@ -133,25 +140,37 @@ class _MagicResultDetailPageState extends State<MagicResultDetailPage> {
 
                               // 4. LABEL TEKS "BEFORE" & "AFTER"
                               Positioned(
-                                  bottom: 16, left: 16,
+                                  bottom: 16,
+                                  left: 16,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                        color: Colors.black54, borderRadius: BorderRadius.circular(20)
-                                    ),
-                                    child: const Text("BEFORE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                                  )
-                              ),
+                                        color: Colors.black54,
+                                        borderRadius:
+                                            BorderRadius.circular(20)),
+                                    child: const Text("BEFORE",
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12)),
+                                  )),
                               Positioned(
-                                  bottom: 16, right: 16,
+                                  bottom: 16,
+                                  right: 16,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                        color: Colors.black54, borderRadius: BorderRadius.circular(20)
-                                    ),
-                                    child: const Text("AFTER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                                  )
-                              ),
+                                        color: Colors.black54,
+                                        borderRadius:
+                                            BorderRadius.circular(20)),
+                                    child: const Text("AFTER",
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12)),
+                                  )),
                             ],
                           ),
                         ),
@@ -162,7 +181,66 @@ class _MagicResultDetailPageState extends State<MagicResultDetailPage> {
               ),
             ),
           ),
-          const SizedBox(height: 40), // Ruang bawah
+          // --- BANNER DEMO & TOMBOL ORDER ---
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+                color:
+                    const Color(0xFF083344), // Warna textDark / Biru gelap tema
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                      color: const Color(0xFF22D3EE).withOpacity(0.2),
+                      blurRadius: 20,
+                      offset: const Offset(0, -5))
+                ]),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline_rounded,
+                          color: Color(0xFF22D3EE), size: 28),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          "Ini baru fitur demo lho! Untuk mencoba aslinya, silakan klik tombol di bawah ini. Kamu akan diarahkan ke halaman Scan AI kemudian kamu bisa pilih layanan yang di rekomendasikan, jangan lupa untuk meng-upload foto sepatu kamu kemudian hasil akhirnya bisa kamu coba magic result ini.",
+                          style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontSize: 12,
+                              height: 1.5,
+                              fontWeight: FontWeight.w500),
+                        ),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const AIScannerScreen()));
+                    },
+                    icon: const Icon(Icons.auto_awesome_rounded,
+                        color: Color(0xFF083344), size: 20),
+                    label: Text("Upload Foto & Pesan Layanan",
+                        style: GoogleFonts.plusJakartaSans(
+                            color: const Color(0xFF083344),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14)),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF22D3EE),
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16))),
+                  )
+                ],
+              ),
+            ),
+          )
         ],
       ),
     );

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:chupatu_mobile/main.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class ChatRoomPage extends StatefulWidget {
   final String chatId;
@@ -128,16 +129,21 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                         .orderBy('createdAt', descending: true)
                         .snapshots(),
                     builder: (context, snapshot) {
-                      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                      var docs = snapshot.data!.docs;
-                      if (docs.isEmpty) return Center(child: Text("Mulai percakapan dengan ${widget.name} 👋", style: GoogleFonts.plusJakartaSans(color: theme.textMain.withOpacity(0.5))));
+                      final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                      var docs = isLoading ? [] : (snapshot.data?.docs ?? []);
+                      if (!isLoading && docs.isEmpty) return Center(child: Text("Mulai percakapan dengan ${widget.name} 👋", style: GoogleFonts.plusJakartaSans(color: theme.textMain.withOpacity(0.5))));
 
-                      return ListView.builder(
-                        reverse: true,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: docs.length,
-                        itemBuilder: (context, index) {
-                          var data = docs[index].data() as Map<String, dynamic>;
+                      return Skeletonizer(
+                        enabled: isLoading,
+                        child: ListView.builder(
+                          reverse: true,
+                          padding: const EdgeInsets.all(16),
+                          itemCount: isLoading ? 3 : docs.length,
+                          itemBuilder: (context, index) {
+                            if (isLoading) {
+                              return _buildChatBubble('Ini skeleton text yang lumayan panjang', index % 2 == 0, null, theme);
+                            }
+                            var data = docs[index].data() as Map<String, dynamic>;
                           bool isSenderAdmin = false;
                           
                           // Web admin writes `isAdmin: true` or `type: 'admin'` / `senderId: 'admin'`
@@ -162,6 +168,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                           bool isMe = (widget.isAdmin == isSenderAdmin);
                           return _buildChatBubble(data['text'], isMe, data['createdAt'], theme);
                         },
+                      ),
                       );
                     },
                   ),

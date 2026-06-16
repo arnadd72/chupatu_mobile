@@ -37,25 +37,36 @@ class GeminiScanCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)], // Warna Ungu AI
+              colors: [Color(0xFF22D3EE), Color(0xFF06B6D4)], // Tema Cyan
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                  color: const Color(0xFF4A00E0).withOpacity(0.3),
+                  color: const Color(0xFF22D3EE).withOpacity(0.4),
                   blurRadius: 15,
-                  offset: const Offset(0, 5))
+                  offset: const Offset(0, 8))
             ]),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  shape: BoxShape.circle),
-              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 28),
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: Colors.white.withOpacity(0.5), blurRadius: 12, spreadRadius: 2)
+                  ]
+              ),
+              child: ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [Color(0xFF4285F4), Color(0xFF9B72CB), Color(0xFFD96570)], // Warna Khas Gemini
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ).createShader(bounds),
+                child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 32),
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -232,9 +243,9 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
               Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                      color: Colors.purpleAccent.withOpacity(0.1),
+                      color: Color(0xFF06B6D4).withOpacity(0.1),
                       shape: BoxShape.circle),
-                  child: Icon(icon, color: Colors.purpleAccent, size: 30)),
+                  child: Icon(icon, color: Color(0xFF06B6D4), size: 30)),
               const SizedBox(height: 8),
               Text(label, style: GoogleFonts.plusJakartaSans(
                   fontWeight: FontWeight.bold))
@@ -317,12 +328,12 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
                   const SizedBox(height: 24),
 
                   if (_isAnalyzing) ...[
-                    const CircularProgressIndicator(color: Colors.purpleAccent),
+                    const CircularProgressIndicator(color: Color(0xFF06B6D4)),
                     const SizedBox(height: 16),
                     Text("AI Gemini sedang menganalisa secara detail...",
                         style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
-                            color: Colors.purpleAccent,
+                            color: Color(0xFF06B6D4),
                             fontWeight: FontWeight.bold))
                   ] else if (_errorMessage != null) ...[
                     Container(
@@ -342,11 +353,11 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                                color: Colors.purpleAccent.withOpacity(0.1),
+                                color: Color(0xFF06B6D4).withOpacity(0.1),
                                 blurRadius: 20,
                                 offset: const Offset(0, 5))],
                           border: Border.all(
-                              color: Colors.purpleAccent.withOpacity(0.2))),
+                              color: Color(0xFF06B6D4).withOpacity(0.2))),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -383,14 +394,14 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                      color: Colors.purpleAccent.withOpacity(0.1),
+                                      color: Color(0xFF06B6D4).withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
-                                          color: Colors.purpleAccent.withOpacity(0.5))),
+                                          color: Color(0xFF06B6D4).withOpacity(0.5))),
                                   child: Text(service,
                                       style: GoogleFonts.plusJakartaSans(
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.purpleAccent,
+                                          color: Color(0xFF06B6D4),
                                           fontSize: 12)),
                                 )).toList(),
                           )
@@ -421,17 +432,17 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: _showSourcePicker,
-                          icon: const Icon(Icons.refresh_rounded, color: Colors.purpleAccent, size: 18),
+                          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF06B6D4), size: 18),
                           label: Text(
                             "Foto Ulang",
                             style: GoogleFonts.plusJakartaSans(
                               fontWeight: FontWeight.bold,
-                              color: Colors.purpleAccent,
+                              color: Color(0xFF06B6D4),
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(0, 56),
-                            side: const BorderSide(color: Colors.purpleAccent),
+                            side: const BorderSide(color: Color(0xFF06B6D4)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -462,7 +473,7 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
                           },
                           style: ElevatedButton.styleFrom(
                             minimumSize: const Size(0, 56),
-                            backgroundColor: _hasResult ? Colors.green : Colors.purpleAccent,
+                            backgroundColor: _hasResult ? Colors.green : Color(0xFF06B6D4),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -485,7 +496,7 @@ class _AIScannerScreenState extends State<AIScannerScreen> {
                         : _showSourcePicker,
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 56),
-                      backgroundColor: Colors.purpleAccent,
+                      backgroundColor: Color(0xFF06B6D4),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

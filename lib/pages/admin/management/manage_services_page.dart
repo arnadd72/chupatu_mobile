@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:chupatu_mobile/main.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 // ==========================================================
 // 1. HALAMAN UTAMA (KELOLA LAYANAN)
@@ -139,11 +140,8 @@ class _ManageServicesPageState extends State<ManageServicesPage> {
                   .collection('services')
                   .orderBy('createdAt', descending: true).snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -162,19 +160,29 @@ class _ManageServicesPageState extends State<ManageServicesPage> {
                   );
                 }
 
-                var docs = snapshot.data!.docs;
-                return ListView.separated(
+                var docs = isLoading ? [] : snapshot.data!.docs;
+                return Skeletonizer(
+                  enabled: isLoading,
+                  child: ListView.separated(
                   padding: const EdgeInsets.all(20),
-                  itemCount: docs.length,
+                  itemCount: isLoading ? 3 : docs.length,
                   separatorBuilder: (c, i) => const SizedBox(height: 16),
                   itemBuilder: (context, index) {
+                    if (isLoading) {
+                      return Container(
+                        height: 100,
+                        decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16)),
+                        child: const ListTile(title: Text("Loading..."))
+                      );
+                    }
                     var data = docs[index].data() as Map<String, dynamic>;
                     return _buildServiceCard(
-                      docId: docs[index].id,
+                      docId: isLoading ? "xxxx" : docs[index].id,
                       data: data, // Kirim full data untuk dipakai saat mode Edit
                       theme: theme,
                     );
                   },
+                ),
                 );
               },
             ),
@@ -570,11 +578,8 @@ class ServiceHistoryScreen extends StatelessWidget {
                 .orderBy('timestamp', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              final isLoading = snapshot.connectionState == ConnectionState.waiting;
+              if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -593,13 +598,22 @@ class ServiceHistoryScreen extends StatelessWidget {
                 );
               }
 
-              var docs = snapshot.data!.docs;
+              var docs = isLoading ? [] : snapshot.data!.docs;
 
-              return ListView.separated(
+              return Skeletonizer(
+                enabled: isLoading,
+                child: ListView.separated(
                 padding: const EdgeInsets.all(16),
-                itemCount: docs.length,
+                itemCount: isLoading ? 5 : docs.length,
                 separatorBuilder: (c, i) => Divider(color: Colors.grey.withOpacity(0.2)),
                 itemBuilder: (context, index) {
+                  if (isLoading) {
+                    return ListTile(
+                      leading: CircleAvatar(backgroundColor: Colors.grey.shade300),
+                      title: Container(height: 14, width: 100, color: Colors.grey.shade300),
+                      subtitle: Container(height: 12, width: 60, color: Colors.grey.shade300),
+                    );
+                  }
                   var data = docs[index].data() as Map<String, dynamic>;
                   String action = data['action'] ?? 'info';
                   String name = data['serviceName'] ?? '-';
@@ -648,6 +662,7 @@ class ServiceHistoryScreen extends StatelessWidget {
                     ),
                   );
                 },
+              ),
               );
             },
           ),

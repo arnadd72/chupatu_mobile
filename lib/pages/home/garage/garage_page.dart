@@ -12,6 +12,7 @@ import 'package:chupatu_mobile/pages/order/booking_page.dart';
 import 'package:chupatu_mobile/pages/home/garage/shoe_detail_page.dart';
 import 'package:chupatu_mobile/pages/order/custom_service_page.dart';
 import 'package:lottie/lottie.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class ApiConfig {
   static const String baseUrl = 'https://malik-pseudomonocyclic-misti.ngrok-free.dev/api';
@@ -260,16 +261,33 @@ class _GaragePageState extends State<GaragePage> {
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance.collection('services').snapshots(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return Center(child: Text("Belum ada layanan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
+                  final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                  if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) return Center(child: Text("Belum ada layanan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
 
-                  var services = snapshot.data!.docs;
-                  return GridView.builder(
-                    physics: const BouncingScrollPhysics(), itemCount: services.length,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.9),
-                    itemBuilder: (context, index) {
-                      var s = services[index].data() as Map<String, dynamic>;
-                      String name = s['name'] ?? 'Layanan';
+                  var services = isLoading ? [] : snapshot.data!.docs;
+                  return Skeletonizer(
+                    enabled: isLoading,
+                    child: GridView.builder(
+                      physics: const BouncingScrollPhysics(), itemCount: isLoading ? 6 : services.length,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.9),
+                      itemBuilder: (context, index) {
+                        if (isLoading) {
+                           return Container(
+                             decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(16)),
+                             child: Column(
+                               mainAxisAlignment: MainAxisAlignment.center,
+                               children: [
+                                 Container(width: 35, height: 35, color: Colors.grey.shade400),
+                                 const SizedBox(height: 8),
+                                 Container(width: 50, height: 10, color: Colors.grey.shade400),
+                                 const SizedBox(height: 4),
+                                 Container(width: 30, height: 10, color: Colors.grey.shade400),
+                               ],
+                             ),
+                           );
+                        }
+                        var s = services[index].data() as Map<String, dynamic>;
+                        String name = s['name'] ?? 'Layanan';
                       String price = s['price'] != null ? s['price'].toString() : 'Rp -';
                       String nameLower = name.toLowerCase();
                       String imageUrl = s['imageUrl'] ?? '';
@@ -316,11 +334,12 @@ class _GaragePageState extends State<GaragePage> {
                         ),
                       );
                     },
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
-          ],
+          ),
+        ],
         ),
       ),
     );
@@ -374,23 +393,29 @@ class _GaragePageState extends State<GaragePage> {
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).collection('garage').orderBy('createdAt', descending: true).snapshots(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) return const SliverFillRemaining(child: Center(child: CircularProgressIndicator()));
-                  var shoesDocs = snapshot.data?.docs ?? [];
-                  if (_selectedBrandFilter != 'All') {
+                  final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                  var shoesDocs = isLoading ? [] : snapshot.data?.docs ?? [];
+                  if (_selectedBrandFilter != 'All' && !isLoading) {
                     shoesDocs = shoesDocs.where((doc) => (doc.data() as Map<String, dynamic>)['brand'] == _selectedBrandFilter).toList();
                   }
 
                   return SliverPadding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, childAspectRatio: 0.68, crossAxisSpacing: 16, mainAxisSpacing: 16),
-                      delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                          if (index == shoesDocs.length) return _buildAddShoeCard(theme);
-                          var doc = shoesDocs[index];
-                          return _buildShoeCard(doc.id, doc.data() as Map<String, dynamic>, theme);
-                        },
-                        childCount: shoesDocs.length + 1,
+                    sliver: Skeletonizer.sliver(
+                      enabled: isLoading,
+                      child: SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, childAspectRatio: 0.68, crossAxisSpacing: 16, mainAxisSpacing: 16),
+                        delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                            if (isLoading) {
+                               return _buildShoeCard('dummy_$index', {'name': 'Skeleton Shoe Name', 'brand': 'Brand', 'size': '42', 'image': ''}, theme);
+                            }
+                            if (index == shoesDocs.length) return _buildAddShoeCard(theme);
+                            var doc = shoesDocs[index];
+                            return _buildShoeCard(doc.id, doc.data() as Map<String, dynamic>, theme);
+                          },
+                          childCount: isLoading ? 6 : shoesDocs.length + 1,
+                        ),
                       ),
                     ),
                   );

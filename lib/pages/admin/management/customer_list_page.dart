@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/notification/chat_room_page.dart';
 import 'package:chupatu_mobile/pages/admin/orders/admin_order_detail_page.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 // ==========================================================
 // 1. HALAMAN LIST PELANGGAN (DENGAN FILTER SULTAN)
@@ -134,13 +135,12 @@ class _CustomerListPageState extends State<CustomerListPage> {
                   child: StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance.collection('users').snapshots(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                      if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) {
                         return Center(child: Text("Belum ada data pelanggan", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
                       }
 
-                      var allDocs = snapshot.data!.docs;
+                      var allDocs = isLoading ? [] : snapshot.data!.docs;
 
                       var filteredDocs = allDocs.where((doc) {
                         var data = doc.data() as Map<String, dynamic>;
@@ -181,15 +181,28 @@ class _CustomerListPageState extends State<CustomerListPage> {
                         }
                       });
 
-                      if (filteredDocs.isEmpty) {
+                      if (!isLoading && filteredDocs.isEmpty) {
                         return Center(child: Text("Tidak ditemukan '$_searchQuery'", style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
                       }
 
-                      return ListView.separated(
+                      return Skeletonizer(
+                        enabled: isLoading,
+                        child: ListView.separated(
                         padding: const EdgeInsets.all(16),
-                        itemCount: filteredDocs.length,
+                        itemCount: isLoading ? 5 : filteredDocs.length,
                         separatorBuilder: (c, i) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
+                          if (isLoading) {
+                            return Container(
+                              height: 70,
+                              decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16)),
+                              child: ListTile(
+                                leading: CircleAvatar(radius: 24, backgroundColor: Colors.grey.shade300),
+                                title: Container(height: 16, width: 100, color: Colors.grey.shade300),
+                                subtitle: Container(height: 12, width: 60, color: Colors.grey.shade300),
+                              ),
+                            );
+                          }
                           var doc = filteredDocs[index];
                           var data = doc.data() as Map<String, dynamic>;
                           String userId = doc.id;
@@ -247,6 +260,7 @@ class _CustomerListPageState extends State<CustomerListPage> {
                             ),
                           );
                         },
+                      ),
                       );
                     },
                   ),
@@ -475,9 +489,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
               body: StreamBuilder<DocumentSnapshot>(
                   stream: FirebaseFirestore.instance.collection('users').doc(widget.userId).snapshots(),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+                    final isLoading = snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData;
 
                     // Ambil data live, kalau gagal pakai data awal (widget.userData)
                     Map<String, dynamic> liveData = widget.userData;
@@ -510,7 +522,9 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
                       } catch (_) {}
                     }
 
-                    return SingleChildScrollView(
+                    return Skeletonizer(
+                      enabled: isLoading,
+                      child: SingleChildScrollView(
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -725,6 +739,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
                           const SizedBox(height: 40),
                         ],
                       ),
+                    ),
                     );
                   }
               )
@@ -825,28 +840,39 @@ class CustomerTransactionHistoryPage extends StatelessWidget {
                   .where('userId', isEqualTo: userId)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) {
                   return Center(
                       child: Text("Belum ada transaksi.", style: GoogleFonts.plusJakartaSans(color: Colors.grey))
                   );
                 }
 
-                var docs = snapshot.data!.docs.toList();
-                docs.sort((a, b) {
-                  Timestamp? tA = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-                  Timestamp? tB = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-                  if (tA == null || tB == null) return 0;
-                  return tB.compareTo(tA);
-                });
+                var docs = isLoading ? [] : snapshot.data!.docs.toList();
+                if (!isLoading) {
+                  docs.sort((a, b) {
+                    Timestamp? tA = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                    Timestamp? tB = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                    if (tA == null || tB == null) return 0;
+                    return tB.compareTo(tA);
+                  });
+                }
 
-                return ListView.separated(
+                return Skeletonizer(
+                  enabled: isLoading,
+                  child: ListView.separated(
                     padding: const EdgeInsets.all(16),
-                    itemCount: docs.length,
+                    itemCount: isLoading ? 3 : docs.length,
                     separatorBuilder: (context, index) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
+                      if (isLoading) {
+                        return Container(
+                          height: 100,
+                          decoration: BoxDecoration(color: theme.surface, borderRadius: BorderRadius.circular(16)),
+                          child: const ListTile(title: Text("Loading..."))
+                        );
+                      }
                       var data = docs[index].data() as Map<String, dynamic>;
-                      String docId = docs[index].id;
+                      String docId = isLoading ? "xxxx" : docs[index].id;
 
                       String status = data['status'] ?? 'Pending';
                       Color statusColor = _getStatusColor(status);
@@ -932,6 +958,7 @@ class CustomerTransactionHistoryPage extends StatelessWidget {
                         ),
                       );
                     }
+                ),
                 );
               },
             ),

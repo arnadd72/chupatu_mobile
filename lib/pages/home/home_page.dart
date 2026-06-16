@@ -374,7 +374,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         () => _navigateToService(
                                             context, 'Fast Clean')),
                                     _buildImageServiceItem(
-                                        'assets/images/unyellow.jpeg',
+                                        'assets/images/unyellow.jpg',
                                         'Unyellow',
                                         theme,
                                         Colors.amber,
@@ -406,7 +406,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         () => _navigateToService(
                                             context, 'Waterproof')),
                                     _buildImageServiceItem(
-                                        'assets/images/custom.jpeg',
+                                        'assets/images/custom.jpg',
                                         'Custom',
                                         theme,
                                         Colors.pink,
@@ -414,7 +414,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         () => _navigateToService(
                                             context, 'Custom Painting')),
                                     _buildImageServiceItem(
-                                        'assets/images/pickup.jpeg',
+                                        'assets/images/pickup.jpg',
                                         'Pickup',
                                         theme,
                                         Colors.green,

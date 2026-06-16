@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/main.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class ManageSystemPaymentPage extends StatefulWidget {
   const ManageSystemPaymentPage({super.key});
@@ -145,9 +146,9 @@ class _ManageSystemPaymentPageState extends State<ManageSystemPaymentPage> {
               elevation: 1,
               iconTheme: IconThemeData(color: theme.textMain),
             ),
-            body: _isFetching
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
+            body: Skeletonizer(
+              enabled: _isFetching,
+              child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,6 +365,7 @@ class _ManageSystemPaymentPageState extends State<ManageSystemPaymentPage> {
                   const SizedBox(height: 40),
                 ],
               ),
+            ),
             ),
           );
         }

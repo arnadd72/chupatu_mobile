@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:chupatu_mobile/main.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class InventoryHistoryPage extends StatefulWidget {
   const InventoryHistoryPage({super.key});
@@ -69,16 +70,25 @@ class _InventoryHistoryPageState extends State<InventoryHistoryPage> {
                   child: StreamBuilder<QuerySnapshot>(
                     stream: _getLogStream(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("Belum ada riwayat", style: TextStyle(color: Colors.grey)));
+                      final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                      if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) return const Center(child: Text("Belum ada riwayat", style: TextStyle(color: Colors.grey)));
 
-                      var docs = snapshot.data!.docs;
+                      var docs = isLoading ? [] : snapshot.data!.docs;
 
-                      return ListView.separated(
+                      return Skeletonizer(
+                        enabled: isLoading,
+                        child: ListView.separated(
                         padding: const EdgeInsets.all(16),
-                        itemCount: docs.length,
+                        itemCount: isLoading ? 5 : docs.length,
                         separatorBuilder: (c, i) => Divider(color: Colors.grey.withOpacity(0.2)),
                         itemBuilder: (context, index) {
+                          if (isLoading) {
+                            return ListTile(
+                              leading: CircleAvatar(backgroundColor: Colors.grey.shade300),
+                              title: Container(height: 14, width: 100, color: Colors.grey.shade300),
+                              subtitle: Container(height: 12, width: 60, color: Colors.grey.shade300),
+                            );
+                          }
                           var data = docs[index].data() as Map<String, dynamic>;
                           bool isIn = data['type'] == 'in';
 
@@ -133,6 +143,7 @@ class _InventoryHistoryPageState extends State<InventoryHistoryPage> {
                             ),
                           );
                         },
+                      ),
                       );
                     },
                   ),

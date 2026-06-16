@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/main.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 // ====================================================================
 // 1. HALAMAN DAFTAR NOTIFIKASI & PROMO (FULL SCREEN)
@@ -41,11 +42,8 @@ class NotificationPage extends StatelessWidget {
                 .orderBy('createdAt', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              final isLoading = snapshot.connectionState == ConnectionState.waiting;
+              if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -58,13 +56,45 @@ class NotificationPage extends StatelessWidget {
                 );
               }
 
-              var docs = snapshot.data!.docs;
+              var docs = isLoading ? [] : snapshot.data!.docs;
 
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: docs.length,
-                itemBuilder: (context, index) {
-                  var data = docs[index].data() as Map<String, dynamic>;
+              return Skeletonizer(
+                enabled: isLoading,
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: isLoading ? 4 : docs.length,
+                  itemBuilder: (context, index) {
+                    if (isLoading) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: theme.textMain.withOpacity(0.05)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(width: 48, height: 48, decoration: BoxDecoration(color: Colors.grey.shade300, shape: BoxShape.circle)),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(width: 150, height: 14, color: Colors.grey.shade300),
+                                  const SizedBox(height: 6),
+                                  Container(width: double.infinity, height: 12, color: Colors.grey.shade300),
+                                  const SizedBox(height: 4),
+                                  Container(width: double.infinity, height: 12, color: Colors.grey.shade300),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    var data = docs[index].data() as Map<String, dynamic>;
 
                   String title = data['title'] ?? 'Info Chupatu';
                   String body = data['body'] ?? '';
@@ -142,6 +172,7 @@ class NotificationPage extends StatelessWidget {
                     ),
                   );
                 },
+              ),
               );
             },
           ),

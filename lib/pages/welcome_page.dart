@@ -121,9 +121,9 @@ class _WelcomePageState extends State<WelcomePage>
 
   @override
   Widget build(BuildContext context) {
-    // --- TEMA WARNA SULTAN (PUTIH & GOLD) ---
-    const Color goldColor = Color(0xFFD4AF37);
-    const Color lightGold = Color(0xFFFBF5E6);
+    // --- TEMA WARNA BERANDA ---
+    const Color primaryCyan = Color(0xFF22D3EE);
+    const Color bgCyan = Color(0xFFECFEFF);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -133,7 +133,7 @@ class _WelcomePageState extends State<WelcomePage>
           Container(
             decoration: const BoxDecoration(
                 gradient: RadialGradient(
-                  colors: [lightGold, Colors.white],
+                  colors: [bgCyan, Colors.white],
                   radius: 1.2,
                   center: Alignment.center,
                 )
@@ -156,11 +156,11 @@ class _WelcomePageState extends State<WelcomePage>
                         decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                                color: goldColor.withOpacity(0.3), width: 2
+                                color: primaryCyan.withOpacity(0.3), width: 2
                             ),
                             boxShadow: [
                               BoxShadow(
-                                  color: goldColor.withOpacity(0.2),
+                                  color: primaryCyan.withOpacity(0.2),
                                   blurRadius: 40, spreadRadius: 10
                               )
                             ]
@@ -175,7 +175,7 @@ class _WelcomePageState extends State<WelcomePage>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white,
-                          border: Border.all(color: goldColor, width: 3),
+                          border: Border.all(color: primaryCyan, width: 3),
                           boxShadow: [
                             BoxShadow(
                                 color: Colors.black.withOpacity(0.1),
@@ -222,14 +222,14 @@ class _WelcomePageState extends State<WelcomePage>
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              goldColor.withOpacity(0.5),
+                              primaryCyan.withOpacity(0.5),
                               Colors.white.withOpacity(0.5)
                             ]
                         ),
                         child: Center(
                           // Teks Shimmer Emas & Putih
                           child: Shimmer.fromColors(
-                            baseColor: goldColor,
+                            baseColor: primaryCyan,
                             highlightColor: Colors.white,
                             period: const Duration(seconds: 2),
                             child: Text(
@@ -238,11 +238,11 @@ class _WelcomePageState extends State<WelcomePage>
                                 textStyle: TextStyle(
                                   fontSize: 34,
                                   fontWeight: FontWeight.w900,
-                                  color: goldColor,
+                                  color: primaryCyan,
                                   letterSpacing: _textLetterSpacingAnimation.value,
                                   shadows: [
                                     Shadow(
-                                        color: goldColor.withOpacity(0.3),
+                                        color: primaryCyan.withOpacity(0.3),
                                         blurRadius: 10,
                                         offset: const Offset(0, 2)
                                     )

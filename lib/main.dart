@@ -12,6 +12,7 @@ import 'package:chupatu_mobile/pages/auth/landing_page.dart';
 import 'package:chupatu_mobile/pages/main_page.dart';
 import 'package:chupatu_mobile/pages/admin/dashboard/admin_home_page.dart';
 import 'package:chupatu_mobile/services/notification_service.dart'; // Import NotificationService
+import 'package:skeletonizer/skeletonizer.dart';
 
 // ============================================================
 // KONFIGURASI BAHASA (LANGUAGE CONFIG)
@@ -153,12 +154,18 @@ class ChupatuApp extends StatelessWidget {
         return ValueListenableBuilder<AppThemeData>(
           valueListenable: ThemeConfig.currentTheme,
           builder: (context, themeData, child) {
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              title: 'Chupatu Mobile',
+            return SkeletonizerConfig(
+              data: const SkeletonizerConfigData(
+                effect: ShimmerEffect(
+                  duration: Duration(seconds: 2), // Slower animation to prevent glitchy feel
+                ),
+              ),
+              child: MaterialApp(
+                debugShowCheckedModeBanner: false,
+                title: 'Chupatu Mobile',
 
-              // --- SETTING BAHASA BERFUNGSI DISINI ---
-              locale: currentLocale,
+                // --- SETTING BAHASA BERFUNGSI DISINI ---
+                locale: currentLocale,
               supportedLocales: const [
                 Locale('id', 'ID'), // Indonesia
                 Locale('en', 'US'), // Inggris
@@ -205,6 +212,7 @@ class ChupatuApp extends StatelessWidget {
 
               // --- LOGIC AUTH WRAPPER ---
               home: const WelcomePage(),
+            ),
             );
           },
         );
@@ -244,8 +252,36 @@ class AuthWrapper extends StatelessWidget {
               .get(),
           builder: (context, userSnapshot) {
             if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()));
+              return Scaffold(
+                body: Skeletonizer(
+                  enabled: true,
+                  child: ListView.builder(
+                    itemCount: 5,
+                    padding: const EdgeInsets.all(20),
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: Row(
+                          children: [
+                            Container(width: 60, height: 60, color: Colors.grey.shade300),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(width: double.infinity, height: 16, color: Colors.grey.shade300),
+                                  const SizedBox(height: 8),
+                                  Container(width: 150, height: 16, color: Colors.grey.shade300),
+                                ],
+                              ),
+                            )
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
             }
 
             if (userSnapshot.hasData && userSnapshot.data!.exists) {

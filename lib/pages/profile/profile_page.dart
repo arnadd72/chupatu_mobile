@@ -14,6 +14,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/profile/chupatu_pro_page.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class ApiConfig {
   static const String baseUrl =
@@ -233,18 +234,19 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: StreamBuilder<DocumentSnapshot>(
                           stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).snapshots(),
                           builder: (ctx, snapshot) {
-                            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                            final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                            var userData = isLoading ? {} : (snapshot.data?.data() as Map<String, dynamic>? ?? {});
+                            List<dynamic> currentAddrs = isLoading ? [{}, {}, {}] : (userData['addresses'] ?? []);
 
-                            var userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-                            List<dynamic> currentAddrs = userData['addresses'] ?? [];
-
-                            if (currentAddrs.isEmpty) {
+                            if (!isLoading && currentAddrs.isEmpty) {
                               return Center(
                                   child: Text("Belum ada alamat tersimpan.", style: GoogleFonts.plusJakartaSans(color: Colors.grey))
                               );
                             }
 
-                            return ListView.separated(
+                            return Skeletonizer(
+                              enabled: isLoading,
+                              child: ListView.separated(
                               controller: controller,
                               itemCount: currentAddrs.length,
                               separatorBuilder: (c, i) => const SizedBox(height: 12),
@@ -308,6 +310,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                 );
                               },
+                            ),
                             );
                           }
                       ),
@@ -687,12 +690,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     .doc(freshUser?.uid)
                     .snapshots(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+                  final isLoading = snapshot.connectionState == ConnectionState.waiting;
 
                   Map<String, dynamic> userData = {};
-                  if (snapshot.hasData && snapshot.data!.data() != null) {
+                  if (!isLoading && snapshot.hasData && snapshot.data!.data() != null) {
                     userData = snapshot.data!.data() as Map<String, dynamic>;
                   }
 
@@ -739,8 +740,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     photoUrl = freshUser?.photoURL;
                   }
 
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  return Skeletonizer(
+                    enabled: isLoading,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -907,6 +910,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         const SizedBox(height: 40),
                       ],
                     ),
+                  ),
                   );
                 }
             ),

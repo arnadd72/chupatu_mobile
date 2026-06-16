@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chupatu_mobile/main.dart'; // IMPORT TEMA
+import 'package:skeletonizer/skeletonizer.dart';
 
 class AdminReviewPage extends StatefulWidget {
   const AdminReviewPage({super.key});
@@ -136,13 +137,9 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                 return const Center(child: Text("Terjadi kesalahan sistem."));
               }
 
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+              final isLoading = snapshot.connectionState == ConnectionState.waiting;
 
-              final data = snapshot.requireData;
-
-              if (data.docs.isEmpty) {
+              if (!isLoading && snapshot.requireData.docs.isEmpty) {
                 return Center(
                   child: Text(
                     "Belum ada ulasan dari pelanggan.",
@@ -151,11 +148,22 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                 );
               }
 
-              return ListView.builder(
+              final docs = isLoading ? [] : snapshot.requireData.docs;
+
+              return Skeletonizer(
+                enabled: isLoading,
+                child: ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: data.docs.length,
+                itemCount: isLoading ? 3 : docs.length,
                 itemBuilder: (context, index) {
-                  var doc = data.docs[index];
+                  if (isLoading) {
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: const SizedBox(height: 150),
+                    );
+                  }
+                  var doc = docs[index];
                   var review = doc.data() as Map<String, dynamic>;
 
                   // =========================================================
@@ -316,6 +324,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                     ),
                   );
                 },
+              ),
               );
             },
           ),

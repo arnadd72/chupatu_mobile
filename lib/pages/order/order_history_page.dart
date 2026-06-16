@@ -9,6 +9,7 @@ import 'package:lottie/lottie.dart';
 import 'package:chupatu_mobile/main.dart';
 import 'package:chupatu_mobile/pages/order/order_detail_page.dart';
 import 'package:chupatu_mobile/pages/home/home_page.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 // 👉 TAMBAHAN: Untuk buka link pembayaran Mayar dari History
 import 'package:url_launcher/url_launcher.dart';
@@ -507,34 +508,45 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
           .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting)
-          return const Center(child: CircularProgressIndicator());
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+        if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty))
           return const Center(child: Text("Belum ada pesanan."));
 
-        final filteredDocs = snapshot.data!.docs.where((doc) {
+        var docs = isLoading ? [] : snapshot.data!.docs;
+        final filteredDocs = isLoading ? [] : docs.where((doc) {
           String status = (doc.data() as Map)['status'] ?? 'Pending';
           return isActive
               ? (status != 'Done' && status != 'Cancelled')
               : (status == 'Done' || status == 'Cancelled');
         }).toList();
 
-        if (filteredDocs.isEmpty)
+        if (!isLoading && filteredDocs.isEmpty)
           return const Center(child: Text("Belum ada pesanan."));
 
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 800),
-            child: ListView.separated(
-              padding: const EdgeInsets.only(
-                  top: 20, left: 20, right: 20, bottom: 100),
-              itemCount: filteredDocs.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                var document = filteredDocs[index];
-                return _buildPremiumCard(document.id,
-                    document.data() as Map<String, dynamic>, theme, isActive);
-              },
+            child: Skeletonizer(
+              enabled: isLoading,
+              child: ListView.separated(
+                padding: const EdgeInsets.only(
+                    top: 20, left: 20, right: 20, bottom: 100),
+                itemCount: isLoading ? 3 : filteredDocs.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 16),
+                itemBuilder: (context, index) {
+                  if (isLoading) {
+                    return _buildPremiumCard("dummy123", {
+                      "status": "Pending",
+                      "serviceName": "Deep Clean",
+                      "totalPrice": 50000,
+                      "shoeDetail": "Loading shoe data..."
+                    }, theme, isActive);
+                  }
+                  var document = filteredDocs[index];
+                  return _buildPremiumCard(document.id,
+                      document.data() as Map<String, dynamic>, theme, isActive);
+                },
+              ),
             ),
           ),
         );

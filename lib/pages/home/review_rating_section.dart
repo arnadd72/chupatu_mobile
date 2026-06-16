@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:chupatu_mobile/main.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 // ==============================================================
 // 1. WIDGET UNTUK DI HOME PAGE (Tampil Horizontal, Limit 5)
@@ -66,11 +67,8 @@ class ReviewRatingSection extends StatelessWidget {
                     .limit(5)
                     .snapshots(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                  if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) {
                     return Center(
                       child: Text(
                         "Belum ada ulasan.",
@@ -79,15 +77,46 @@ class ReviewRatingSection extends StatelessWidget {
                     );
                   }
 
-                  var reviews = snapshot.data!.docs;
+                  var reviews = isLoading ? [] : snapshot.data!.docs;
 
-                  return ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: reviews.length,
-                    separatorBuilder: (context, index) => const SizedBox(width: 16),
-                    itemBuilder: (context, index) {
-                      var data = reviews[index].data() as Map<String, dynamic>;
+                  return Skeletonizer(
+                    enabled: isLoading,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: isLoading ? 3 : reviews.length,
+                      separatorBuilder: (context, index) => const SizedBox(width: 16),
+                      itemBuilder: (context, index) {
+                        if (isLoading) {
+                          return Container(
+                            width: 260,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: theme.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    CircleAvatar(radius: 16, backgroundColor: Colors.grey.shade300),
+                                    const SizedBox(width: 12),
+                                    Container(width: 100, height: 14, color: Colors.grey.shade300),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Container(width: double.infinity, height: 12, color: Colors.grey.shade300),
+                                const SizedBox(height: 4),
+                                Container(width: 150, height: 12, color: Colors.grey.shade300),
+                              ],
+                            ),
+                          );
+                        }
+                        var data = reviews[index].data() as Map<String, dynamic>;
                       int rating = data['rating'] ?? 5;
 
                       return Container(
@@ -160,11 +189,12 @@ class ReviewRatingSection extends StatelessWidget {
                         ),
                       );
                     },
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
-          ],
+          ),
+        ],
         );
       },
     );
@@ -216,11 +246,8 @@ class AllReviewsPage extends StatelessWidget {
             body: StreamBuilder<QuerySnapshot>(
               stream: reviewStream,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                if (!isLoading && (!snapshot.hasData || snapshot.data!.docs.isEmpty)) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -236,10 +263,10 @@ class AllReviewsPage extends StatelessWidget {
                   );
                 }
 
-                var reviews = snapshot.data!.docs;
+                var reviews = isLoading ? [] : snapshot.data!.docs;
 
                 // 👉 TAMBAHAN: Urutkan manual khusus yang difilter biar gak error Firebase Index
-                if (serviceName != null) {
+                if (serviceName != null && !isLoading) {
                   reviews.sort((a, b) {
                     Timestamp? tA = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
                     Timestamp? tB = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
@@ -248,12 +275,47 @@ class AllReviewsPage extends StatelessWidget {
                   });
                 }
 
-                return ListView.separated(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: reviews.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) {
-                    var data = reviews[index].data() as Map<String, dynamic>;
+                return Skeletonizer(
+                  enabled: isLoading,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: isLoading ? 4 : reviews.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 16),
+                    itemBuilder: (context, index) {
+                      if (isLoading) {
+                        return Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: theme.surface,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  CircleAvatar(radius: 20, backgroundColor: Colors.grey.shade300),
+                                  const SizedBox(width: 12),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(width: 120, height: 14, color: Colors.grey.shade300),
+                                      const SizedBox(height: 4),
+                                      Container(width: 80, height: 10, color: Colors.grey.shade300),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Container(width: double.infinity, height: 12, color: Colors.grey.shade300),
+                              const SizedBox(height: 4),
+                              Container(width: double.infinity, height: 12, color: Colors.grey.shade300),
+                            ],
+                          ),
+                        );
+                      }
+                      var data = reviews[index].data() as Map<String, dynamic>;
                     int rating = data['rating'] ?? 5;
 
                     String dateStr = '';
@@ -319,6 +381,7 @@ class AllReviewsPage extends StatelessWidget {
                       ),
                     );
                   },
+                ),
                 );
               },
             ),

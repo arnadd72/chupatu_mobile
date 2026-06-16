@@ -118,7 +118,7 @@ class _RegisterPageState extends State<RegisterPage> {
             barrierDismissible: false,
             builder: (context) => AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Icon(Icons.mark_email_unread_rounded, size: 50, color: Color(0xFF0606F9)),
+              title: const Icon(Icons.mark_email_unread_rounded, size: 50, color: Color(0xFF22D3EE)),
               content: Text(
                 "Registrasi Berhasil!\n\nKami telah mengirimkan link verifikasi ke $email.\n\nSilakan cek inbox/spam email Anda dan klik link tersebut agar akun bisa digunakan.",
                 textAlign: TextAlign.center,
@@ -131,7 +131,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     // Pindah ke Login Page
                     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0606F9)),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF22D3EE)),
                   child: const Text("OK, Saya Mengerti", style: TextStyle(color: Colors.white)),
                 )
               ],
@@ -164,12 +164,12 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryBlue = Color(0xFF0606F9);
-    const Color accentCyan = Color(0xFF00D4FF);
-    const Color textDark = Color(0xFF0B0F19);
+    const Color primaryBlue = Color(0xFF22D3EE);
+    const Color accentCyan = Color(0xFF06B6D4);
+    const Color textDark = Color(0xFF083344);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: const Color(0xFFECFEFF),
       body: Stack(
         children: [
           // Background
@@ -230,9 +230,11 @@ class _RegisterPageState extends State<RegisterPage> {
                         child: Column(
                           children: [
                             Container(
-                              width: 60, height: 60,
-                              decoration: BoxDecoration(shape: BoxShape.circle, color: primaryBlue.withOpacity(0.1)),
-                              child: const Icon(Icons.person_add_alt_1_rounded, color: primaryBlue, size: 30),
+                              width: 70, height: 70,
+                              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: primaryBlue.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))]),
+                              child: Center(
+                                child: Image.asset('assets/images/logo.png', height: 40),
+                              ),
                             ),
                             const SizedBox(height: 16),
 
@@ -346,7 +348,7 @@ class _RegisterPageState extends State<RegisterPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(padding: const EdgeInsets.only(left: 8, bottom: 6), child: Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF0B0F19)))),
+        Padding(padding: const EdgeInsets.only(left: 8, bottom: 6), child: Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF083344)))),
         Container(
           decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(16)),
           child: TextField(
@@ -356,7 +358,7 @@ class _RegisterPageState extends State<RegisterPage> {
               prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 22), suffixIcon: suffix,
               hintText: 'Enter your $label', hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey.shade400, fontSize: 14),
               border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF0606F9), width: 1.5)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF22D3EE), width: 1.5)),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.transparent)),
             ),
           ),

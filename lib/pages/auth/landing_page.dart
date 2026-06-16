@@ -18,17 +18,17 @@ class _LandingPageState extends State<LandingPage> {
   // Data Onboarding
   final List<Map<String, String>> _onboardingData = [
     {
-      "image": "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=1000&auto=format&fit=crop",
+      "image": "assets/images/sepatu nike.jpg",
       "title": "Revive Your Sole",
       "desc": "Premium cleaning that restores factory freshness to your favorite kicks."
     },
     {
-      "image": "https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?q=80&w=1000&auto=format&fit=crop",
+      "image": "assets/images/sepatu-hitamputih.jpg",
       "title": "Fast Delivery",
       "desc": "Sit back and relax. We pick up and deliver your shoes straight to your door."
     },
     {
-      "image": "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=1000&auto=format&fit=crop",
+      "image": "assets/images/sepatu-running.jpg",
       "title": "Best Quality",
       "desc": "We use premium materials and techniques to ensure your shoes look brand new."
     },
@@ -52,10 +52,10 @@ class _LandingPageState extends State<LandingPage> {
   @override
   Widget build(BuildContext context) {
     // === PALET WARNA CERAH (LIGHT THEME) ===
-    const Color primaryBlue = Color(0xFF0606F9); 
-    const Color accentCyan = Color(0xFF00D4FF);
-    const Color backgroundLight = Color(0xFFF0F2F5); // Putih Abu Cerah
-    const Color textDark = Color(0xFF0B0F19); // Hitam Elegan
+    const Color primaryBlue = Color(0xFF22D3EE); 
+    const Color accentCyan = Color(0xFF06B6D4);
+    const Color backgroundLight = Color(0xFFECFEFF); // Putih Abu Cerah
+    const Color textDark = Color(0xFF083344); // Hitam Elegan
 
     return Scaffold(
       backgroundColor: backgroundLight,
@@ -143,7 +143,7 @@ class _LandingPageState extends State<LandingPage> {
                                   Container(
                                     decoration: BoxDecoration(
                                       image: DecorationImage(
-                                        image: NetworkImage(_onboardingData[index]['image']!),
+                                        image: AssetImage(_onboardingData[index]['image']!),
                                         fit: BoxFit.cover,
                                       ),
                                     ),
@@ -160,7 +160,7 @@ class _LandingPageState extends State<LandingPage> {
                                         child: Container(
                                           padding: const EdgeInsets.all(10),
                                           decoration: BoxDecoration(
-                                            gradient: const LinearGradient(colors: [Colors.white, Color(0xFFF0F2F5)]),
+                                            gradient: const LinearGradient(colors: [Colors.white, Color(0xFFECFEFF)]),
                                             borderRadius: BorderRadius.circular(14),
                                             boxShadow: [
                                               BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
@@ -345,13 +345,8 @@ class _LandingPageState extends State<LandingPage> {
                       children: [
                          // Logo
                         Image.asset(
-                          'assets/images/Login.png',
+                          'assets/images/logo.png',
                           height: 32,
-                           errorBuilder: (context, error, stackTrace) => const Icon(
-                            Icons.checkroom_rounded,
-                            color: primaryBlue,
-                            size: 32,
-                          ),
                         ),
                         const SizedBox(width: 10),
                         Text('Chupatu', style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
